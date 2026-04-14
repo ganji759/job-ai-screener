@@ -1,0 +1,25 @@
+import "./globals.css";
+import { Toaster } from "react-hot-toast";
+import { Providers } from "./providers";
+import { ToastStack } from "../components/ui/Toast";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>
+          {children}
+          <ToastStack />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              className: "!rounded-2xl !border !border-brand-200 !bg-white !text-slate-800 !shadow-brand",
+              success: { iconTheme: { primary: "#2563eb", secondary: "#ffffff" } },
+              error: { iconTheme: { primary: "#dc2626", secondary: "#ffffff" } },
+            }}
+          />
+        </Providers>
+      </body>
+    </html>
+  );
+}

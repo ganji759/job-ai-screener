@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "../src/styles/globals.css";
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply min-h-screen text-slate-900;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #eff6ff 100%);
+    transition: background 220ms ease, color 220ms ease;
+  }
+
+  html[data-theme="midnight"] body,
+  html.dark body {
+    color: #e2e8f0;
+    background: linear-gradient(135deg, #020617 0%, #0f172a 55%, #1e3a8a 100%);
+  }
+}
