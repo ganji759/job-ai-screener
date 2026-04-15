@@ -1,4 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { config as loadEnv } from "dotenv";
+
+// Ensure local development/tests can read GEMINI_API_KEY from repository .env.
+loadEnv();
 
 const apiKey = process.env.GEMINI_API_KEY;
 
