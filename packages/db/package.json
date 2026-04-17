@@ -2,7 +2,11 @@
   "name": "@umurava/db",
   "version": "0.0.1",
   "description": "MongoDB schemas and types for Umurava AI Talent Screener",
+  "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "types": "src/index.ts",
   "scripts": {
     "lint": "tsc --noEmit",

@@ -2,11 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import pinoHttp from 'pino-http';
 import mongoose from 'mongoose';
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { errorHandler } from './middleware/error.js';
 import { jobsRouter } from './routes/jobs.js';
 import { applicantsRouter } from './routes/applicants.js';
 import { screeningsRouter, jobScreeningsRouter } from './routes/screenings.js';
 import { logger } from './lib/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+loadEnv({ path: path.resolve(__dirname, '../../../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,7 +64,7 @@ async function start() {
       logger.info(`API server listening on port ${PORT}`);
     });
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
