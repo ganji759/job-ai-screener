@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { runScreening } from '@umurava/ai';
 import { ScreeningRunModel, JobModel, ApplicantModel, ScreeningResultModel } from '@umurava/db';
-import { redis } from '../lib/redis.js';
+import { redisWorker } from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
 import type { Job as JobType } from '@umurava/db';
 
@@ -65,7 +65,7 @@ export const screeningWorker = new Worker<ScreeningJobData>(
     }
   },
   {
-    connection: redis,
+    connection: redisWorker,
     concurrency: 3,
   }
 );

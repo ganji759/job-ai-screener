@@ -6,6 +6,7 @@ export { buildNormalisePrompt } from "./prompts/normalise.prompt";
 export { geminiNormalise } from "./normalise";
 export { mergeAndRank } from "./merger";
 export { runScreening } from "./screening";
+export { ParsedProfileSchema } from "./schemas";
 
 // Types
 export type {
