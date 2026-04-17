@@ -2,7 +2,7 @@
 
 ## Stack
 - `@google/generative-ai` — official Gemini SDK
-- Gemini 1.5 Flash — fast + cost-effective for batch candidate evaluation
+- **Gemini 1.5 Flash** — high-performance model with 1M token context and low latency
 - `zod` — validate all Gemini JSON output before touching DB
 - No other ML frameworks needed for this scope
 
@@ -36,12 +36,23 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+// Gemini 1.5 Flash - high-performance model for scale
 export const flashModel = genAI.getGenerativeModel({
   model: "gemini-1.5-flash",
   generationConfig: {
     responseMimeType: "application/json", // force JSON mode
     temperature: 0.1,                     // low temp for consistent scoring
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,                // increased for larger batches
+  },
+});
+
+// For complex evaluations requiring deeper reasoning
+export const proModel = genAI.getGenerativeModel({
+  model: "gemini-1.5-pro",
+  generationConfig: {
+    responseMimeType: "application/json",
+    temperature: 0.2,                     // slightly higher for nuanced evaluation
+    maxOutputTokens: 8192,
   },
 });
 ```
@@ -219,7 +230,7 @@ export async function runScreening({
         gaps: r.gaps,
         recommendation: r.recommendation,
       },
-      model_version: "gemini-1.5-flash",
+      model_version: "gemini-2.0-flash",
     }))
   );
 }
@@ -283,7 +294,8 @@ import { buildNormalisePrompt } from "./prompts/normalise.prompt";
 import { ParsedProfileSchema, ParsedProfile } from "./schemas";
 
 export async function geminiNormalise(rawText: string): Promise<ParsedProfile> {
-  const prompt = buildNormalisePrompt(rawText.slice(0, 8000));
+  // Gemini 2.0 Flash supports up to 1M tokens - can handle full resume text
+  const prompt = buildNormalisePrompt(rawText.slice(0, 50000));
   const result = await flashModel.generateContent(prompt);
   const raw = result.response.text();
   return ParsedProfileSchema.parse(JSON.parse(raw));
