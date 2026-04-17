@@ -1,7 +1,14 @@
 import mongoose from 'mongoose';
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { screeningWorker } from './queue/screening.processor.js';
 import { logger } from './lib/logger.js';
-import { redis } from './lib/redis.js';
+import { redis, redisWorker } from './lib/redis.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+loadEnv({ path: path.resolve(__dirname, '../../../.env') });
 
 async function start() {
   try {
@@ -14,13 +21,14 @@ async function start() {
     }
 
     logger.info('Screening worker started');
-    logger.info(`Redis connection: ${redis.options.host ?? 'localhost'}:${redis.options.port ?? 6379}`);
+    logger.info(`Redis connection: ${redisWorker.options.host ?? 'localhost'}:${redisWorker.options.port ?? 6379}`);
 
     // Keep the worker running
     process.on('SIGINT', async () => {
       logger.info('Shutting down worker...');
       await screeningWorker.close();
       await redis.quit();
+      await redisWorker.quit();
       await mongoose.disconnect();
       process.exit(0);
     });

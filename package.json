@@ -1,0 +1,49 @@
+{
+  "name": "umurava-hr-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "worker": "tsx src/workers/screening.worker.ts",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "latest",
+    "@fastify/helmet": "latest",
+    "@fastify/multipart": "latest",
+    "@fastify/rate-limit": "latest",
+    "@fastify/websocket": "latest",
+    "@google/generative-ai": "latest",
+    "bcrypt": "latest",
+    "bull": "latest",
+    "csv-parse": "latest",
+    "dotenv": "^17.4.2",
+    "fastify": "latest",
+    "ioredis": "latest",
+    "jsonwebtoken": "latest",
+    "mongoose": "latest",
+    "nodemailer": "latest",
+    "pdf-parse": "latest",
+    "pdfkit": "latest",
+    "pino": "latest",
+    "xlsx": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "latest",
+    "@types/jsonwebtoken": "latest",
+    "@types/node": "latest",
+    "@types/nodemailer": "latest",
+    "@types/pdf-parse": "latest",
+    "@types/pdfkit": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
+    "eslint": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

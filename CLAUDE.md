@@ -1,3 +1,8 @@
+---
+description: 
+alwaysApply: true
+---
+
 # Umurava AI Talent Screener — Project Root
 
 ## What you are building
