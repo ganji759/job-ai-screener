@@ -53,11 +53,13 @@ Engineer with 9 years building scalable distributed systems.
   const profile = await geminiNormalise(resume);
 
   console.log('✅ Normalised profile:');
-  console.log(`   Name: ${profile.name}`);
-  console.log(`   Experience: ${profile.experience_years} years`);
-  console.log(`   Skills: ${profile.skills.slice(0, 5).join(', ')}...`);
-  console.log(`   Education: ${profile.education}`);
-  console.log(`   Summary: ${profile.summary.substring(0, 80)}...\n`);
+  console.log(`   Name: ${profile.firstName} ${profile.lastName}`);
+  console.log(`   Headline: ${profile.headline}`);
+  console.log(`   Location: ${profile.location}`);
+  console.log(`   Skills: ${profile.skills.slice(0, 5).map(s => `${s.name} (${s.level})`).join(', ')}...`);
+  console.log(`   Experience roles: ${profile.experience.map(e => e.role).join(', ')}`);
+  console.log(`   Education: ${profile.education.map(e => `${e.degree} @ ${e.institution}`).join(', ')}`);
+  console.log(`   Availability: ${profile.availability.status} · ${profile.availability.type}\n`);
 
   return profile;
 }
@@ -72,7 +74,7 @@ async function testCandidateScreening() {
     requirements: {
       skills: ['TypeScript', 'Node.js', 'PostgreSQL'],
       experience_years: 5,
-      education_level: 'Bachelor\'s degree',
+      education_level: "Bachelor's degree",
       nice_to_have: ['AWS', 'Docker'],
     },
     scoring_weights: {
@@ -89,11 +91,50 @@ async function testCandidateScreening() {
       job_id: job._id,
       source: 'resume_pdf' as const,
       parsed_profile: {
-        name: 'Alice Developer',
-        skills: ['TypeScript', 'Node.js', 'React', 'PostgreSQL', 'AWS'],
-        experience_years: 7,
-        education: 'BS Computer Science',
-        summary: 'Senior full-stack developer with strong TypeScript expertise',
+        firstName: 'Alice',
+        lastName: 'Developer',
+        email: 'alice@example.com',
+        headline: 'Senior Full-Stack Engineer – TypeScript & Node.js',
+        location: 'Kigali, Rwanda',
+        skills: [
+          { name: 'TypeScript', level: 'Expert', yearsOfExperience: 7 },
+          { name: 'Node.js', level: 'Expert', yearsOfExperience: 7 },
+          { name: 'React', level: 'Advanced', yearsOfExperience: 5 },
+          { name: 'PostgreSQL', level: 'Advanced', yearsOfExperience: 4 },
+          { name: 'AWS', level: 'Intermediate', yearsOfExperience: 3 },
+        ],
+        experience: [
+          {
+            company: 'TechCorp',
+            role: 'Senior Engineer',
+            startDate: '2019-03',
+            endDate: 'Present',
+            description: 'Led backend services with TypeScript, scaled APIs to 10M requests/day.',
+            technologies: ['TypeScript', 'Node.js', 'PostgreSQL', 'AWS'],
+            isCurrent: true,
+          },
+        ],
+        education: [
+          {
+            institution: 'University of Rwanda',
+            degree: "Bachelor's",
+            fieldOfStudy: 'Computer Science',
+            startYear: 2012,
+            endYear: 2016,
+          },
+        ],
+        projects: [
+          {
+            name: 'Open Source API Gateway',
+            description: 'High-performance API gateway built with Node.js and TypeScript.',
+            technologies: ['TypeScript', 'Node.js', 'Redis'],
+            role: 'Author',
+            link: 'https://github.com/alice/api-gateway',
+            startDate: '2021-01',
+            endDate: '2022-06',
+          },
+        ],
+        availability: { status: 'Available', type: 'Full-time' },
       },
     },
     {
@@ -101,11 +142,38 @@ async function testCandidateScreening() {
       job_id: job._id,
       source: 'upload_csv' as const,
       parsed_profile: {
-        name: 'Bob Coder',
-        skills: ['Python', 'Django', 'PostgreSQL'],
-        experience_years: 3,
-        education: 'BS Information Technology',
-        summary: 'Backend developer transitioning to TypeScript',
+        firstName: 'Bob',
+        lastName: 'Coder',
+        email: 'bob@example.com',
+        headline: 'Backend Developer – Python & Django',
+        location: 'Nairobi, Kenya',
+        skills: [
+          { name: 'Python', level: 'Advanced', yearsOfExperience: 4 },
+          { name: 'Django', level: 'Advanced', yearsOfExperience: 3 },
+          { name: 'PostgreSQL', level: 'Intermediate', yearsOfExperience: 2 },
+        ],
+        experience: [
+          {
+            company: 'StartupKE',
+            role: 'Backend Developer',
+            startDate: '2021-06',
+            endDate: 'Present',
+            description: 'Built REST APIs with Django, transitioning to TypeScript.',
+            technologies: ['Python', 'Django', 'PostgreSQL'],
+            isCurrent: true,
+          },
+        ],
+        education: [
+          {
+            institution: 'Strathmore University',
+            degree: "Bachelor's",
+            fieldOfStudy: 'Information Technology',
+            startYear: 2017,
+            endYear: 2021,
+          },
+        ],
+        projects: [],
+        availability: { status: 'Open to Opportunities', type: 'Full-time' },
       },
     },
     {
@@ -113,11 +181,49 @@ async function testCandidateScreening() {
       job_id: job._id,
       source: 'umurava_platform' as const,
       parsed_profile: {
-        name: 'Charlie Engineer',
-        skills: ['TypeScript', 'Go', 'Kubernetes', 'AWS'],
-        experience_years: 10,
-        education: 'MS Computer Science',
-        summary: 'Infrastructure engineer with full-stack experience',
+        firstName: 'Charlie',
+        lastName: 'Engineer',
+        email: 'charlie@example.com',
+        headline: 'Infrastructure & Full-Stack Engineer – TypeScript, Go, Kubernetes',
+        location: 'Lagos, Nigeria',
+        skills: [
+          { name: 'TypeScript', level: 'Advanced', yearsOfExperience: 6 },
+          { name: 'Go', level: 'Expert', yearsOfExperience: 8 },
+          { name: 'Kubernetes', level: 'Expert', yearsOfExperience: 5 },
+          { name: 'AWS', level: 'Expert', yearsOfExperience: 7 },
+        ],
+        experience: [
+          {
+            company: 'CloudCo',
+            role: 'Principal Engineer',
+            startDate: '2016-01',
+            endDate: 'Present',
+            description: 'Designed cloud infrastructure and full-stack services for enterprise clients.',
+            technologies: ['TypeScript', 'Go', 'Kubernetes', 'AWS'],
+            isCurrent: true,
+          },
+        ],
+        education: [
+          {
+            institution: 'University of Lagos',
+            degree: "Master's",
+            fieldOfStudy: 'Computer Science',
+            startYear: 2012,
+            endYear: 2014,
+          },
+        ],
+        projects: [
+          {
+            name: 'K8s Autoscaler Plugin',
+            description: 'Kubernetes plugin for ML-driven pod autoscaling.',
+            technologies: ['Go', 'Kubernetes', 'Prometheus'],
+            role: 'Lead Engineer',
+            link: 'https://github.com/charlie/k8s-autoscaler',
+            startDate: '2020-03',
+            endDate: '2021-09',
+          },
+        ],
+        availability: { status: 'Open to Opportunities', type: 'Full-time' },
       },
     },
   ];
@@ -138,7 +244,10 @@ async function testCandidateScreening() {
 
   results.forEach((r, idx) => {
     const applicant = applicants.find(a => a._id === r.applicant_id);
-    console.log(`\n#${idx + 1}: ${applicant?.parsed_profile.name}`);
+    const name = applicant
+      ? `${applicant.parsed_profile.firstName} ${applicant.parsed_profile.lastName}`
+      : r.applicant_id;
+    console.log(`\n#${idx + 1}: ${name}`);
     console.log(`    Score: ${r.composite_score}/100`);
     console.log(`    Recommendation: ${r.reasoning.recommendation}`);
     console.log(`    Strengths: ${r.reasoning.strengths.join(', ')}`);
@@ -154,7 +263,6 @@ async function testCandidateScreening() {
 async function testMergeAndRank() {
   console.log('📊 Testing Cross-Batch Normalisation...\n');
 
-  // Simulate results from two different batches
   const batch1Results = [
     {
       applicant_id: 'a1',
@@ -227,16 +335,9 @@ async function main() {
   }
 
   try {
-    // Test 1: API Connection
     await testGeminiConnection();
-
-    // Test 2: Resume Normalisation
     await testResumeNormalisation();
-
-    // Test 3: Candidate Screening
     await testCandidateScreening();
-
-    // Test 4: Cross-batch normalisation
     await testMergeAndRank();
 
     console.log('═'.repeat(70));

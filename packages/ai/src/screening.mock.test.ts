@@ -39,9 +39,43 @@ describe('runScreening Mock Test', () => {
     const mockApplicants: Applicant[] = [
       {
         _id: 'app_abc',
-        parsed_profile: { name: 'Alice', skills: ['TS'], experience_years: 6 },
+        job_id: 'job_123',
+        source: 'umurava_platform',
+        parsed_profile: {
+          firstName: 'Alice',
+          lastName: 'Dev',
+          email: 'alice@example.com',
+          headline: 'Senior TypeScript Engineer',
+          location: 'Kigali, Rwanda',
+          skills: [
+            { name: 'TypeScript', level: 'Expert', yearsOfExperience: 6 },
+            { name: 'Node.js', level: 'Advanced', yearsOfExperience: 5 },
+          ],
+          experience: [
+            {
+              company: 'TechCorp',
+              role: 'Senior Engineer',
+              startDate: '2018-01',
+              endDate: 'Present',
+              description: 'Built scalable backend services.',
+              technologies: ['TypeScript', 'Node.js'],
+              isCurrent: true,
+            },
+          ],
+          education: [
+            {
+              institution: 'UR',
+              degree: "Bachelor's",
+              fieldOfStudy: 'Computer Science',
+              startYear: 2014,
+              endYear: 2018,
+            },
+          ],
+          projects: [],
+          availability: { status: 'Available', type: 'Full-time' },
+        },
       },
-    ] as any;
+    ];
 
     // Simulate a valid Gemini JSON response
     const mockGeminiResponse = {

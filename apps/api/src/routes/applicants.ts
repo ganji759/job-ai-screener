@@ -6,12 +6,75 @@ import { createApplicants, getApplicantsByJob, uploadResumes } from '../services
 
 const router: ExpressRouter = Router({ mergeParams: true });
 
-const ParsedProfileSchema = z.object({
+const SkillSchema = z.object({
   name: z.string(),
-  skills: z.array(z.string()),
-  experience_years: z.number().int().min(0),
-  education: z.string(),
-  summary: z.string().max(500),
+  level: z.enum(['Beginner', 'Intermediate', 'Advanced', 'Expert']),
+  yearsOfExperience: z.number().int().min(0),
+});
+
+const LanguageSchema = z.object({
+  name: z.string(),
+  proficiency: z.enum(['Basic', 'Conversational', 'Fluent', 'Native']),
+});
+
+const WorkExperienceSchema = z.object({
+  company: z.string(),
+  role: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  description: z.string(),
+  technologies: z.array(z.string()).default([]),
+  isCurrent: z.boolean(),
+});
+
+const EducationEntrySchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  fieldOfStudy: z.string(),
+  startYear: z.number().int(),
+  endYear: z.number().int(),
+});
+
+const CertificationSchema = z.object({
+  name: z.string(),
+  issuer: z.string(),
+  issueDate: z.string(),
+});
+
+const ProjectSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  technologies: z.array(z.string()).default([]),
+  role: z.string(),
+  link: z.string().optional(),
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+const AvailabilitySchema = z.object({
+  status: z.enum(['Available', 'Open to Opportunities', 'Not Available']),
+  type: z.enum(['Full-time', 'Part-time', 'Contract']),
+  startDate: z.string().optional(),
+});
+
+const ParsedProfileSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().email(),
+  headline: z.string(),
+  bio: z.string().optional(),
+  location: z.string(),
+  skills: z.array(SkillSchema),
+  languages: z.array(LanguageSchema).default([]),
+  experience: z.array(WorkExperienceSchema),
+  education: z.array(EducationEntrySchema),
+  certifications: z.array(CertificationSchema).default([]),
+  projects: z.array(ProjectSchema),
+  availability: AvailabilitySchema,
+  socialLinks: z
+    .object({ linkedin: z.string().optional(), github: z.string().optional(), portfolio: z.string().optional() })
+    .catchall(z.string().optional())
+    .optional(),
 });
 
 const CreateApplicantsSchema = z.object({

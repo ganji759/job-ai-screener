@@ -1,9 +1,56 @@
 import type { Job, ParsedProfile } from "../../../db/src/types";
 
+function summariseCandidate(i: number, c: ParsedProfile): string {
+  const skillLines = c.skills
+    .slice(0, 8)
+    .map((s) => `${s.name} (${s.level}, ${s.yearsOfExperience}yr)`)
+    .join(", ");
+
+  const expLines = c.experience
+    .slice(0, 4)
+    .map((e) => `  - ${e.role} @ ${e.company} (${e.startDate}–${e.endDate}): ${e.description.slice(0, 120)}`)
+    .join("\n");
+
+  const eduLines = c.education
+    .slice(0, 2)
+    .map((e) => `${e.degree} in ${e.fieldOfStudy} @ ${e.institution} (${e.endYear})`)
+    .join(" | ");
+
+  const certLines = (c.certifications ?? [])
+    .slice(0, 3)
+    .map((cert) => `${cert.name} (${cert.issuer})`)
+    .join(", ");
+
+  const projectLines = c.projects
+    .slice(0, 3)
+    .map((p) => `  - ${p.name}: ${p.description.slice(0, 100)} [${p.technologies.slice(0, 4).join(", ")}]`)
+    .join("\n");
+
+  return [
+    `### Candidate ${i} (index: ${i})`,
+    `Name: ${c.firstName} ${c.lastName}`,
+    `Headline: ${c.headline}`,
+    `Location: ${c.location}`,
+    `Availability: ${c.availability.status} · ${c.availability.type}`,
+    `Skills: ${skillLines || "none listed"}`,
+    `Experience:\n${expLines || "  none listed"}`,
+    `Education: ${eduLines || "not specified"}`,
+    certLines ? `Certifications: ${certLines}` : "",
+    projectLines ? `Projects:\n${projectLines}` : "",
+    c.bio ? `Bio: ${c.bio.slice(0, 200)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildScreeningPrompt(
   job: Job,
   candidates: ParsedProfile[],
 ): string {
+  const candidateBlocks = candidates
+    .map((c, i) => summariseCandidate(i, c))
+    .join("\n\n");
+
   return `You are a senior technical recruiter. Evaluate each candidate strictly and objectively.
 Return ONLY a JSON object — no markdown, no explanation, no extra keys.
 
@@ -20,20 +67,21 @@ experience: ${job.scoring_weights.experience}
 education: ${job.scoring_weights.education}
 cultural_fit: ${job.scoring_weights.cultural_fit}
 
-composite_score = (skills_score * ${job.scoring_weights.skills}) +
-                  (experience_score * ${job.scoring_weights.experience}) +
-                  (education_score * ${job.scoring_weights.education}) +
-                  (cultural_fit_score * ${job.scoring_weights.cultural_fit})
+composite_score = (skills_score × ${job.scoring_weights.skills}) +
+                  (experience_score × ${job.scoring_weights.experience}) +
+                  (education_score × ${job.scoring_weights.education}) +
+                  (cultural_fit_score × ${job.scoring_weights.cultural_fit})
 
 ## Scoring rubric
-skills:       0=none of the required skills | 50=half | 100=all + extras
-experience:   0=no experience | 50=at threshold | 100=2x+ threshold
-education:    0=below requirement | 70=meets requirement | 100=exceeds
-cultural_fit: infer from summary tone, volunteer work, side projects
+skills:       0=none of the required skills | 50=half matched | 100=all required + extras
+              Weight skill level: Expert/Advanced > Intermediate > Beginner
+experience:   0=no relevant experience | 50=at minimum threshold | 100=2× threshold or more
+              Derive total years from role date ranges; favour roles with matching technologies
+education:    0=below requirement | 70=meets requirement | 100=exceeds (higher degree / related field)
+cultural_fit: infer from bio, headline, side projects, open-source work, and breadth of portfolio
 
 ## Candidates (${candidates.length} total)
-${candidates.map((c, i) => `### Candidate ${i} (index: ${i})
-${JSON.stringify(c, null, 2)}`).join("\n\n")}
+${candidateBlocks}
 
 ## Required JSON output schema
 {
