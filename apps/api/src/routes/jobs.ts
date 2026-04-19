@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Router as ExpressRouter } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import {
@@ -9,7 +9,7 @@ import {
   deleteJob,
 } from '../services/job.service.js';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 const CreateJobSchema = z.object({
   title: z.string().min(1),
@@ -36,8 +36,8 @@ router.post('/', validate(CreateJobSchema), async (req, res) => {
 
 // GET /api/jobs - List jobs
 router.get('/', async (req, res) => {
-  const limit = parseInt(req.query.limit as string, 10) || 20;
-  const offset = parseInt(req.query.offset as string, 10) || 0;
+  const limit = parseInt(req.query['limit'] as string, 10) || 20;
+  const offset = parseInt(req.query['offset'] as string, 10) || 0;
 
   const { jobs, total } = await listJobs(limit, offset);
 
@@ -65,7 +65,7 @@ router.get('/:jobId', async (req, res) => {
 
 // PATCH /api/jobs/:jobId - Update job
 router.patch('/:jobId', validate(CreateJobSchema.partial()), async (req, res) => {
-  const job = await updateJob(req.params.jobId, req.body);
+  const job = await updateJob(req.params['jobId'] as string, req.body);
   res.json({ data: job, error: null });
 });
 

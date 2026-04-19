@@ -7,12 +7,14 @@ export { JobModel } from "./models/job.model";
 export { ApplicantModel } from "./models/applicant.model";
 export { ScreeningRunModel } from "./models/screening-run.model";
 export { ScreeningResultModel } from "./models/screening-result.model";
-export type { IJob as Job } from "./models/job.model";
-export type { IApplicant as Applicant } from "./models/applicant.model";
-export type { IScreeningRun as ScreeningRun } from "./models/screening-run.model";
-export type { IScreeningResult as ScreeningResult } from "./models/screening-result.model";
 
-// Export shared types
+// Export model document interfaces (Mongoose Document types)
+export type { IJob } from "./models/job.model";
+export type { IApplicant } from "./models/applicant.model";
+export type { IScreeningRun } from "./models/screening-run.model";
+export type { IScreeningResult } from "./models/screening-result.model";
+
+// Export lean plain-object types (safe for cross-service use and lean() results)
 export type {
   ParsedProfile,
   ScoringWeights,

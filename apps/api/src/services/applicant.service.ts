@@ -1,4 +1,5 @@
-import { Applicant, ApplicantModel, JobModel } from '@umurava/db';
+import { ApplicantModel, JobModel } from '@umurava/db';
+import type { Applicant, ParsedProfile } from '@umurava/db';
 import { AppError } from '../lib/errors.js';
 import { parsePDF, parseCSV } from './ingestion.service.js';
 
@@ -13,14 +14,14 @@ export async function createApplicants(input: CreateApplicantInput): Promise<App
     throw new AppError('JOB_NOT_FOUND', `Job ${input.jobId} not found`);
   }
 
-  const applicants = input.profiles.map((profile) => ({
+  const docs = input.profiles.map((profile) => ({
     job_id: input.jobId,
     parsed_profile: profile,
     source: 'umurava_platform' as const,
   }));
 
-  const created = await ApplicantModel.insertMany(applicants);
-  return created;
+  const created = await ApplicantModel.insertMany(docs);
+  return created as unknown as Applicant[];
 }
 
 export async function getApplicantsByJob(
@@ -33,7 +34,7 @@ export async function getApplicantsByJob(
     .limit(limit)
     .skip(offset)
     .lean();
-  return { applicants, total };
+  return { applicants: applicants as unknown as Applicant[], total };
 }
 
 export async function uploadResumes(
@@ -49,7 +50,7 @@ export async function uploadResumes(
     files.map(async (file) => {
       const ext = file.originalname.toLowerCase().match(/\.[a-z]+$/)?.[0];
       if (ext === '.pdf') {
-        const profile = await parsePDF(file.buffer);
+        const profile = await parsePDF(file.buffer, file.originalname);
         return [{ parsed_profile: profile, source: 'resume_pdf' as const }];
       }
       if (ext === '.csv') {
@@ -63,12 +64,12 @@ export async function uploadResumes(
     })
   );
 
-  const applicants = parsed.flat().map((item) => ({
+  const docs = parsed.flat().map((item) => ({
     job_id: jobId,
     parsed_profile: item.parsed_profile,
     source: item.source,
   }));
 
-  const created = await ApplicantModel.insertMany(applicants);
-  return created;
+  const created = await ApplicantModel.insertMany(docs);
+  return created as unknown as Applicant[];
 }

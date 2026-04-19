@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Application } from 'express';
 import cors from 'cors';
 import pinoHttp from 'pino-http';
 import mongoose from 'mongoose';
@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 loadEnv({ path: path.resolve(__dirname, '../../../.env') });
 
-const app = express();
+const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware

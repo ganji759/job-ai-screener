@@ -1,14 +1,11 @@
-import pdfParse from 'pdf-parse';
 import Papa from 'papaparse';
-import { geminiNormalise } from '@umurava/ai';
+import { normalisePdf } from './ai.client.js';
 import type { ParsedProfile } from '@umurava/db';
 import { AppError } from '../lib/errors.js';
 
-export async function parsePDF(buffer: Buffer): Promise<ParsedProfile> {
-  const { text } = await pdfParse(buffer);
-  // Truncate aggressively to control prompt size and latency.
-  const truncated = text.slice(0, 8000);
-  return geminiNormalise(truncated);
+export async function parsePDF(buffer: Buffer, filename: string): Promise<ParsedProfile> {
+  // Delegate to Python AI service — pdfplumber handles multi-column resumes
+  return (await normalisePdf(buffer, filename)) as ParsedProfile;
 }
 
 export async function parseCSV(buffer: Buffer): Promise<ParsedProfile[]> {
