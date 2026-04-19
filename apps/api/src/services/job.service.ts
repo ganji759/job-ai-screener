@@ -1,4 +1,5 @@
-import { Job, JobModel, ScreeningRunModel } from '@umurava/db';
+import { JobModel, ScreeningRunModel } from '@umurava/db';
+import type { Job } from '@umurava/db';
 import { AppError } from '../lib/errors.js';
 
 interface CreateJobInput {
@@ -27,18 +28,18 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
   }
 
   const job = await JobModel.create(input);
-  return job;
+  return job as unknown as Job;
 }
 
 export async function getJobById(jobId: string): Promise<Job | null> {
   const job = await JobModel.findOne({ _id: jobId, is_deleted: false }).lean();
-  return job;
+  return job as unknown as Job | null;
 }
 
 export async function listJobs(limit = 20, offset = 0): Promise<{ jobs: Job[]; total: number }> {
   const total = await JobModel.countDocuments({ is_deleted: false });
   const jobs = await JobModel.find({ is_deleted: false }).limit(limit).skip(offset).lean();
-  return { jobs, total };
+  return { jobs: jobs as unknown as Job[], total };
 }
 
 export async function updateJob(jobId: string, updates: Partial<CreateJobInput>): Promise<Job> {
@@ -69,7 +70,7 @@ export async function updateJob(jobId: string, updates: Partial<CreateJobInput>)
   if (!job) {
     throw new AppError('JOB_NOT_FOUND', `Job ${jobId} not found`);
   }
-  return job;
+  return job as unknown as Job;
 }
 
 export async function deleteJob(jobId: string): Promise<void> {

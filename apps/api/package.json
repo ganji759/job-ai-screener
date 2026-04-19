@@ -12,18 +12,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
-    "@umurava/ai": "workspace:*",
     "@umurava/db": "workspace:*",
+    "axios": "^1.7.0",
     "bullmq": "^5.12.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.0.0",
+    "form-data": "^4.0.0",
     "ioredis": "^5.8.1",
     "mongoose": "^8.23.0",
     "multer": "^1.4.5-lts.1",
     "papaparse": "^5.4.1",
-    "pdf-parse": "^1.1.1",
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
     "zod": "^3.23.8"
@@ -34,7 +33,6 @@
     "@types/multer": "^1.4.11",
     "@types/node": "^20.11.0",
     "@types/papaparse": "^5.3.14",
-    "@types/pdf-parse": "^1.1.4",
     "esbuild": "^0.27.0",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3"

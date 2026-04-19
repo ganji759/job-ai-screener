@@ -1,13 +1,13 @@
-import { ScreeningRun, ScreeningRunModel, JobModel, ApplicantModel, ScreeningResultModel } from '@umurava/db';
+import { ScreeningRunModel, JobModel, ApplicantModel, ScreeningResultModel } from '@umurava/db';
+import type { IScreeningRun, Applicant } from '@umurava/db';
 import { screeningQueue } from '../queue/screening.queue.js';
 import { AppError } from '../lib/errors.js';
-import type { Job, Applicant } from '@umurava/db';
 
 interface StartScreeningInput {
   jobId: string;
 }
 
-export async function startScreening(input: StartScreeningInput): Promise<ScreeningRun> {
+export async function startScreening(input: StartScreeningInput): Promise<IScreeningRun> {
   const job = await JobModel.findOne({ _id: input.jobId, is_deleted: false });
   if (!job) {
     throw new AppError('JOB_NOT_FOUND', `Job ${input.jobId} not found`);
@@ -25,13 +25,10 @@ export async function startScreening(input: StartScreeningInput): Promise<Screen
     started_at: new Date(),
   });
 
-  // Queue the screening job
+  // Queue the screening job — worker fetches job/applicants from DB itself
   const jobData = {
     jobId: input.jobId,
     runId: screeningRun._id.toString(),
-    applicantIds: applicants.map((a) => a._id.toString()),
-    jobCriteria: job,
-    scoringWeights: job.scoring_weights,
   };
 
   const queueJob = await screeningQueue.add('screening', jobData, {
@@ -107,7 +104,7 @@ export async function getScreeningResults(runId: string): Promise<{
 
   const ranked = results.map((r, idx: number) => ({
     rank: idx + 1,
-    applicant: r.applicant_id as Applicant,
+    applicant: r.applicant_id as unknown as Applicant,
     composite_score: r.composite_score,
     dimension_scores: r.dimension_scores,
     strengths: r.reasoning.strengths,

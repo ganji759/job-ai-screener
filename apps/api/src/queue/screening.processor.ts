@@ -1,79 +1,87 @@
-import { Worker, Job } from 'bullmq';
-import { runScreening } from '@umurava/ai';
+import { Worker } from 'bullmq';
+import { runAiScreening } from '../services/ai.client.js';
 import { ScreeningRunModel, JobModel, ApplicantModel, ScreeningResultModel } from '@umurava/db';
 import { redisWorker } from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
-import type { Job as JobType } from '@umurava/db';
 
 interface ScreeningJobData {
   jobId: string;
   runId: string;
-  applicantIds: string[];
-  jobCriteria: JobType;
-  scoringWeights: {
-    skills: number;
-    experience: number;
-    education: number;
-    cultural_fit: number;
-  };
 }
 
 export const screeningWorker = new Worker<ScreeningJobData>(
   'screening',
-  async (job) => {
-    const { runId, applicantIds, jobCriteria, scoringWeights } = job.data;
-
-    logger.info(`Starting screening run ${runId} for job ${jobCriteria._id}`);
-
-    await ScreeningRunModel.findByIdAndUpdate(runId, { status: 'running' });
-
-    const applicants = await ApplicantModel.find({
-      _id: { $in: applicantIds },
-    }).lean();
+  async (queueJob) => {
+    const { runId, jobId } = queueJob.data;
 
     try {
-      const results = await runScreening({
-        job: jobCriteria,
-        applicants,
-        runId,
-        onBatchComplete: async (batchIdx, total) => {
-          const progress = Math.round((batchIdx / total) * 100);
-          await job.updateProgress(progress);
-          logger.info(`Screening ${runId}: batch ${batchIdx}/${total} (${progress}%)`);
-        },
+      await ScreeningRunModel.findByIdAndUpdate(runId, { status: 'running' });
+
+      // Gather payload for the Python AI service
+      const [job, applicants] = await Promise.all([
+        JobModel.findById(jobId).lean(),
+        ApplicantModel.find({ job_id: jobId }).lean(),
+      ]);
+
+      if (!job) throw new Error(`Job ${jobId} not found`);
+
+      await queueJob.updateProgress(10);
+
+      // One HTTP call to Python — Python handles batching internally
+      const { results } = await runAiScreening({
+        run_id: runId,
+        job,
+        applicants: applicants.map((a) => ({
+          _id: a._id,
+          parsed_profile: a.parsed_profile,
+        })),
       });
 
-      // Persist results to DB
-      await ScreeningResultModel.insertMany(results);
+      await queueJob.updateProgress(90);
+
+      // Persist ranked results
+      await ScreeningResultModel.insertMany(
+        results.map((r) => ({
+          screening_run_id: runId,
+          job_id: jobId,
+          applicant_id: r.applicant_id,
+          rank: r.rank,
+          composite_score: r.composite_score,
+          dimension_scores: r.dimension_scores,
+          reasoning: {
+            strengths: r.strengths,
+            gaps: r.gaps,
+            recommendation: r.recommendation,
+          },
+          model_version: 'gemini-1.5-flash',
+        })),
+        { ordered: false }
+      );
 
       await ScreeningRunModel.findByIdAndUpdate(runId, {
         status: 'complete',
         completed_at: new Date(),
       });
 
-      logger.info(`Screening run ${runId} completed successfully`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Screening run ${runId} failed:`, errorMessage);
-
+      await queueJob.updateProgress(100);
+      logger.info({ runId, count: results.length }, 'screening_complete');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error({ err, runId }, 'screening_failed');
       await ScreeningRunModel.findByIdAndUpdate(runId, {
         status: 'failed',
-        error: errorMessage,
+        error: msg,
       });
-
-      throw error;
+      throw err; // let BullMQ mark the job failed
     }
   },
-  {
-    connection: redisWorker,
-    concurrency: 3,
-  }
+  { connection: redisWorker, concurrency: 2 }
 );
 
 screeningWorker.on('error', (err) => {
-  logger.error('Worker error:', err);
+  logger.error({ err }, 'worker_error');
 });
 
 screeningWorker.on('failed', (job, err) => {
-  logger.error(`Job ${job?.id} failed:`, err.message);
+  logger.error({ jobId: job?.id, err: err.message }, 'job_failed');
 });
