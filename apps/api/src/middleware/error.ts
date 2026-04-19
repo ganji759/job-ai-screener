@@ -23,7 +23,7 @@ export const errorHandler = (
     });
   }
 
-  logger.error('Unknown error:', err);
+  logger.error({ err }, 'Unknown error');
   return res.status(500).json({
     data: null,
     error: { code: 'INTERNAL', message: 'Server error' },

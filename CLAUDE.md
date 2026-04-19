@@ -1,8 +1,3 @@
----
-description: 
-alwaysApply: true
----
-
 # Umurava AI Talent Screener — Project Root
 
 ## What you are building
@@ -15,11 +10,11 @@ explainability. Humans make final hiring decisions — AI is advisory only.
 ```
 /
 ├── apps/
-│   ├── web/          # Next.js 14 frontend  → see FRONTEND.md
-│   └── api/          # Node.js + TypeScript  → see BACKEND.md
+│   ├── web/          # Next.js 14 frontend          → see FRONTEND.md
+│   ├── api/          # Node.js + TypeScript backend → see BACKEND.md
+│   └── ai/           # Python + FastAPI AI service  → see AI_ML.md
 ├── packages/
-│   ├── ai/           # Gemini orchestration  → see AI_ML.md
-│   └── db/           # Mongo schemas/client  → see DATA.md
+│   └── db/           # Mongo schemas/client (TS)    → see DATA.md
 ├── CLAUDE.md         ← you are here
 ├── FRONTEND.md
 ├── BACKEND.md
@@ -32,57 +27,119 @@ explainability. Humans make final hiring decisions — AI is advisory only.
 |---|---|---|
 | Frontend | Next.js 14 (App Router) + Redux Toolkit + Tailwind | Required |
 | Backend | Node.js 20 + TypeScript strict | Required |
-| AI | Gemini 1.5 Flash (via `@google/generative-ai`) | Mandatory |
-| DB | MongoDB Atlas + Mongoose | Required |
+| AI service | Python 3.11 + FastAPI + `google-generativeai` | Full AI ecosystem |
+| DB | MongoDB Atlas + Mongoose (Node) / Motor (Python) | Required |
 | Queue | BullMQ + Redis (Upstash for prod) | Async AI jobs |
-| File parse | `pdf-parse` + `papaparse` | Resume/CSV ingestion |
+| File parse | `pdfplumber` (Python, for PDFs) + `papaparse` (Node, CSVs) | Production-grade |
+
+## Why a separate Python AI service
+- Gemini SDK is more mature in Python
+- `pdfplumber` handles multi-column resumes and tables far better than `pdf-parse`
+- `pydantic` gives stricter output validation than `zod` for LLM responses
+- Future extensions (embeddings, semantic matching, fine-tuning) are Python-native
+- The AI service is stateless — Node.js calls it over HTTP, scales independently
 
 ## Monorepo setup
 ```bash
 pnpm init
 pnpm add -D turbo typescript @types/node
-# each app has its own package.json
+# each JS/TS app has its own package.json
+# apps/ai/ has its own requirements.txt + Dockerfile
 ```
-`turbo.json` pipelines: `build` → `lint` → `test`
+`turbo.json` pipelines: `build` → `lint` → `test` (JS/TS apps only).
+Python app builds via Docker; tested with `pytest` locally.
 
 ## Environment variables (root `.env`)
 ```
+# Database
 MONGODB_URI=
+
+# AI service
 GEMINI_API_KEY=
+AI_SERVICE_URL=http://localhost:8000   # Node.js → Python bridge
+
+# Queue
 REDIS_URL=
+
+# App
 NEXTAUTH_SECRET=
-NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
-Never commit `.env`. Use `.env.example` with keys only.
+Never commit `.env`. Use `.env.example` with keys only. `GEMINI_API_KEY`
+is only set on the **Python AI service** — Node.js never touches it.
+
+## Service communication
+```
+Frontend (Next.js, :3000)
+      │  REST/JSON
+      ▼
+Backend API (Node.js, :4000)  ← CRUD, auth, file upload, queue orchestration
+      │  HTTP (internal)
+      ▼
+AI Service (Python, :8000)    ← Gemini calls, PDF parsing, ranking
+      │                          (stateless; reads/writes MongoDB)
+      ▼
+MongoDB Atlas
+```
+The backend API is the only service exposed publicly. The Python AI service
+is called over an internal network (Railway private networking in prod,
+localhost in dev).
 
 ## Shared conventions
-- TypeScript strict mode everywhere. No `any`. Use `unknown` + narrowing.
-- All inter-service data flows as typed DTOs defined in `packages/db/src/types/`.
-- Errors: never throw raw strings. Use typed `AppError` class with `code + message`.
-- All AI output validated with `zod` before writing to DB.
-- No `console.log` in production paths — use `pino` logger.
-- API responses always `{ data, error, meta }` envelope.
+- **TypeScript** (Node, Next): strict mode everywhere. No `any`. Use `unknown` + narrowing.
+- **Python** (AI service): type hints on every function, `pydantic` for all I/O schemas,
+  `ruff` + `mypy` in CI. No untyped dicts crossing service boundaries.
+- All inter-service data flows as typed DTOs:
+  - TS types in `packages/db/src/types/` (Node and Frontend)
+  - Pydantic models in `apps/ai/schemas.py` (Python)
+  - These two MUST mirror each other field-for-field
+- Errors:
+  - Node: typed `AppError` class with `code + message`
+  - Python: `HTTPException` with structured `detail`
+- All LLM output validated before writing to DB (pydantic in Python, zod in Node).
+- No `print` or `console.log` in production paths — use `pino` (Node) or `structlog` (Python).
+- API responses always `{ data, error, meta }` envelope (Node and Python both).
 
 ## Key architectural decisions
-1. Screening is async — API returns `screening_run_id` immediately, frontend polls
-   `GET /screenings/:id/status`. No 30-second spinners.
-2. Gemini is called in batches of 25 candidates max. Results are normalised
-   across batches with min-max before final ranking.
+1. Screening is async — Node API returns `screening_run_id` immediately.
+   Node's BullMQ worker calls the Python AI service, which processes the batch.
+   Frontend polls `GET /screenings/:id/status` every 3s.
+2. Gemini is called in batches of 25 candidates max (Python side).
+   Results are normalised across batches with min-max before final ranking.
 3. Screening results are immutable once written. Re-screening creates a new
    `screening_run_id`.
 4. Scoring weights are per-job and recruiter-configurable before triggering
    a screening run.
+5. Python AI service is stateless — it can be scaled horizontally behind a
+   load balancer if volume grows. All state lives in MongoDB.
 
 ## Commands
 ```bash
-pnpm dev          # start all apps in parallel via turbo
+# Root (JS/TS apps)
+pnpm dev          # start web + api via turbo
 pnpm build        # production build
-pnpm lint         # eslint + tsc --noEmit across all packages
-pnpm test         # vitest across all packages
+pnpm lint         # eslint + tsc --noEmit
+pnpm test         # vitest
+
+# Python AI service (apps/ai/)
+cd apps/ai
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000   # dev server
+pytest                                    # tests
+ruff check . && mypy .                    # lint + type check
+
+# Full stack dev (run in separate terminals)
+pnpm dev                                  # terminal 1: web + api
+cd apps/ai && uvicorn main:app --reload   # terminal 2: AI service
 ```
 
 ## Deployment targets
 - Frontend → Vercel (`apps/web`)
-- API + Queue worker → Railway (two services from `apps/api`)
+- Backend API + Queue worker → Railway (two services from `apps/api`)
+- **AI Service → Railway (Docker build from `apps/ai/`)**
 - DB → MongoDB Atlas M0 free tier
 - Redis → Upstash free tier
+
+Railway private networking wires Node.js → Python internally. The AI service
+URL in prod is `http://ai-service.railway.internal:8000` — never public.
