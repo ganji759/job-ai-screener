@@ -162,43 +162,111 @@ describe('Zod Schemas', () => {
   });
 
   describe('ParsedProfileSchema', () => {
-    it('should accept valid profile', () => {
-      const validProfile = {
-        name: 'John Doe',
-        skills: ['Python', 'TypeScript', 'React'],
-        experience_years: 5,
-        education: 'BS Computer Science',
-        summary: 'Experienced developer',
-      };
+    const validProfile = {
+      firstName: 'Jane',
+      lastName: 'Doe',
+      email: 'jane.doe@example.com',
+      headline: 'Senior Backend Engineer – Node.js & TypeScript',
+      bio: 'Experienced engineer with 6 years building distributed systems.',
+      location: 'Kigali, Rwanda',
+      skills: [
+        { name: 'TypeScript', level: 'Expert', yearsOfExperience: 6 },
+        { name: 'Node.js', level: 'Advanced', yearsOfExperience: 5 },
+      ],
+      languages: [{ name: 'English', proficiency: 'Native' }],
+      experience: [
+        {
+          company: 'TechCorp',
+          role: 'Senior Engineer',
+          startDate: '2020-01',
+          endDate: 'Present',
+          description: 'Led backend migration to microservices.',
+          technologies: ['TypeScript', 'Node.js'],
+          isCurrent: true,
+        },
+      ],
+      education: [
+        {
+          institution: 'University of Rwanda',
+          degree: "Bachelor's",
+          fieldOfStudy: 'Computer Science',
+          startYear: 2014,
+          endYear: 2018,
+        },
+      ],
+      projects: [
+        {
+          name: 'API Gateway',
+          description: 'Open-source API gateway.',
+          technologies: ['TypeScript'],
+          role: 'Author',
+          startDate: '2021-01',
+          endDate: '2022-06',
+        },
+      ],
+      availability: { status: 'Available', type: 'Full-time' },
+    };
 
+    it('should accept a fully valid profile', () => {
       const result = ParsedProfileSchema.safeParse(validProfile);
       expect(result.success).toBe(true);
     });
 
-    it('should reject summary over 500 chars', () => {
-      const invalidProfile = {
-        name: 'John Doe',
-        skills: ['Python'],
-        experience_years: 5,
-        education: 'BS',
-        summary: 'A'.repeat(501),
+    it('should accept a profile with optional fields omitted', () => {
+      const minimal = {
+        ...validProfile,
+        bio: undefined,
+        languages: undefined,
+        certifications: undefined,
+        socialLinks: undefined,
       };
+      const result = ParsedProfileSchema.safeParse(minimal);
+      expect(result.success).toBe(true);
+    });
 
-      const result = ParsedProfileSchema.safeParse(invalidProfile);
+    it('should reject an invalid skill level', () => {
+      const bad = {
+        ...validProfile,
+        skills: [{ name: 'TypeScript', level: 'Ninja', yearsOfExperience: 5 }],
+      };
+      const result = ParsedProfileSchema.safeParse(bad);
       expect(result.success).toBe(false);
     });
 
-    it('should reject negative experience years', () => {
-      const invalidProfile = {
-        name: 'John Doe',
-        skills: ['Python'],
-        experience_years: -1,
-        education: 'BS',
-        summary: 'Experienced',
+    it('should reject a negative yearsOfExperience on a skill', () => {
+      const bad = {
+        ...validProfile,
+        skills: [{ name: 'TypeScript', level: 'Expert', yearsOfExperience: -1 }],
       };
-
-      const result = ParsedProfileSchema.safeParse(invalidProfile);
+      const result = ParsedProfileSchema.safeParse(bad);
       expect(result.success).toBe(false);
+    });
+
+    it('should reject an invalid availability status', () => {
+      const bad = {
+        ...validProfile,
+        availability: { status: 'Busy', type: 'Full-time' },
+      };
+      const result = ParsedProfileSchema.safeParse(bad);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject an invalid language proficiency', () => {
+      const bad = {
+        ...validProfile,
+        languages: [{ name: 'French', proficiency: 'OK' }],
+      };
+      const result = ParsedProfileSchema.safeParse(bad);
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept extra social link keys beyond the known ones', () => {
+      const withExtra = {
+        ...validProfile,
+        socialLinks: { linkedin: 'https://linkedin.com/in/jane', twitter: 'https://twitter.com/jane' },
+      };
+      const result = ParsedProfileSchema.safeParse(withExtra);
+      expect(result.success).toBe(true);
     });
   });
 });
