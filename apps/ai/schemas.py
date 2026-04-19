@@ -1,7 +1,11 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal
+from typing import Literal, Optional
 
 Recommendation = Literal["Strong hire", "Consider", "Reject"]
+SkillLevel = Literal["Beginner", "Intermediate", "Advanced", "Expert"]
+LanguageProficiency = Literal["Basic", "Conversational", "Fluent", "Native"]
+AvailabilityStatus = Literal["Available", "Open to Opportunities", "Not Available"]
+EngagementType = Literal["Full-time", "Part-time", "Contract"]
 
 
 class DimensionScores(BaseModel):
@@ -24,12 +28,80 @@ class BatchEvalOutput(BaseModel):
     evaluations: list[CandidateEval]
 
 
-class ParsedProfile(BaseModel):
+class Skill(BaseModel):
     name: str
-    skills: list[str]
-    experience_years: int = Field(ge=0)
-    education: str
-    summary: str = Field(max_length=500)
+    level: SkillLevel
+    yearsOfExperience: int = Field(ge=0)
+
+
+class Language(BaseModel):
+    name: str
+    proficiency: LanguageProficiency
+
+
+class WorkExperience(BaseModel):
+    company: str
+    role: str
+    startDate: str
+    endDate: str
+    description: str
+    technologies: list[str] = []
+    isCurrent: bool
+
+
+class EducationEntry(BaseModel):
+    institution: str
+    degree: str
+    fieldOfStudy: str
+    startYear: int
+    endYear: int
+
+
+class Certification(BaseModel):
+    name: str
+    issuer: str
+    issueDate: str
+
+
+class Project(BaseModel):
+    name: str
+    description: str
+    technologies: list[str] = []
+    role: str
+    link: Optional[str] = None
+    startDate: str
+    endDate: str
+
+
+class Availability(BaseModel):
+    status: AvailabilityStatus
+    type: EngagementType
+    startDate: Optional[str] = None
+
+
+class SocialLinks(BaseModel):
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    portfolio: Optional[str] = None
+
+    model_config = {"extra": "allow"}
+
+
+class ParsedProfile(BaseModel):
+    firstName: str
+    lastName: str
+    email: str
+    headline: str
+    bio: Optional[str] = None
+    location: str
+    skills: list[Skill]
+    languages: list[Language] = []
+    experience: list[WorkExperience]
+    education: list[EducationEntry]
+    certifications: list[Certification] = []
+    projects: list[Project]
+    availability: Availability
+    socialLinks: Optional[SocialLinks] = None
 
 
 class ScoringWeights(BaseModel):
