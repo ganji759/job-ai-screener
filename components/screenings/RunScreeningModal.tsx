@@ -6,7 +6,7 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { useGetJobsQuery } from "../../store/api/jobsApi";
-import { useGetScreeningQuery, useGetScreeningsQuery, useRunScreeningMutation } from "../../store/api/screeningsApi";
+import { useGetScreeningsQuery, useGetScreeningStatusQuery, useRunScreeningMutation } from "../../store/api/screeningsApi";
 import { useGetJobStatsQuery } from "../../store/api/jobsApi";
 import toast from "react-hot-toast";
 
@@ -83,7 +83,7 @@ export const RunScreeningModal = ({
   const { data: jobsData } = useGetJobsQuery({ page: 1, limit: 100, status: "active" }, { skip: !open });
   const { data: screeningData } = useGetScreeningsQuery(undefined, { skip: !open });
 
-  const { data: polledScreening } = useGetScreeningQuery(activeScreeningId ?? "_", {
+  const { data: polledScreening } = useGetScreeningStatusQuery(activeScreeningId ?? "_", {
     skip: !activeScreeningId,
     pollingInterval: activeScreeningId ? 2000 : 0,
   });
@@ -162,7 +162,7 @@ export const RunScreeningModal = ({
     if (!polledScreening || !activeScreeningId || completionHandled.current) return;
     const doc = polledScreening as { _id?: unknown; status?: string; errorMessage?: string };
     if (polledScreening.status === "failed") {
-      setError(String(doc.errorMessage ?? "Screening failed."));
+      setError(String((doc as { error?: unknown; errorMessage?: unknown }).error ?? doc.errorMessage ?? "Screening failed."));
       setActiveScreeningId(null);
       setProgress(0);
       return;

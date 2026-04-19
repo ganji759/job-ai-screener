@@ -1,28 +1,67 @@
-import type { UmuravaProfile } from "../types";
+import type {
+  UmuravaProfile,
+  BackendIngestProfile,
+  BackendSkill,
+  BackendWorkExperience,
+  BackendEducationEntry,
+  BackendCertification,
+} from "../types";
 
-/** Maps UI JSON profiles to the shape expected by POST /api/v1/applicants/ingest (ZodUmuravaProfile). */
-export function mapUmuravaProfileForIngest(p: UmuravaProfile): Record<string, unknown> {
-  const id =
-    p.id?.trim() ||
-    (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `profile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const educationArray = Array.isArray(p.education) ? p.education : [];
+/** Maps a UI UmuravaProfile to the shape expected by POST /api/jobs/:jobId/applicants. */
+export function mapUmuravaProfileForIngest(p: UmuravaProfile): BackendIngestProfile {
+  const skills: BackendSkill[] = (p.skills ?? []).map((s) => ({
+    name: typeof s === "string" ? s : String(s),
+    level: "Intermediate" as const,
+    yearsOfExperience: 0,
+  }));
+
+  const experience: BackendWorkExperience[] = (p.experience ?? []).map((e) => ({
+    company: e.company,
+    role: e.title,
+    startDate: e.startDate,
+    endDate: e.endDate ?? new Date().toISOString().split("T")[0] ?? "",
+    description: e.description,
+    technologies: [],
+    isCurrent: !e.endDate,
+  }));
+
+  const education: BackendEducationEntry[] = Array.isArray(p.education)
+    ? p.education.map((e) => ({
+        institution: e.institution,
+        degree: e.degree,
+        fieldOfStudy: e.field,
+        startYear: Math.max(1900, (e.graduationYear ?? 2000) - 4),
+        endYear: e.graduationYear ?? 2000,
+      }))
+    : [];
+
+  const certifications: BackendCertification[] = (p.certifications ?? []).map((c) => ({
+    name: c.name,
+    issuer: c.issuer,
+    issueDate: `${String(c.year)}-01-01`,
+  }));
+
   return {
-    id,
     firstName: p.firstName,
     lastName: p.lastName,
     email: p.email,
-    phone: p.phone,
-    title: p.title,
-    summary: p.summary ?? p.bio ?? (typeof p.education === "string" ? p.education : undefined),
-    skills: p.skills ?? [],
-    languages: p.languages ?? [],
-    experience: p.experience ?? [],
-    education: educationArray,
-    certifications: p.certifications,
-    totalYearsExperience: p.experienceYears ?? p.totalYearsExperience ?? 0,
-    availableFrom: p.availableFrom,
-    expectedSalary: p.expectedSalary,
+    headline: p.title ?? "",
+    bio: p.bio,
     location: p.location ?? "Unknown",
-    remotePreference: p.remotePreference ?? "flexible",
+    skills,
+    languages: (p.languages ?? []).map((l) => ({
+      name: l.name,
+      proficiency: (l.level as BackendIngestProfile["languages"][0]["proficiency"]) ?? "Conversational",
+    })),
+    experience,
+    education,
+    certifications,
+    projects: [],
+    availability: {
+      status: "Available" as const,
+      type: "Full-time" as const,
+      startDate: p.availableFrom,
+    },
+    socialLinks: {},
   };
 }

@@ -15,6 +15,12 @@ const axiosBaseQuery = (): BaseQueryFn<AxiosBaseQueryArgs, unknown, unknown> =>
   async ({ url, method = "get", data, params, responseType }) => {
     try {
       const result = await axiosInstance({ url, method, data, params, responseType });
+      if (responseType === "blob") return { data: result.data };
+      // Backend wraps all responses in { data, error, meta } envelope
+      const body = result.data as { data?: unknown; error?: unknown };
+      if (body?.error) {
+        return { error: { status: "CUSTOM_ERROR", data: body.error } };
+      }
       return { data: result.data };
     } catch (axiosError) {
       const err = axiosError as AxiosError<{ error?: string }>;

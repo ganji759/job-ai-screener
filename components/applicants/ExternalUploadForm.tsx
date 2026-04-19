@@ -20,10 +20,8 @@ export const ExternalUploadForm = ({ jobId, initialFileType = "pdf" }: { jobId: 
         for (const file of files) {
           setProgress((prev) => ({ ...prev, [file.name]: 30 }));
           const formData = new FormData();
-          formData.append("jobId", jobId);
-          formData.append("fileType", "pdf");
-          formData.append("file", file);
-          await uploadFiles(formData).unwrap();
+          formData.append("files", file);
+          await uploadFiles({ jobId, formData }).unwrap();
           setProgress((prev) => ({ ...prev, [file.name]: 100 }));
         }
       } else {
@@ -31,10 +29,8 @@ export const ExternalUploadForm = ({ jobId, initialFileType = "pdf" }: { jobId: 
         if (!file) return;
         setProgress((prev) => ({ ...prev, [file.name]: 30 }));
         const formData = new FormData();
-        formData.append("jobId", jobId);
-        formData.append("fileType", fileType);
-        formData.append("file", file);
-        await uploadFiles(formData).unwrap();
+        formData.append("files", file);
+        await uploadFiles({ jobId, formData }).unwrap();
         setProgress((prev) => ({ ...prev, [file.name]: 100 }));
       }
       toast.success("Upload completed successfully.");

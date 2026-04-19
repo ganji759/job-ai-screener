@@ -21,21 +21,21 @@ export default function NewJobPage() {
       toast.error("Add at least one real skill (not the placeholder text).");
       return;
     }
-    const requirements: CreateJobPayload["requirements"] = {
-      domain: values.domain.trim(),
-      experienceLevel: values.experienceLevel,
-      minExperienceYears: values.minExperienceYears,
-      skills,
-    };
-    if (values.education.trim()) requirements.education = values.education.trim();
-
     const payload: CreateJobPayload = {
       title: values.title.trim(),
       description: values.description.trim(),
-      location: values.location.trim(),
-      employmentType: values.employmentType,
-      status: values.publish ? "active" : "draft",
-      requirements,
+      requirements: {
+        skills,
+        experience_years: values.minExperienceYears,
+        education_level: values.education.trim() || "Not specified",
+        nice_to_have: [],
+      },
+      scoring_weights: {
+        skills: 0.40,
+        experience: 0.35,
+        education: 0.15,
+        cultural_fit: 0.10,
+      },
     };
 
     try {

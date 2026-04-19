@@ -1,3 +1,158 @@
+// ─── Backend-aligned types (feature/ai-integration API) ─────────────────────
+
+export interface BackendJobRequirements {
+  skills: string[];
+  experience_years: number;
+  education_level: string;
+  nice_to_have: string[];
+}
+
+export interface ScoringWeights {
+  skills: number;
+  experience: number;
+  education: number;
+  cultural_fit: number;
+}
+
+export interface BackendJob {
+  _id: string;
+  title: string;
+  description: string;
+  requirements: BackendJobRequirements;
+  scoring_weights: ScoringWeights;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BackendParsedProfile {
+  name: string;
+  skills: string[];
+  experience_years: number;
+  education: string;
+  summary: string;
+}
+
+export interface BackendApplicant {
+  _id: string;
+  job_id: string;
+  source: "umurava_platform" | "upload_csv" | "resume_pdf";
+  parsed_profile: BackendParsedProfile;
+  createdAt?: string;
+}
+
+export interface DimensionScores {
+  skills: number;
+  experience: number;
+  education: number;
+  cultural_fit: number;
+}
+
+export interface BackendRankedResult {
+  rank: number;
+  applicant: BackendApplicant;
+  composite_score: number;
+  dimension_scores: DimensionScores;
+  strengths: string[];
+  gaps: string[];
+  recommendation: string;
+}
+
+export interface BackendScreeningResults {
+  ranked: BackendRankedResult[];
+}
+
+export interface BackendScreeningRun {
+  _id: string;
+  job_id: string;
+  status: "pending" | "running" | "complete" | "failed";
+  queue_job_id?: string;
+  error?: string;
+  createdAt?: string;
+}
+
+export interface BackendScreeningStatus {
+  status: string;
+  progress: number;
+  error?: string;
+}
+
+// ─── Backend Umurava ingest profile schema ────────────────────────────────────
+
+export type SkillLevel = "Beginner" | "Intermediate" | "Advanced" | "Expert";
+export type LanguageProficiency = "Basic" | "Conversational" | "Fluent" | "Native";
+export type AvailabilityStatus = "Available" | "Open to Opportunities" | "Not Available";
+export type AvailabilityType = "Full-time" | "Part-time" | "Contract";
+
+export interface BackendSkill {
+  name: string;
+  level: SkillLevel;
+  yearsOfExperience: number;
+}
+
+export interface BackendLanguage {
+  name: string;
+  proficiency: LanguageProficiency;
+}
+
+export interface BackendWorkExperience {
+  company: string;
+  role: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+  technologies: string[];
+  isCurrent: boolean;
+}
+
+export interface BackendEducationEntry {
+  institution: string;
+  degree: string;
+  fieldOfStudy: string;
+  startYear: number;
+  endYear: number;
+}
+
+export interface BackendCertification {
+  name: string;
+  issuer: string;
+  issueDate: string;
+}
+
+export interface BackendProject {
+  name: string;
+  description: string;
+  technologies: string[];
+  role: string;
+  link?: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface BackendAvailability {
+  status: AvailabilityStatus;
+  type: AvailabilityType;
+  startDate?: string;
+}
+
+export interface BackendIngestProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  headline: string;
+  bio?: string;
+  location: string;
+  skills: BackendSkill[];
+  languages: BackendLanguage[];
+  experience: BackendWorkExperience[];
+  education: BackendEducationEntry[];
+  certifications: BackendCertification[];
+  projects: BackendProject[];
+  availability: BackendAvailability;
+  socialLinks?: { linkedin?: string; github?: string; portfolio?: string };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** POST /api/v1/applicants/ingest — matches backend Zod when mapped via mapUmuravaProfileForIngest. */
 export interface UmuravaProfile {
   id?: string;

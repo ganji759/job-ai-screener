@@ -2,10 +2,11 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Check, ChevronDown, CircleAlert, Crown, Download, Loader2, RefreshCw, Sparkles, TriangleAlert, UserRound } from "lucide-react";
+import { Check, ChevronDown, Crown, Download, Loader2, RefreshCw, Sparkles, TriangleAlert, UserRound } from "lucide-react";
 import {
   useExportScreeningMutation,
-  useGetScreeningQuery,
+  useGetScreeningResultsQuery,
+  useGetScreeningStatusQuery,
   useRunScreeningMutation,
 } from "../../../../store/api/screeningsApi";
 import { PageHeader } from "../../../../components/layout/PageHeader";
@@ -15,12 +16,11 @@ import { useGetJobQuery } from "../../../../store/api/jobsApi";
 import { useGetApplicantsQuery } from "../../../../store/api/applicantsApi";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import type { Applicant, Screening, ScreeningShortlistEntry } from "../../../../types";
+import type { Applicant } from "../../../../types";
 
 type Decision = "approved" | "rejected";
 
 const getScoreTone = (score: number) => (score >= 70 ? "text-emerald-600" : score >= 40 ? "text-amber-600" : "text-red-600");
-
 const getScoreBarColor = (score: number) => (score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500");
 
 const ScoreBar = ({ value }: { value: number }) => {
@@ -42,30 +42,39 @@ const getRankStyle = (rank: number) => {
   return { border: "border-l-brand-400", bg: "bg-white", badge: "from-brand-400 to-brand-700", icon: null };
 };
 
-function rowKey(c: ScreeningShortlistEntry) {
-  return String(c.applicantId ?? c.candidateId);
-}
-
 export default function ScreeningDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const screeningId = String(params.id ?? "");
 
-  const { data: screeningRaw, refetch, isLoading } = useGetScreeningQuery(screeningId, { skip: !screeningId });
-  const screening = screeningRaw as Screening | undefined;
+  // Status polling — works for any run state
+  const { data: statusData, refetch: refetchStatus } = useGetScreeningStatusQuery(screeningId, {
+    skip: !screeningId,
+  });
+  const normalizedStatus = statusData?.status ?? "queued";
+  const isLive = normalizedStatus === "queued" || normalizedStatus === "running";
+  const isFailed = normalizedStatus === "failed";
+  const isComplete = normalizedStatus === "completed";
 
   useEffect(() => {
-    const st = screening?.status;
-    if (!st || st === "completed" || st === "failed") return;
-    const t = window.setInterval(() => void refetch(), 2000);
+    if (!isLive) return;
+    const t = window.setInterval(() => void refetchStatus(), 2000);
     return () => window.clearInterval(t);
-  }, [screening?.status, refetch]);
+  }, [isLive, refetchStatus]);
 
-  const { data: job } = useGetJobQuery(String(screening?.jobId ?? ""), { skip: !screening?.jobId });
+  // Results — only fetch once complete
+  const { data: resultsData, isLoading: resultsLoading } = useGetScreeningResultsQuery(screeningId, {
+    skip: !screeningId || !isComplete,
+  });
+
+  // Derive jobId from the first ranked applicant
+  const jobId = resultsData?.ranked?.[0]?.applicant?.job_id;
+  const { data: job } = useGetJobQuery(String(jobId ?? ""), { skip: !jobId });
   const { data: applicantsData } = useGetApplicantsQuery(
-    { jobId: String(screening?.jobId ?? ""), page: 1, limit: 500 },
-    { skip: !screening?.jobId },
+    { jobId: String(jobId ?? ""), limit: 500 },
+    { skip: !jobId },
   );
+
   const [exportScreening] = useExportScreeningMutation();
   const [runScreening] = useRunScreeningMutation();
   const [shortlistSize, setShortlistSize] = useState<10 | 20>(10);
@@ -81,37 +90,54 @@ export default function ScreeningDetailPage() {
     localStorage.setItem(`screening-decisions:${screeningId}`, JSON.stringify(decisions));
   }, [decisions, screeningId]);
 
-  useEffect(() => {
-    if (screening?.shortlistSize === 10 || screening?.shortlistSize === 20) {
-      setShortlistSize(screening.shortlistSize);
-    }
-  }, [screening?.shortlistSize]);
-
   const profileById = useMemo(() => {
     const map = new Map<string, Applicant>();
     (applicantsData?.applicants ?? []).forEach((applicant) => {
       map.set(applicant._id, applicant);
-      if (applicant.profile.id) map.set(applicant.profile.id, applicant);
     });
     return map;
   }, [applicantsData?.applicants]);
 
   const candidates = useMemo(() => {
-    const shortlist = screening?.results?.shortlist ?? [];
-    return shortlist
+    const ranked = resultsData?.ranked ?? [];
+    return ranked
       .slice()
       .sort((a, b) => a.rank - b.rank)
       .slice(0, shortlistSize)
-      .map((candidate) => {
-        const id = rowKey(candidate);
-        const embedded = candidate.profile;
-        const applicant = profileById.get(id) ?? profileById.get(candidate.candidateId);
-        return { candidate, applicant, embedded };
+      .map((r) => {
+        const applicantId = String(r.applicant?._id ?? "");
+        const nameParts = (r.applicant?.parsed_profile?.name ?? "Unknown Candidate").split(" ");
+        const firstName = nameParts[0] ?? "Unknown";
+        const lastName = nameParts.slice(1).join(" ") || "";
+        const skills = r.applicant?.parsed_profile?.skills ?? [];
+        const embedded = { firstName, lastName, title: "", skills };
+        const candidate = {
+          rank: r.rank,
+          candidateId: applicantId,
+          applicantId,
+          totalScore: r.composite_score,
+          strengths: r.strengths,
+          gaps: r.gaps,
+          recommendation: r.recommendation,
+          breakdown: {
+            skillsMatch: r.dimension_scores.skills,
+            experienceMatch: r.dimension_scores.experience,
+            educationMatch: r.dimension_scores.education,
+            culturalFit: r.dimension_scores.cultural_fit,
+          },
+        };
+        return { candidate, applicant: profileById.get(applicantId), embedded };
       });
-  }, [screening?.results?.shortlist, shortlistSize, profileById]);
+  }, [resultsData?.ranked, shortlistSize, profileById]);
 
   const shortlistedCount = candidates.length;
+  const totalAnalyzed = resultsData?.ranked?.length ?? 0;
+  const averageScore =
+    candidates.length > 0
+      ? Math.round(candidates.reduce((sum, c) => sum + c.candidate.totalScore, 0) / candidates.length)
+      : 0;
   const approvedCount = Object.values(decisions).filter((v) => v === "approved").length;
+  const hasShortlist = candidates.length > 0;
 
   const exportCsv = async () => {
     try {
@@ -123,19 +149,15 @@ export default function ScreeningDetailPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success("Shortlist exported.");
-    } catch (error) {
-      toast.error((error as { data?: { error?: string } })?.data?.error ?? "Could not export CSV.");
+    } catch {
+      toast.error("Could not export CSV.");
     }
   };
 
   const rerun = async () => {
-    if (!screening?.jobId) return;
+    if (!jobId) return;
     try {
-      const res = await runScreening({
-        jobId: String(screening.jobId),
-        shortlistSize,
-        weights: { skills: 50, experience: 30, education: 20 },
-      }).unwrap();
+      const res = await runScreening({ jobId: String(jobId), shortlistSize }).unwrap();
       toast.success("New screening started.");
       router.push(`/screenings/${res.screeningId}`);
     } catch (error) {
@@ -143,11 +165,9 @@ export default function ScreeningDetailPage() {
     }
   };
 
-  const isLive = screening?.status === "queued" || screening?.status === "running";
-  const hasShortlist = (screening?.results?.shortlist ?? []).length > 0;
-  const failed = screening?.status === "failed";
+  if (!screeningId) return null;
 
-  if (isLoading && !screening) {
+  if (!statusData && !isLive) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-slate-600">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -160,71 +180,67 @@ export default function ScreeningDetailPage() {
     <div className="space-y-6">
       <div className="space-y-3">
         <p className="text-sm text-slate-600">
-          <Link href="/dashboard" className="hover:underline">
-            Home
-          </Link>{" "}
+          <Link href="/dashboard" className="hover:underline">Home</Link>{" "}
           /{" "}
-          <Link href="/screenings" className="hover:underline">
-            Screenings
-          </Link>{" "}
-          / {job?.title ?? "Result"}
+          <Link href="/screenings" className="hover:underline">Screenings</Link>
+          {job ? ` / ${job.title}` : ""}
         </p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <PageHeader
             title={job?.title ?? "Screening Result"}
-            subtitle={`Screening run on ${screening?.createdAt ? new Date(screening.createdAt).toLocaleDateString() : "—"} — ${Number(screening?.results?.totalAnalyzed ?? 0)} candidates analyzed`}
+            subtitle={`${totalAnalyzed} candidates analyzed`}
           />
           <div className="flex flex-wrap gap-2">
             <Link href="/screenings">
-              <Button variant="secondary" type="button">
-                Back to Screenings
-              </Button>
+              <Button variant="secondary" type="button">Back to Screenings</Button>
             </Link>
-            <Button variant="secondary" type="button" onClick={() => void exportCsv()} disabled={!hasShortlist || failed}>
+            <Button variant="secondary" type="button" onClick={() => void exportCsv()} disabled={!hasShortlist || isFailed}>
               <Download className="h-4 w-4" />
               Export Shortlist
             </Button>
-            <Button variant="secondary" type="button" onClick={() => void rerun()} disabled={!screening?.jobId}>
+            <Button variant="secondary" type="button" onClick={() => void rerun()} disabled={!jobId}>
               <RefreshCw className="h-4 w-4" />
               Re-run Screening
             </Button>
             <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700">
-              {(screening?.status ?? "").toString().toUpperCase()}
+              {normalizedStatus.toUpperCase()}
             </span>
           </div>
         </div>
       </div>
 
-      {isLive && !hasShortlist ? (
+      {isLive ? (
         <Card className="border border-brand-100 bg-brand-50/40">
           <div className="flex items-center gap-3 py-4 text-brand-900">
             <Loader2 className="h-6 w-6 animate-spin" />
             <div>
               <p className="font-semibold">Screening in progress</p>
-              <p className="text-sm text-brand-800/90">Results will appear automatically when scoring finishes.</p>
+              <p className="text-sm text-brand-800/90">
+                Progress: {statusData?.progress ?? 0}% — results will appear automatically when scoring finishes.
+              </p>
             </div>
           </div>
         </Card>
       ) : null}
 
-      {failed || (!isLive && !hasShortlist) ? (
+      {(isFailed || (isComplete && !hasShortlist && !resultsLoading)) ? (
         <Card className="border border-red-200 bg-red-50">
           <div className="flex items-center gap-3">
-            <CircleAlert className="h-6 w-6 text-red-600" />
+            <TriangleAlert className="h-6 w-6 text-red-600" />
             <p className="text-sm font-semibold text-red-700">
-              {failed ? screening?.errorMessage ?? "Screening failed — no results returned." : "No shortlist available yet."}{" "}
-              Try re-running the screening.
+              {isFailed ? (statusData?.error ?? "Screening failed — no results returned.") : "No shortlist available yet."}
+              {" "}Try re-running the screening.
             </p>
           </div>
         </Card>
       ) : null}
 
-      {!failed && hasShortlist ? (
+      {isComplete && hasShortlist ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <Card>
               <p className="text-sm text-slate-500">Total Candidates Analyzed</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{Number(screening?.results?.totalAnalyzed ?? 0)}</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">{totalAnalyzed}</p>
             </Card>
             <Card>
               <p className="text-sm text-slate-500">Shortlisted</p>
@@ -232,13 +248,7 @@ export default function ScreeningDetailPage() {
             </Card>
             <Card>
               <p className="text-sm text-slate-500">Average Match Score</p>
-              <p className={`mt-2 text-2xl font-bold ${getScoreTone(Number(screening?.results?.averageScore ?? 0))}`}>
-                {Math.round(Number(screening?.results?.averageScore ?? 0))}/100
-              </p>
-            </Card>
-            <Card>
-              <p className="text-sm text-slate-500">Screening Duration</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{Math.max(1, Math.round(Number(screening?.durationMs ?? screening?.results?.durationMs ?? 0) / 1000))} seconds</p>
+              <p className={`mt-2 text-2xl font-bold ${getScoreTone(averageScore)}`}>{averageScore}/100</p>
             </Card>
           </div>
 
@@ -264,7 +274,6 @@ export default function ScreeningDetailPage() {
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">Rank</th>
                   <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Title</th>
                   <th className="px-4 py-3">Skills</th>
                   <th className="px-4 py-3">Match Score</th>
                   <th className="px-4 py-3">Strengths</th>
@@ -275,34 +284,28 @@ export default function ScreeningDetailPage() {
               </thead>
               <tbody>
                 {candidates.map(({ candidate, applicant, embedded }) => {
-                  const id = rowKey(candidate);
+                  const id = candidate.candidateId;
                   const expanded = expandedIds.includes(id);
                   const rankStyle = getRankStyle(candidate.rank);
                   const decision = decisions[id];
-                  const first = embedded?.firstName ?? applicant?.profile.firstName ?? "Unknown";
-                  const last = embedded?.lastName ?? applicant?.profile.lastName ?? "Candidate";
+                  const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
+                  const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
                   const fullName = `${first} ${last}`.trim();
-                  const title = embedded?.title ?? applicant?.profile.title ?? "—";
-                  const skillsArr = embedded?.skills ?? applicant?.profile.skills ?? [];
+                  const skillsArr = embedded.skills ?? applicant?.profile.skills ?? [];
                   const skillsText = skillsArr.slice(0, 6).join(", ") || "—";
-                  const strengthsPreview = (candidate.strengths?.length ? candidate.strengths : ["Strong alignment"]).slice(0, 2).join("; ") || "—";
-                  const gapsPreview = (candidate.gaps?.length ? candidate.gaps : ["No major gaps flagged"]).slice(0, 2).join("; ") || "—";
-                  const recPreview =
-                    candidate.recommendation.length > 120 ? `${candidate.recommendation.slice(0, 120)}…` : candidate.recommendation || "—";
+                  const strengthsPreview = (candidate.strengths?.length ? candidate.strengths : ["Strong alignment"]).slice(0, 2).join("; ");
+                  const gapsPreview = (candidate.gaps?.length ? candidate.gaps : ["No major gaps flagged"]).slice(0, 2).join("; ");
+                  const recPreview = candidate.recommendation.length > 120 ? `${candidate.recommendation.slice(0, 120)}…` : candidate.recommendation || "—";
 
                   return (
                     <Fragment key={id}>
                       <tr
                         className={`cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50/80 ${rankStyle.bg}`}
-                        onClick={() =>
-                          setExpandedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-                        }
+                        onClick={() => setExpandedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
                       >
                         <td className={`border-l-4 px-4 py-3 align-middle ${rankStyle.border}`}>
                           <div className="flex items-center gap-2">
-                            <div
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-xs font-bold text-white`}
-                            >
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-xs font-bold text-white`}>
                               #{candidate.rank}
                             </div>
                             {rankStyle.icon}
@@ -316,7 +319,6 @@ export default function ScreeningDetailPage() {
                             <span className="font-semibold text-slate-900">{fullName}</span>
                           </div>
                         </td>
-                        <td className="max-w-[160px] px-4 py-3 align-middle text-slate-700">{title}</td>
                         <td className="max-w-[220px] px-4 py-3 align-middle text-xs text-slate-600">{skillsText}</td>
                         <td className="px-4 py-3 align-middle">
                           <ScoreBar value={candidate.totalScore} />
@@ -330,17 +332,14 @@ export default function ScreeningDetailPage() {
                       </tr>
                       {expanded ? (
                         <tr className={`${rankStyle.bg} border-b border-slate-100`}>
-                          <td colSpan={9} className="px-4 pb-5 pt-0">
+                          <td colSpan={8} className="px-4 pb-5 pt-0">
                             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                               <div className="mb-4 flex flex-wrap gap-2">
                                 <Button
                                   variant={decision === "approved" ? "primary" : "secondary"}
                                   size="sm"
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDecisions((prev) => ({ ...prev, [id]: "approved" }));
-                                  }}
+                                  onClick={(e) => { e.stopPropagation(); setDecisions((prev) => ({ ...prev, [id]: "approved" })); }}
                                 >
                                   ✓ Approve
                                 </Button>
@@ -348,10 +347,7 @@ export default function ScreeningDetailPage() {
                                   variant={decision === "rejected" ? "danger" : "secondary"}
                                   size="sm"
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDecisions((prev) => ({ ...prev, [id]: "rejected" }));
-                                  }}
+                                  onClick={(e) => { e.stopPropagation(); setDecisions((prev) => ({ ...prev, [id]: "rejected" })); }}
                                 >
                                   ✗ Reject
                                 </Button>
@@ -360,8 +356,7 @@ export default function ScreeningDetailPage() {
                               <div className="grid gap-4 lg:grid-cols-3">
                                 <div>
                                   <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                                    <Check className="h-4 w-4" />
-                                    Strengths
+                                    <Check className="h-4 w-4" /> Strengths
                                   </p>
                                   <ul className="space-y-1 text-sm text-emerald-700">
                                     {(candidate.strengths.length ? candidate.strengths : ["Strong profile alignment"]).slice(0, 6).map((item) => (
@@ -371,8 +366,7 @@ export default function ScreeningDetailPage() {
                                 </div>
                                 <div>
                                   <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-700">
-                                    <TriangleAlert className="h-4 w-4" />
-                                    Gaps / Risks
+                                    <TriangleAlert className="h-4 w-4" /> Gaps / Risks
                                   </p>
                                   <ul className="space-y-1 text-sm text-amber-700">
                                     {(candidate.gaps.length ? candidate.gaps : ["No major risk signals identified"]).slice(0, 5).map((item) => (
@@ -382,8 +376,7 @@ export default function ScreeningDetailPage() {
                                 </div>
                                 <div>
                                   <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-brand-700">
-                                    <Sparkles className="h-4 w-4" />
-                                    Recommendation
+                                    <Sparkles className="h-4 w-4" /> Recommendation
                                   </p>
                                   <p className="text-sm italic text-brand-700">{candidate.recommendation || "Good candidate for recruiter review."}</p>
                                   <p className="mt-3 text-xs font-semibold text-slate-600">Score breakdown</p>
@@ -395,6 +388,9 @@ export default function ScreeningDetailPage() {
                                   </ul>
                                 </div>
                               </div>
+                              <p className="mt-4 border-t pt-3 text-xs text-slate-500">
+                                AI screening is a decision-support tool. Final hiring decisions remain with the recruiter.
+                              </p>
                             </div>
                           </td>
                         </tr>
