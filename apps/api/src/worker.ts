@@ -33,7 +33,7 @@ async function start() {
       process.exit(0);
     });
   } catch (error) {
-    logger.error('Failed to start worker:', error);
+    logger.error({ err: error }, 'Failed to start worker');
     process.exit(1);
   }
 }

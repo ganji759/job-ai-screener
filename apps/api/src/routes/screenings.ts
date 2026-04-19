@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, type Router as ExpressRouter } from 'express';
 import { startScreening, getScreeningStatus, getScreeningResults } from '../services/screening.service.js';
 
-const jobScreeningsRouter = Router({ mergeParams: true });
-const screeningsRouter = Router();
+const jobScreeningsRouter: ExpressRouter = Router({ mergeParams: true });
+const screeningsRouter: ExpressRouter = Router();
 
 function isNotCompleteError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
@@ -13,7 +13,7 @@ function isNotCompleteError(error: unknown): boolean {
 
 // POST /api/jobs/:jobId/screenings - Trigger new screening run
 jobScreeningsRouter.post('/', async (req, res) => {
-  const screening = await startScreening({ jobId: req.params.jobId });
+  const screening = await startScreening({ jobId: (req.params as Record<string, string>)['jobId'] ?? '' });
   res.status(201).json({ data: screening, error: null });
 });
 

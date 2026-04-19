@@ -4,8 +4,8 @@
 - Node.js 20 + TypeScript strict
 - Express 5 (async error handling built-in)
 - BullMQ (job queue) + Upstash Redis
-- `pdf-parse` for resume text extraction
-- `papaparse` for CSV ingestion
+- `axios` — calls the Python AI service over HTTP
+- `papaparse` for CSV ingestion (PDFs are sent to the Python service directly)
 - `multer` for file uploads (memory storage, 10MB limit)
 - `pino` for structured logging
 - `zod` for all request validation
@@ -14,8 +14,7 @@
 ```bash
 cd apps/api
 pnpm init
-pnpm add express bullmq ioredis mongoose zod pino pdf-parse papaparse multer
-pnpm add @google/generative-ai
+pnpm add express bullmq ioredis mongoose zod pino papaparse multer axios form-data
 pnpm add -D typescript @types/express @types/node @types/multer ts-node-dev
 ```
 
@@ -32,11 +31,12 @@ apps/api/
 │   ├── services/
 │   │   ├── job.service.ts
 │   │   ├── applicant.service.ts
-│   │   ├── ingestion.service.ts   # PDF + CSV parsing → parsed_profile
-│   │   └── screening.service.ts   # enqueue + status
+│   │   ├── ingestion.service.ts   # CSV parsing (local) + PDF routing (→ Python)
+│   │   ├── screening.service.ts   # enqueue + status
+│   │   └── ai.client.ts           # HTTP client for Python AI service
 │   ├── queue/
 │   │   ├── screening.queue.ts     # BullMQ Queue definition
-│   │   └── screening.processor.ts # BullMQ Worker — calls AI package
+│   │   └── screening.processor.ts # Worker — calls Python AI service
 │   ├── middleware/
 │   │   ├── validate.ts            # zod request validator middleware
 │   │   ├── error.ts               # global error handler
@@ -53,9 +53,9 @@ apps/api/
 ### Jobs
 ```
 POST   /api/jobs                     # create job
-GET    /api/jobs                     # list jobs (paginated, limit/offset)
+GET    /api/jobs                     # list jobs (paginated)
 GET    /api/jobs/:jobId              # get job detail
-PATCH  /api/jobs/:jobId              # update job (not screening weights after run)
+PATCH  /api/jobs/:jobId              # update job (not weights after run)
 DELETE /api/jobs/:jobId              # soft delete
 ```
 
@@ -70,18 +70,203 @@ GET    /api/jobs/:jobId/applicants           # list applicants for job
 ```
 POST   /api/jobs/:jobId/screenings           # trigger new screening run
 GET    /api/screenings/:runId/status         # poll status + progress
-GET    /api/screenings/:runId/results        # ranked shortlist (only when complete)
+GET    /api/screenings/:runId/results        # ranked shortlist (when complete)
 GET    /api/screenings/:runId/results/:applicantId  # single candidate reasoning
 ```
 
 ## Request/response envelope
 ```typescript
-// All responses use this shape
 interface ApiResponse<T> {
   data: T | null;
   error: { code: string; message: string } | null;
   meta?: { total?: number; page?: number };
 }
+```
+
+## AI client — HTTP bridge to Python service
+```typescript
+// services/ai.client.ts
+import axios, { AxiosInstance } from "axios";
+import FormData from "form-data";
+import { logger } from "../lib/logger";
+
+const aiClient: AxiosInstance = axios.create({
+  baseURL: process.env.AI_SERVICE_URL,        // http://localhost:8000 or railway internal
+  timeout: 120_000,                            // AI batches can take up to 2 min
+  headers: { "Content-Type": "application/json" },
+});
+
+aiClient.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    logger.error({ err: err.response?.data ?? err.message }, "ai_service_error");
+    return Promise.reject(err);
+  }
+);
+
+export interface ScreeningRequest {
+  run_id: string;
+  job: object;               // full job document (lean)
+  applicants: object[];      // { _id, parsed_profile }[]
+}
+
+export interface RankedResult {
+  applicant_id: string;
+  rank: number;
+  composite_score: number;
+  dimension_scores: {
+    skills: number;
+    experience: number;
+    education: number;
+    cultural_fit: number;
+  };
+  strengths: string[];
+  gaps: string[];
+  recommendation: "Strong hire" | "Consider" | "Reject";
+}
+
+export async function runAiScreening(
+  req: ScreeningRequest
+): Promise<{ run_id: string; results: RankedResult[] }> {
+  const { data } = await aiClient.post("/screening/run", req);
+  return data;
+}
+
+export async function normalisePdf(buffer: Buffer, filename: string): Promise<object> {
+  const form = new FormData();
+  form.append("file", buffer, { filename, contentType: "application/pdf" });
+  const { data } = await aiClient.post("/normalise/pdf", form, {
+    headers: form.getHeaders(),
+  });
+  return data;   // ParsedProfile
+}
+
+export async function normaliseText(text: string): Promise<object> {
+  const { data } = await aiClient.post("/normalise/text", { text });
+  return data;   // ParsedProfile
+}
+```
+
+## Ingestion service — CSV locally, PDF → Python
+```typescript
+// services/ingestion.service.ts
+import Papa from "papaparse";
+import { normalisePdf } from "./ai.client";
+import { AppError } from "../lib/errors";
+
+export async function parsePDF(buffer: Buffer, filename: string): Promise<ParsedProfile> {
+  // Delegate to Python AI service — pdfplumber handles multi-column resumes
+  return (await normalisePdf(buffer, filename)) as ParsedProfile;
+}
+
+export function parseCSV(buffer: Buffer): ParsedProfile[] {
+  // CSV is deterministic — no AI needed
+  const text = buffer.toString("utf-8");
+  const { data, errors } = Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: true,
+  });
+  if (errors.length) {
+    throw new AppError("CSV_PARSE_ERROR", errors[0].message);
+  }
+  return data.map(mapRowToProfile);
+}
+
+function mapRowToProfile(row: Record<string, string>): ParsedProfile {
+  return {
+    name: row["Full Name"] ?? row["name"] ?? "Unknown",
+    skills: (row["Skills"] ?? "").split(",").map(s => s.trim()).filter(Boolean),
+    experience_years: parseInt(row["Years of Experience"] ?? "0", 10),
+    education: row["Education"] ?? "",
+    summary: row["Summary"] ?? "",
+  };
+}
+
+interface ParsedProfile {
+  name: string;
+  skills: string[];
+  experience_years: number;
+  education: string;
+  summary: string;
+}
+```
+
+## Screening queue
+```typescript
+// queue/screening.queue.ts
+import { Queue } from "bullmq";
+import { redis } from "../lib/redis";
+
+export const screeningQueue = new Queue("screening", { connection: redis });
+```
+
+```typescript
+// queue/screening.processor.ts  (runs in worker.ts)
+import { Worker } from "bullmq";
+import { redis } from "../lib/redis";
+import { runAiScreening } from "../services/ai.client";
+import { Job, Applicant, ScreeningRun, ScreeningResult } from "../../packages/db";
+import { logger } from "../lib/logger";
+
+new Worker("screening", async (queueJob) => {
+  const { runId, jobId } = queueJob.data as { runId: string; jobId: string };
+
+  try {
+    await ScreeningRun.findByIdAndUpdate(runId, { status: "running" });
+
+    // Gather payload for the Python AI service
+    const [job, applicants] = await Promise.all([
+      Job.findById(jobId).lean(),
+      Applicant.find({ job_id: jobId }).lean(),
+    ]);
+    if (!job) throw new Error("Job not found");
+
+    await queueJob.updateProgress(10);
+
+    // One HTTP call to Python — Python handles batching internally
+    const { results } = await runAiScreening({
+      run_id: runId,
+      job,
+      applicants: applicants.map(a => ({ _id: a._id, parsed_profile: a.parsed_profile })),
+    });
+
+    await queueJob.updateProgress(90);
+
+    // Persist ranked results
+    await ScreeningResult.insertMany(
+      results.map(r => ({
+        screening_run_id: runId,
+        job_id: jobId,
+        applicant_id: r.applicant_id,
+        rank: r.rank,
+        composite_score: r.composite_score,
+        dimension_scores: r.dimension_scores,
+        reasoning: {
+          strengths: r.strengths,
+          gaps: r.gaps,
+          recommendation: r.recommendation,
+        },
+        model_version: "gemini-1.5-flash",
+      })),
+      { ordered: false }
+    );
+
+    await ScreeningRun.findByIdAndUpdate(runId, {
+      status: "complete",
+      completed_at: new Date(),
+    });
+    await queueJob.updateProgress(100);
+
+    logger.info({ runId, count: results.length }, "screening_complete");
+  } catch (err) {
+    logger.error({ err, runId }, "screening_failed");
+    await ScreeningRun.findByIdAndUpdate(runId, {
+      status: "failed",
+      error_message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;   // let BullMQ mark the job failed
+  }
+}, { connection: redis, concurrency: 2 });
 ```
 
 ## Validation middleware
@@ -104,85 +289,23 @@ export const validate = (schema: ZodSchema) =>
   };
 ```
 
-## Ingestion service — key logic
-```typescript
-// services/ingestion.service.ts
-
-import pdfParse from "pdf-parse";
-import Papa from "papaparse";
-import { geminiNormalise } from "../../packages/ai/src"; // calls Gemini to extract profile
-
-export async function parsePDF(buffer: Buffer): Promise<ParsedProfile> {
-  const { text } = await pdfParse(buffer);
-  const truncated = text.slice(0, 8000); // stay within Gemini token budget
-  return geminiNormalise(truncated);     // returns ParsedProfile
-}
-
-export async function parseCSV(buffer: Buffer): Promise<ParsedProfile[]> {
-  const text = buffer.toString("utf-8");
-  const { data, errors } = Papa.parse(text, { header: true, skipEmptyLines: true });
-  if (errors.length) throw new AppError("CSV_PARSE_ERROR", errors[0].message);
-  return data.map(mapRowToProfile); // deterministic — no AI needed for CSV
-}
-
-function mapRowToProfile(row: Record<string, string>): ParsedProfile {
-  return {
-    name: row["Full Name"] ?? row["name"] ?? "Unknown",
-    skills: (row["Skills"] ?? "").split(",").map(s => s.trim()).filter(Boolean),
-    experience_years: parseInt(row["Years of Experience"] ?? "0", 10),
-    education: row["Education"] ?? "",
-    summary: row["Summary"] ?? "",
-  };
-}
-```
-
-## Screening queue
-```typescript
-// queue/screening.queue.ts
-import { Queue } from "bullmq";
-import { redis } from "../lib/redis";
-
-export const screeningQueue = new Queue("screening", { connection: redis });
-
-// queue/screening.processor.ts — runs in worker.ts process
-import { Worker } from "bullmq";
-import { runScreening } from "../../packages/ai/src";
-import { ScreeningRun } from "../../packages/db/src";
-
-new Worker("screening", async (job) => {
-  const { jobId, runId, applicantIds, jobCriteria, scoringWeights } = job.data;
-
-  await ScreeningRun.findByIdAndUpdate(runId, { status: "running" });
-
-  const results = await runScreening({ jobCriteria, applicantIds, scoringWeights,
-    onBatchComplete: async (batchIdx, total) => {
-      await job.updateProgress(Math.round((batchIdx / total) * 100));
-    },
-  });
-
-  await ScreeningRun.findByIdAndUpdate(runId, {
-    status: "complete",
-    completed_at: new Date(),
-  });
-  // results already written to screening_results by runScreening
-}, { connection: redis, concurrency: 3 });
-```
-
 ## Screening status endpoint
 ```typescript
 // routes/screenings.ts
 router.get("/:runId/status", async (req, res) => {
   const run = await ScreeningRun.findById(req.params.runId).lean();
-  if (!run) return res.status(404).json({ data: null, error: { code: "NOT_FOUND" } });
+  if (!run) {
+    return res.status(404).json({ data: null, error: { code: "NOT_FOUND" } });
+  }
 
-  const job = await screeningQueue.getJob(run.queue_job_id);
-  const progress = typeof job?.progress === "number" ? job.progress : 0;
+  const queueJob = await screeningQueue.getJob(run.queue_job_id);
+  const progress = typeof queueJob?.progress === "number" ? queueJob.progress : 0;
 
   res.json({ data: { status: run.status, progress, runId: run._id } });
 });
 ```
 
-## Error class
+## Error class + handler
 ```typescript
 // lib/errors.ts
 export class AppError extends Error {
@@ -190,10 +313,7 @@ export class AppError extends Error {
     super(message);
   }
 }
-```
 
-## Global error handler
-```typescript
 // middleware/error.ts
 import { AppError } from "../lib/errors";
 
@@ -204,13 +324,18 @@ export const errorHandler = (err: unknown, _req, res, _next) => {
     });
   }
   logger.error(err);
-  res.status(500).json({ data: null, error: { code: "INTERNAL", message: "Server error" } });
+  res.status(500).json({
+    data: null,
+    error: { code: "INTERNAL", message: "Server error" }
+  });
 };
 ```
 
 ## Do not
 - No business logic in route handlers — routes call services only
 - No `any` type — use `unknown` with narrowing or proper types
-- Never await inside a loop when batch processing — use `Promise.all` with chunking
-- Never expose Gemini API key to frontend — all AI calls are server-side only
-- File uploads go to memory storage, not disk — process and discard buffer
+- Never loop with `await` when batch processing — use `Promise.all` with chunking
+- Never call Gemini directly from Node — always go through `ai.client.ts`
+- Never expose `AI_SERVICE_URL` to the frontend — it's an internal-only URL
+- File uploads go to memory storage, not disk — process buffer and discard
+- Never store `GEMINI_API_KEY` in this service's env vars — it lives only on Python
