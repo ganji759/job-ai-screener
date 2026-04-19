@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Grid2X2, List, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CalendarDays, Grid2X2, List, Plus, Rocket, Users } from "lucide-react";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { PageHeader } from "../../../components/layout/PageHeader";
 import { JobCard } from "../../../components/jobs/JobCard";
@@ -15,6 +16,8 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import { cn, compactSelectClassName } from "../../../lib/utils";
 
 export default function JobsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("");
@@ -27,13 +30,25 @@ export default function JobsPage() {
     if (sortBy === "applicants") return (b.applicantCount ?? 0) - (a.applicantCount ?? 0);
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+  const emptyMessage = status
+    ? `No ${status} jobs`
+    : "No jobs yet";
+  const emptyDescription = status
+    ? `No ${status} jobs match your current filter.`
+    : "Post your first job and let AI find the best candidates for you";
+
+  useEffect(() => {
+    if (searchParams.get("openNew") === "1") {
+      router.replace("/jobs/new");
+    }
+  }, [router, searchParams]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <PageHeader title="My Jobs" subtitle="Create, monitor and run AI screenings." />
         <Link href="/jobs/new" className="shrink-0">
-          <Button className="w-full sm:w-auto">
+          <Button className={cn("w-full sm:w-auto", sortedJobs.length === 0 ? "animate-pulse" : "")}>
             <Plus className="h-4 w-4" />
             New Job
           </Button>
@@ -92,7 +107,13 @@ export default function JobsPage() {
           <p className="text-sm font-medium">Loading jobs…</p>
         </div>
       ) : sortedJobs.length === 0 ? (
-        <EmptyState title="No jobs yet" description="Create your first job to start receiving applicants." actionLabel="Create Job" action={() => window.location.assign("/jobs/new")} />
+        <EmptyState
+          title={emptyMessage}
+          description={emptyDescription}
+          actionLabel={status ? "Create Job" : "Create your first job"}
+          action={() => window.location.assign("/jobs/new")}
+          icon={status ? <Rocket className="h-10 w-10" /> : <Rocket className="h-10 w-10" />}
+        />
       ) : (
         <>
           {view === "grid" ? (
@@ -107,9 +128,10 @@ export default function JobsPage() {
                 <thead className="bg-brand-50 text-left text-xs uppercase text-brand-900 dark:bg-slate-800 dark:text-slate-100">
                   <tr>
                     <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3">Skills</th>
-                    <th className="px-4 py-3">Applicants</th>
+                    <th className="px-4 py-3">Domain</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Applicants</th>
+                    <th className="px-4 py-3">Date Posted</th>
                     <th className="px-4 py-3">Last Updated</th>
                     <th className="px-4 py-3">Actions</th>
                   </tr>
@@ -121,14 +143,27 @@ export default function JobsPage() {
                       className="transition-colors hover:bg-brand-50/50 even:bg-slate-50/30 dark:hover:bg-slate-800/80 dark:even:bg-slate-800/40"
                     >
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{job.title}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{job.requirements.mustHaveSkills.slice(0, 3).join(", ") || "N/A"}</td>
-                      <td className="px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200">{job.applicantCount ?? 0}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{job.requirements.domain || "N/A"}</td>
                       <td className="px-4 py-3"><StatusBadge status={job.status} /></td>
+                      <td className="px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200">
+                        <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{job.applicantCount ?? 0}</span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{new Date(job.createdAt).toLocaleDateString()}</span>
+                      </td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{new Date(job.updatedAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/jobs/${job._id}`} className="font-medium text-brand-700 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:text-brand-400">
-                          View
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link href={`/jobs/${job._id}`} className="rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-700">
+                            View
+                          </Link>
+                          <Link href={`/jobs/${job._id}`} className="rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-700">
+                            Edit
+                          </Link>
+                          <Link href={`/jobs/${job._id}/screenings`} className="rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-medium text-white">
+                            Run Screening
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

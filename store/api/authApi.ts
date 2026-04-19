@@ -1,4 +1,4 @@
-﻿import { baseApi } from "./baseApi";
+import { baseApi } from "./baseApi";
 import type { User } from "../../types";
 
 export const authApi = baseApi.injectEndpoints({
@@ -19,7 +19,35 @@ export const authApi = baseApi.injectEndpoints({
     me: builder.query<User, void>({
       query: () => ({ url: "/auth/me", method: "get" }),
     }),
+    updateMe: builder.mutation<User, { name?: string; avatarUrl?: string | null }>({
+      query: (body) => ({ url: "/auth/me", method: "patch", data: body }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            authApi.util.updateQueryData("me", undefined, () => data),
+          );
+        } catch {
+          // no-op
+        }
+      },
+    }),
+    changePassword: builder.mutation<{ success: boolean }, { currentPassword: string; newPassword: string }>({
+      query: (body) => ({ url: "/auth/me/password", method: "patch", data: body }),
+    }),
+    deleteAccount: builder.mutation<{ success: boolean }, { email: string }>({
+      query: (body) => ({ url: "/auth/me", method: "delete", data: body }),
+    }),
   }),
 });
 
-export const { useLoginMutation, useVerifyOtpMutation, useSendOtpMutation, useRegisterMutation, useMeQuery } = authApi;
+export const {
+  useLoginMutation,
+  useVerifyOtpMutation,
+  useSendOtpMutation,
+  useRegisterMutation,
+  useMeQuery,
+  useUpdateMeMutation,
+  useChangePasswordMutation,
+  useDeleteAccountMutation,
+} = authApi;

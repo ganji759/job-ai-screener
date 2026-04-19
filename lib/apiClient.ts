@@ -1,7 +1,8 @@
 import { clearToken, getToken } from "./auth";
+import { resolveApiBaseUrl } from "./resolveApiBaseUrl";
 import type { Job, UmuravaProfile } from "../types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+const API_BASE = resolveApiBaseUrl();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,16 +58,19 @@ export const api = {
       const form = new FormData();
       form.append("jobId", jobId);
       form.append("fileType", "csv");
-      form.append("files", file);
+      form.append("file", file);
       return request("/applicants/upload", { method: "POST", body: form });
     },
-    uploadPDFs: (jobId: string, files: File[]) => {
-      const form = new FormData();
-      form.append("jobId", jobId);
-      form.append("fileType", "pdf");
-      files.forEach((f) => form.append("files", f));
-      return request("/applicants/upload", { method: "POST", body: form });
-    },
+    uploadPDFs: (jobId: string, files: File[]) =>
+      Promise.all(
+        files.map((file) => {
+          const form = new FormData();
+          form.append("jobId", jobId);
+          form.append("fileType", "pdf");
+          form.append("file", file);
+          return request("/applicants/upload", { method: "POST", body: form });
+        }),
+      ),
     delete: (id: string) => request(`/applicants/${id}`, { method: "DELETE" }),
     enhance: (id: string) => request(`/applicants/${id}/enhance`, { method: "POST" }),
     feedback: (id: string, data: Record<string, unknown>) => request(`/candidates/${id}/feedback`, { method: "POST", body: JSON.stringify(data) }),

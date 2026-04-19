@@ -15,14 +15,28 @@ export const ExternalUploadForm = ({ jobId, initialFileType = "pdf" }: { jobId: 
 
   const submit = async () => {
     if (!files.length) return toast.error("Please select at least one file.");
-    const formData = new FormData();
-    formData.append("jobId", jobId);
-    formData.append("fileType", fileType);
-    files.forEach((file) => formData.append("files", file));
     try {
-      files.forEach((f) => setProgress((prev) => ({ ...prev, [f.name]: 30 })));
-      await uploadFiles(formData).unwrap();
-      files.forEach((f) => setProgress((prev) => ({ ...prev, [f.name]: 100 })));
+      if (fileType === "pdf") {
+        for (const file of files) {
+          setProgress((prev) => ({ ...prev, [file.name]: 30 }));
+          const formData = new FormData();
+          formData.append("jobId", jobId);
+          formData.append("fileType", "pdf");
+          formData.append("file", file);
+          await uploadFiles(formData).unwrap();
+          setProgress((prev) => ({ ...prev, [file.name]: 100 }));
+        }
+      } else {
+        const file = files[0];
+        if (!file) return;
+        setProgress((prev) => ({ ...prev, [file.name]: 30 }));
+        const formData = new FormData();
+        formData.append("jobId", jobId);
+        formData.append("fileType", fileType);
+        formData.append("file", file);
+        await uploadFiles(formData).unwrap();
+        setProgress((prev) => ({ ...prev, [file.name]: 100 }));
+      }
       toast.success("Upload completed successfully.");
       setFiles([]);
     } catch (error) {

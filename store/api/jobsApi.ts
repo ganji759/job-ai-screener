@@ -1,7 +1,25 @@
 ﻿import { baseApi } from "./baseApi";
-import type { Job } from "../../types";
+import type { Job, JobRequirements } from "../../types";
 
-interface GetJobsParams { status?: string; search?: string; page?: number; limit?: number }
+interface GetJobsParams {
+  status?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export type CreateJobPayload = {
+  title: string;
+  description: string;
+  location: string;
+  employmentType: Job["employmentType"];
+  status: "draft" | "active";
+  requirements: JobRequirements;
+};
+
+export type PatchJobPayload = Partial<Pick<Job, "title" | "description" | "location" | "employmentType" | "status">> & {
+  requirements?: Partial<JobRequirements>;
+};
 
 export const jobsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -10,9 +28,12 @@ export const jobsApi = baseApi.injectEndpoints({
       providesTags: ["Jobs"],
     }),
     getJob: builder.query<Job, string>({ query: (id) => ({ url: `/jobs/${id}`, method: "get" }), providesTags: ["Jobs"] }),
-    createJob: builder.mutation<Job, Partial<Job>>({ query: (body) => ({ url: "/jobs", method: "post", data: body }), invalidatesTags: ["Jobs"] }),
-    updateJob: builder.mutation<Job, { id: string; body: Partial<Job> }>({
-      query: ({ id, body }) => ({ url: `/jobs/${id}`, method: "put", data: body }),
+    createJob: builder.mutation<Job, CreateJobPayload>({
+      query: (body) => ({ url: "/jobs", method: "post", data: body }),
+      invalidatesTags: ["Jobs"],
+    }),
+    updateJob: builder.mutation<Job, { id: string; body: PatchJobPayload }>({
+      query: ({ id, body }) => ({ url: `/jobs/${id}`, method: "patch", data: body }),
       invalidatesTags: ["Jobs"],
     }),
     deleteJob: builder.mutation<{ success: boolean }, string>({ query: (id) => ({ url: `/jobs/${id}`, method: "delete" }), invalidatesTags: ["Jobs"] }),
@@ -21,4 +42,12 @@ export const jobsApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useGetJobsQuery, useGetJobQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useGetJobStatsQuery, useGetJobBenchmarkQuery } = jobsApi;
+export const {
+  useGetJobsQuery,
+  useGetJobQuery,
+  useCreateJobMutation,
+  useUpdateJobMutation,
+  useDeleteJobMutation,
+  useGetJobStatsQuery,
+  useGetJobBenchmarkQuery,
+} = jobsApi;

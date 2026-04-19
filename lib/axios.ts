@@ -1,11 +1,10 @@
 ﻿import axios from "axios";
 import { clearToken, getToken } from "./auth";
-
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+import { resolveApiBaseUrl } from "./resolveApiBaseUrl";
 
 export const axiosInstance = axios.create({
-  baseURL: apiUrl,
-  timeout: 30000,
+  baseURL: resolveApiBaseUrl(),
+  timeout: 120000,
 });
 
 axiosInstance.interceptors.request.use((config) => {

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
@@ -32,7 +32,7 @@ export const Drawer = ({ open, onClose, children }: { open: boolean; onClose: ()
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="h-full w-full max-w-xl overflow-y-auto border-l-4 border-brand-600 bg-white p-6 shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:ring-offset-2 dark:border-brand-500 dark:bg-slate-800 dark:ring-offset-slate-900"
             onClick={(e) => e.stopPropagation()}
             tabIndex={-1}

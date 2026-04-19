@@ -1,4 +1,4 @@
-﻿import { forwardRef } from "react";
+import { forwardRef } from "react";
 import { cn, formControlClassName, formErrorClassName, formLabelClassName } from "../../lib/utils";
 
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string; error?: string };
@@ -10,7 +10,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   const inner = (
     <>
       {label ? <span className={formLabelClassName}>{label}</span> : null}
-      <textarea ref={ref} className={cn(formControlClassName, "min-h-[100px] resize-y", className)} {...props} />
+      <textarea ref={ref} className={cn(formControlClassName, "h-auto min-h-[100px] resize-y", className)} {...props} />
       {error ? <span className={formErrorClassName}>{error}</span> : null}
     </>
   );

@@ -1,16 +1,12 @@
-﻿import { PageHeader } from "../../../components/layout/PageHeader";
-import { Card } from "../../../components/ui/Card";
+﻿import { Suspense } from "react";
+import { SettingsPageClient } from "../../../components/settings/SettingsPageClient";
 
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" subtitle="Profile, preferences, and system options." />
-      <Card>
-        <p className="text-sm leading-relaxed text-slate-600">
-          Settings module ready for production extension. Connect notifications, branding, and API keys from here in a future
-          iteration.
-        </p>
-      </Card>
+      <Suspense fallback={<div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">Loading settings…</div>}>
+        <SettingsPageClient />
+      </Suspense>
     </div>
   );
 }

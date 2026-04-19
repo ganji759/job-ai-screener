@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import toast from "react-hot-toast";
 import { ExternalLink, Play } from "lucide-react";
 import { PageHeader } from "../../../../../components/layout/PageHeader";
 import { RunScreeningModal } from "../../../../../components/screenings/RunScreeningModal";
@@ -12,27 +11,15 @@ import { Card } from "../../../../../components/ui/Card";
 import { StatusBadge } from "../../../../../components/ui/StatusBadge";
 import { ProgressBar } from "../../../../../components/ui/ProgressBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
-import { useRunScreeningMutation, useGetJobScreeningsQuery } from "../../../../../store/api/screeningsApi";
+import { useGetJobScreeningsQuery } from "../../../../../store/api/screeningsApi";
 
 export default function JobScreeningsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [runScreening] = useRunScreeningMutation();
   const { data, isLoading } = useGetJobScreeningsQuery(params.id);
 
   const rows = Array.isArray(data) ? data : [];
-
-  const onRun = async (shortlistSize: 10 | 20) => {
-    try {
-      const result = await runScreening({ jobId: params.id, shortlistSize }).unwrap();
-      toast.success("Screening started successfully.");
-      setOpen(false);
-      router.push(`/screenings/${result.screeningId}`);
-    } catch (error) {
-      toast.error((error as { data?: { error?: string } })?.data?.error ?? "Failed to start screening.");
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -105,7 +92,7 @@ export default function JobScreeningsPage() {
           </div>
         )}
       </Card>
-      <RunScreeningModal open={open} onClose={() => setOpen(false)} onRun={onRun} />
+      <RunScreeningModal open={open} onClose={() => setOpen(false)} onCreated={(id) => router.push(`/screenings/${id}`)} />
     </div>
   );
 }

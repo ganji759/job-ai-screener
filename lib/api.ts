@@ -1,6 +1,8 @@
 "use client";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api/v1";
+import { resolveApiBaseUrl } from "./resolveApiBaseUrl";
+
+export const API_BASE_URL = resolveApiBaseUrl();
 const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:3001/ws/notifications";
 
 export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

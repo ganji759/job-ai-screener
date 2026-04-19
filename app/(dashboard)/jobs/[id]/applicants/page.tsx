@@ -29,7 +29,14 @@ export default function JobApplicantsPage() {
       </div>
       <Card>
         <h3 className="mb-4 text-lg font-semibold text-slate-900">Applicant list</h3>
-        <ApplicantTable applicants={data?.applicants ?? []} />
+        <ApplicantTable
+          applicants={data?.applicants ?? []}
+          onDelete={() => {}}
+          onStatusChange={() => {}}
+          onClearFilters={() => {}}
+          hasActiveFilters={false}
+          onOpenUpload={() => {}}
+        />
       </Card>
     </div>
   );
