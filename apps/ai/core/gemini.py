@@ -16,7 +16,7 @@ def init_gemini() -> None:
         generation_config=genai.GenerationConfig(
             response_mime_type="application/json",  # force JSON mode
             temperature=0.1,                         # deterministic scoring
-            max_output_tokens=4096,
+            max_output_tokens=8192,
         ),
     )
 
