@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+load_dotenv()  # loads root .env before any core modules read os.environ
 from fastapi import FastAPI
 from core.gemini import init_gemini
 from core.mongo import init_mongo, close_mongo
