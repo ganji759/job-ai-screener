@@ -15,13 +15,18 @@ const notifyUser = async (input) => {
         channel: "in_app",
         metadata: input.metadata,
     });
-    (0, realtime_service_1.pushRealtimeEvent)(input.userId, "notification:new", {
-        id: String(notification._id),
-        title: notification.title,
-        message: notification.message,
-        type: notification.type,
-        createdAt: notification.createdAt,
-    });
+    try {
+        (0, realtime_service_1.pushRealtimeEvent)(input.userId, "notification:new", {
+            id: String(notification._id),
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            createdAt: notification.createdAt,
+        });
+    }
+    catch {
+        /* avoid 500 if websocket payload fails to serialize */
+    }
     if (input.sendEmail) {
         // Fire-and-forget to keep API responses fast.
         void (async () => {

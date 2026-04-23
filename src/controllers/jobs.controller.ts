@@ -7,6 +7,7 @@ import { ScreeningModel } from "../models/Screening.model";
 import { notifyUser } from "../services/notification.service";
 
 const JobSchema = z.object({ title: z.string(), description: z.string(), requirements: z.record(z.string(), z.unknown()) }).strip();
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const userId = request.user?.userId;
@@ -14,12 +15,16 @@ export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Pr
     return void reply.code(401).send({ error: "Unauthorized" });
   }
 
-  const { status, search = "", page = "1", limit = "20" } = request.query as Record<string, string>;
+  const queryParams = request.query as Record<string, unknown>;
+  const status = typeof queryParams.status === "string" ? queryParams.status : undefined;
+  const search = typeof queryParams.search === "string" ? queryParams.search.trim() : "";
+  const pageRaw = typeof queryParams.page === "string" ? queryParams.page : undefined;
+  const limitRaw = typeof queryParams.limit === "string" ? queryParams.limit : undefined;
   const query: Record<string, unknown> = { recruiterId: new Types.ObjectId(userId) };
   if (status) query.status = status;
-  if (search) query.title = { $regex: search, $options: "i" };
-  const p = Math.max(1, Math.floor(Number(page)) || 1);
-  const l = Math.min(100, Math.max(1, Math.floor(Number(limit)) || 20));
+  if (search) query.title = { $regex: escapeRegex(search), $options: "i" };
+  const p = Math.max(1, Math.floor(Number(pageRaw)) || 1);
+  const l = Math.min(100, Math.max(1, Math.floor(Number(limitRaw)) || 20));
   const [jobs, total] = await Promise.all([
     JobModel.find(query).sort({ createdAt: -1 }).skip((p - 1) * l).limit(l).lean(),
     JobModel.countDocuments(query),

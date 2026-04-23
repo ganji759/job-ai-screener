@@ -21,7 +21,22 @@ const envSchema = zod_1.z.object({
     JWT_SECRET: zod_1.z.string().min(32, "JWT_SECRET must be at least 32 characters"),
     JWT_EXPIRES_IN: zod_1.z.string().default("24h"),
     GEMINI_API_KEY: zod_1.z.string().min(1, "GEMINI_API_KEY is required"),
-    GEMINI_MODEL: zod_1.z.string().default("gemini-1.5-pro"),
+    GEMINI_MODEL: zod_1.z.string().default("gemini-2.5-flash"),
+    /** Google Generative AI REST path segment (`v1` recommended for current models). SDK default is `v1beta`. */
+    GEMINI_API_VERSION: zod_1.z.string().default("v1"),
+    /** Default per-request timeout for Gemini (extract, CSV/PDF scoring, pool insights). */
+    GEMINI_TIMEOUT_MS: zod_1.z.coerce.number().int().positive().default(30_000),
+    /** Umurava platform: candidates per Gemini call (fewer calls = faster wall time; larger = bigger prompts). */
+    GEMINI_PLATFORM_BATCH_SIZE: zod_1.z.coerce.number().int().min(1).max(40).default(10),
+    /** Umurava platform: per-batch HTTP timeout (keep total batches × timeout under GEMINI_PLATFORM_WALL_MS). */
+    GEMINI_PLATFORM_TIMEOUT_MS: zod_1.z.coerce.number().int().positive().default(26_000),
+    /** Umurava platform: retries per batch (use 1 for strict low latency). */
+    GEMINI_PLATFORM_RETRIES: zod_1.z.coerce.number().int().min(1).max(5).default(1),
+    /** Hard stop for the platform scoring loop (ms) — aims for &lt;60s before pool insights. */
+    GEMINI_PLATFORM_WALL_MS: zod_1.z.coerce.number().int().positive().default(58_000),
+    /** Pool insights call after platform scoring (shorter helps full request finish sooner). */
+    GEMINI_INSIGHTS_TIMEOUT_MS: zod_1.z.coerce.number().int().positive().default(14_000),
+    GEMINI_INSIGHTS_RETRIES: zod_1.z.coerce.number().int().min(1).max(5).default(1),
     REDIS_ENABLED: zod_1.z.preprocess(parseBooleanEnv, zod_1.z.boolean()).default(false),
     REDIS_URL: zod_1.z.string().url().default("redis://localhost:6379"),
     MAX_FILE_SIZE_MB: zod_1.z.coerce.number().positive().default(10),

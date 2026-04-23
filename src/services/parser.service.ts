@@ -1,38 +1,113 @@
 import { parse } from "csv-parse/sync";
 import { randomUUID } from "node:crypto";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import pdfParse from "pdf-parse";
 import type { UmuravaProfile } from "../types";
 import { callGeminiWithRetry } from "./gemini.service";
+import { safeParseTalentProfile, talentProfileToUmuravaProfile } from "./talentProfile.adapter";
 import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
-import { z } from "zod";
+import { ZodResumeGeminiExtraction } from "../utils/jsonValidator";
 
-const PartialProfile = z.object({
-  id: z.string().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  email: z.string().optional(),
-  title: z.string().optional(),
-  skills: z.array(z.string()).optional(),
-  location: z.string().optional(),
-}).passthrough();
-
-export const parsePDF = async (buffer: Buffer): Promise<Partial<UmuravaProfile> & { rawText: string }> => {
-  let parsed: { text?: string };
-  try {
-    const module = await import("pdf-parse");
-    const pdfParse = (module as unknown as { default?: (input: Buffer) => Promise<{ text: string }> }).default;
-    if (!pdfParse) {
-      throw new Error("pdf-parse default export is unavailable");
+/** Regex / line heuristics when Gemini is unavailable — improves name/email vs "Unknown". */
+export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile> => {
+  const text = rawText.replace(/\r\n/g, "\n");
+  const compact = text.replace(/\s+/g, " ").trim();
+  const emailMatch = compact.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const email = emailMatch ? emailMatch[0] : "unknown@example.com";
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !/^page\s+\d+/i.test(l));
+  let firstName = "Unknown";
+  let lastName = "Candidate";
+  const candidateLine = lines.find((l) => l.length >= 3 && l.length < 100 && !l.includes("@") && !/^\d/.test(l));
+  if (candidateLine) {
+    const parts = candidateLine.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      firstName = parts[0];
+      lastName = parts.slice(1).join(" ");
+    } else if (parts.length === 1) {
+      firstName = parts[0];
+      lastName = "";
     }
-    parsed = await pdfParse(buffer);
-  } catch (error) {
-    throw new Error(
-      `PDF parser initialization failed. This runtime may not support the current pdf-parse build. Details: ${String(error)}`,
-    );
   }
-  const rawText = parsed.text ?? "";
-  const extracted = await callGeminiWithRetry(buildResumeExtractionPrompt(rawText), PartialProfile);
-  return { ...(extracted as Partial<UmuravaProfile>), rawText };
+  const yearsMatch = compact.match(/(\d+)\s*\+?\s*(?:years?|yrs?|ans?)/i);
+  const totalYearsExperience = yearsMatch ? Math.min(60, Number(yearsMatch[1])) : 0;
+  const phoneMatch = compact.match(/(?:\+?\d[\d\s.-]{8,}\d)/);
+  return {
+    id: randomUUID(),
+    firstName,
+    lastName,
+    email,
+    phone: phoneMatch ? phoneMatch[0].replace(/\s+/g, " ").trim() : undefined,
+    title: lines[1] && lines[1] !== candidateLine ? lines[1].slice(0, 120) : "Professional",
+    summary: compact.slice(0, 2000),
+    skills: [],
+    languages: [],
+    experience: [],
+    education: [],
+    totalYearsExperience,
+    location: "Unknown",
+    remotePreference: "flexible",
+  };
+};
+
+const mergeGeminiResume = (
+  rawText: string,
+  gemini: Record<string, unknown>,
+): Partial<UmuravaProfile> => {
+  const base = heuristicExtractResume(rawText);
+  const g = gemini as Record<string, unknown>;
+  const fullName = typeof g.fullName === "string" ? g.fullName.trim() : "";
+  let first = typeof g.firstName === "string" ? g.firstName.trim() : "";
+  let last = typeof g.lastName === "string" ? g.lastName.trim() : "";
+  if (!first && fullName) {
+    const p = fullName.split(/\s+/).filter(Boolean);
+    first = p[0] ?? first;
+    last = p.slice(1).join(" ") || last;
+  }
+  const skillsRaw = g.skills;
+  const fromGemini = Array.isArray(skillsRaw)
+    ? skillsRaw.map((s) => String(s).trim().toLowerCase()).filter(Boolean)
+    : [];
+  const baseSkills = base.skills ?? [];
+  const skills = fromGemini.length ? fromGemini : baseSkills;
+
+  return {
+    ...base,
+    firstName: (first || base.firstName) as string,
+    lastName: (last || base.lastName) as string,
+    email: typeof g.email === "string" && g.email.includes("@") ? g.email : base.email,
+    phone: typeof g.phone === "string" ? g.phone : base.phone,
+    title: typeof g.title === "string" ? g.title : base.title,
+    summary: typeof g.summary === "string" ? g.summary : base.summary,
+    skills,
+    languages: Array.isArray(g.languages) ? (g.languages as UmuravaProfile["languages"]) : base.languages ?? [],
+    experience: Array.isArray(g.experience) ? (g.experience as UmuravaProfile["experience"]) : base.experience ?? [],
+    education: Array.isArray(g.education) ? (g.education as UmuravaProfile["education"]) : base.education ?? [],
+    totalYearsExperience:
+      typeof g.totalYearsExperience === "number" ? g.totalYearsExperience : base.totalYearsExperience ?? 0,
+    location: typeof g.location === "string" ? g.location : base.location,
+  };
+};
+
+/** Uses `pdf-parse@1.x` — Node-compatible; Gemini structures fields; heuristics fill gaps. */
+export const parsePDF = async (buffer: Buffer): Promise<Partial<UmuravaProfile> & { rawText: string }> => {
+  let rawText = "";
+  try {
+    const data = await pdfParse(buffer);
+    rawText = typeof data?.text === "string" ? data.text : "";
+  } catch (error) {
+    throw new Error(`PDF text extraction failed: ${String(error)}`);
+  }
+
+  try {
+    const extracted = await callGeminiWithRetry(buildResumeExtractionPrompt(rawText), ZodResumeGeminiExtraction);
+    const merged = mergeGeminiResume(rawText, extracted as Record<string, unknown>);
+    return { ...merged, rawText };
+  } catch {
+    return { ...heuristicExtractResume(rawText), rawText };
+  }
 };
 
 export const parseCSV = async (buffer: Buffer): Promise<Partial<UmuravaProfile>[]> => {
@@ -41,9 +116,34 @@ export const parseCSV = async (buffer: Buffer): Promise<Partial<UmuravaProfile>[
 };
 
 export const parseExcel = async (buffer: Buffer): Promise<Partial<UmuravaProfile>[]> => {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const firstSheet = workbook.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets[firstSheet], { defval: "" });
+  const workbook = new ExcelJS.Workbook();
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  await workbook.xlsx.load(arrayBuffer as unknown as ExcelJS.Buffer);
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return [];
+
+  const headerRow = worksheet.getRow(1);
+  const headers: string[] = [];
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber - 1] = String(cell.value ?? "").trim();
+  });
+
+  const rows: Record<string, string>[] = [];
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+
+    const mappedRow: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      if (!header) return;
+      const cellValue = row.getCell(index + 1).value;
+      mappedRow[header] = String(cellValue ?? "").trim();
+    });
+
+    rows.push(mappedRow);
+  });
+
   return rows.map((row, idx) => mapFlatRowToProfile(row, idx, "excel"));
 };
 
@@ -64,17 +164,34 @@ const mapFlatRowToProfile = (
   row: Record<string, string>,
   idx: number,
   prefix: "csv" | "excel",
-): Partial<UmuravaProfile> => ({
+): Partial<UmuravaProfile> => {
+  const skillsRaw = row.skills ?? row.Skills ?? "";
+  const skills = skillsRaw.split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+  const expYearsRaw =
+    row.experienceYears ??
+    row.experience_years ??
+    row.years ??
+    row["Years of Experience"] ??
+    row["Years"] ??
+    "";
+  const totalYearsExperience = Math.min(60, Math.max(0, Number.parseFloat(String(expYearsRaw)) || 0));
+  return {
     id: row.id ?? `${prefix}-${idx + 1}`,
-    firstName: row.firstName ?? row.firstname ?? "Unknown",
-    lastName: row.lastName ?? row.lastname ?? "Candidate",
-    email: row.email ?? "unknown@example.com",
-    title: row.title ?? row.currentRole ?? "N/A",
-    skills: (row.skills ?? "").split(",").map((s) => s.trim()).filter(Boolean),
-    location: row.location ?? "Unknown",
-  });
+    firstName: row.firstName ?? row.firstname ?? row.FirstName ?? "Unknown",
+    lastName: row.lastName ?? row.lastname ?? row.LastName ?? "Candidate",
+    email: row.email ?? row.Email ?? "unknown@example.com",
+    title: row.title ?? row.currentRole ?? row.Role ?? "N/A",
+    skills,
+    location: row.location ?? row.Location ?? "Unknown",
+    totalYearsExperience,
+    summary: row.summary ?? row.Summary ?? row.bio ?? undefined,
+  };
+};
 
 export const normalizeProfile = (raw: unknown): UmuravaProfile => {
+  const talent = safeParseTalentProfile(raw);
+  if (talent) return talentProfileToUmuravaProfile(talent);
+
   const src = raw as Partial<UmuravaProfile>;
   const experience = src.experience ?? [];
   const totalYearsExperience = experience.reduce((acc, item) => acc + (item.yearsInRole ?? 0), 0);

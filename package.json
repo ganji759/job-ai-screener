@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "worker": "tsx src/workers/screening.worker.ts",
     "test": "vitest",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "seed": "tsx src/scripts/seedApplicants.ts",
+    "check-seed": "tsx src/scripts/checkSeed.ts"
   },
   "dependencies": {
     "@fastify/cors": "latest",
@@ -21,15 +23,15 @@
     "bull": "latest",
     "csv-parse": "latest",
     "dotenv": "^17.4.2",
-    "fastify": "latest",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.8.5",
     "ioredis": "latest",
     "jsonwebtoken": "latest",
     "mongoose": "latest",
     "nodemailer": "latest",
-    "pdf-parse": "latest",
+    "pdf-parse": "1.1.1",
     "pdfkit": "latest",
     "pino": "latest",
-    "xlsx": "latest",
     "zod": "latest"
   },
   "devDependencies": {
