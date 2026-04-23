@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Check, ChevronDown, Crown, Download, Loader2, RefreshCw, Sparkles, TriangleAlert, UserRound } from "lucide-react";
+import { Check, Crown, Download, Loader2, RefreshCw, Sparkles, TriangleAlert, UserRound } from "lucide-react";
 import {
   useExportScreeningMutation,
   useGetScreeningResultsQuery,
@@ -18,10 +18,10 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import type { Applicant } from "../../../../types";
 
-type Decision = "approved" | "rejected";
+type Decision = "approved" | "rejected" | "review";
 
-const getScoreTone = (score: number) => (score >= 70 ? "text-emerald-600" : score >= 40 ? "text-amber-600" : "text-red-600");
-const getScoreBarColor = (score: number) => (score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500");
+const getScoreTone = (score: number) => (score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-red-600");
+const getScoreBarColor = (score: number) => (score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-red-500");
 
 const ScoreBar = ({ value }: { value: number }) => {
   const clamped = Math.max(0, Math.min(100, value));
@@ -33,6 +33,46 @@ const ScoreBar = ({ value }: { value: number }) => {
       <span className={`text-xs font-semibold ${getScoreTone(clamped)}`}>{Math.round(clamped)}</span>
     </div>
   );
+};
+
+const PillarBar = ({ label, value, max }: { label: string; value: number; max: number }) => {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[11px] font-medium text-slate-600">
+        <span>{label}</span>
+        <span className="tabular-nums text-slate-800">
+          {value.toFixed(1)}
+          <span className="text-slate-400">/{max}</span>
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+};
+
+const PercentBar = ({ label, value }: { label: string; value: number }) => {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[11px] font-medium text-slate-600">
+        <span>{label}</span>
+        <span className="tabular-nums text-slate-800">{Math.round(pct)}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${getScoreBarColor(pct)}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+};
+
+const hiringRiskBadgeClass = (risk: string) => {
+  const t = risk.toLowerCase();
+  if (t === "low") return "bg-emerald-100 text-emerald-900 border border-emerald-200";
+  if (t === "high") return "bg-red-100 text-red-900 border border-red-200";
+  return "bg-amber-100 text-amber-950 border border-amber-200";
 };
 
 const getRankStyle = (rank: number) => {
@@ -67,8 +107,7 @@ export default function ScreeningDetailPage() {
     skip: !screeningId || !isComplete,
   });
 
-  // Derive jobId from the first ranked applicant
-  const jobId = resultsData?.ranked?.[0]?.applicant?.job_id;
+  const jobId = resultsData?.meta?.jobId ?? resultsData?.ranked?.[0]?.applicant?.job_id;
   const { data: job } = useGetJobQuery(String(jobId ?? ""), { skip: !jobId });
   const { data: applicantsData } = useGetApplicantsQuery(
     { jobId: String(jobId ?? ""), limit: 500 },
@@ -78,7 +117,6 @@ export default function ScreeningDetailPage() {
   const [exportScreening] = useExportScreeningMutation();
   const [runScreening] = useRunScreeningMutation();
   const [shortlistSize, setShortlistSize] = useState<10 | 20>(10);
-  const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
 
   useEffect(() => {
@@ -110,20 +148,28 @@ export default function ScreeningDetailPage() {
         const firstName = nameParts[0] ?? "Unknown";
         const lastName = nameParts.slice(1).join(" ") || "";
         const skills = r.applicant?.parsed_profile?.skills ?? [];
+        const email = r.applicant?.parsed_profile?.email ?? profileById.get(applicantId)?.profile.email ?? "";
         const embedded = { firstName, lastName, title: "", skills };
         const candidate = {
           rank: r.rank,
+          screeningKind: r.screening_kind,
           candidateId: applicantId,
           applicantId,
           totalScore: r.composite_score,
           strengths: r.strengths,
           gaps: r.gaps,
           recommendation: r.recommendation,
+          scoreBreakdownPoints: r.score_breakdown_points,
+          relevanceSummary: r.reasoning_detail?.relevanceSummary,
+          hiringRisk: r.reasoning_detail?.hiringRisk,
+          aiRecommendationFull: r.reasoning_detail?.recommendation ?? r.recommendation,
+          email,
           breakdown: {
             skillsMatch: r.dimension_scores.skills,
             experienceMatch: r.dimension_scores.experience,
             educationMatch: r.dimension_scores.education,
             culturalFit: r.dimension_scores.cultural_fit,
+            additionalAssets: r.dimension_scores.additional_assets ?? 0,
           },
         };
         return { candidate, applicant: profileById.get(applicantId), embedded };
@@ -131,11 +177,14 @@ export default function ScreeningDetailPage() {
   }, [resultsData?.ranked, shortlistSize, profileById]);
 
   const shortlistedCount = candidates.length;
-  const totalAnalyzed = resultsData?.ranked?.length ?? 0;
+  const totalAnalyzed = resultsData?.meta?.totalCandidatesScreened ?? resultsData?.ranked?.length ?? 0;
+  const pooledAvg = resultsData?.meta?.averageScore;
   const averageScore =
-    candidates.length > 0
-      ? Math.round(candidates.reduce((sum, c) => sum + c.candidate.totalScore, 0) / candidates.length)
-      : 0;
+    pooledAvg != null && !Number.isNaN(Number(pooledAvg))
+      ? Math.round(Number(pooledAvg))
+      : candidates.length > 0
+        ? Math.round(candidates.reduce((sum, c) => sum + c.candidate.totalScore, 0) / candidates.length)
+        : 0;
   const approvedCount = Object.values(decisions).filter((v) => v === "approved").length;
   const hasShortlist = candidates.length > 0;
 
@@ -188,7 +237,9 @@ export default function ScreeningDetailPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <PageHeader
             title={job?.title ?? "Screening Result"}
-            subtitle={`${totalAnalyzed} candidates analyzed`}
+            subtitle={`${totalAnalyzed} candidates analyzed${
+              resultsData?.meta?.screenedAt ? ` · ${new Date(resultsData.meta.screenedAt).toLocaleString()}` : ""
+            }`}
           />
           <div className="flex flex-wrap gap-2">
             <Link href="/screenings">
@@ -265,142 +316,134 @@ export default function ScreeningDetailPage() {
                 Top {size}
               </button>
             ))}
-            <span className="ml-auto text-xs font-medium text-slate-500">{approvedCount} approved by recruiter</span>
+            <span className="ml-auto text-xs font-medium text-slate-500">{approvedCount} recruiter decisions saved</span>
           </div>
 
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Rank</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Skills</th>
-                  <th className="px-4 py-3">Match Score</th>
-                  <th className="px-4 py-3">Strengths</th>
-                  <th className="px-4 py-3">Gaps</th>
-                  <th className="px-4 py-3">Recommendation</th>
-                  <th className="px-4 py-3 w-10" aria-hidden />
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map(({ candidate, applicant, embedded }) => {
-                  const id = candidate.candidateId;
-                  const expanded = expandedIds.includes(id);
-                  const rankStyle = getRankStyle(candidate.rank);
-                  const decision = decisions[id];
-                  const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
-                  const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
-                  const fullName = `${first} ${last}`.trim();
-                  const skillsArr = embedded.skills ?? applicant?.profile.skills ?? [];
-                  const skillsText = skillsArr.slice(0, 6).join(", ") || "—";
-                  const strengthsPreview = (candidate.strengths?.length ? candidate.strengths : ["Strong alignment"]).slice(0, 2).join("; ");
-                  const gapsPreview = (candidate.gaps?.length ? candidate.gaps : ["No major gaps flagged"]).slice(0, 2).join("; ");
-                  const recPreview = candidate.recommendation.length > 120 ? `${candidate.recommendation.slice(0, 120)}…` : candidate.recommendation || "—";
+          <div className="grid gap-4 lg:grid-cols-2">
+            {candidates.map(({ candidate, applicant, embedded }) => {
+              const id = candidate.candidateId;
+              const rankStyle = getRankStyle(candidate.rank);
+              const decision = decisions[id];
+              const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
+              const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
+              const fullName = `${first} ${last}`.trim();
+              const email = candidate.email || applicant?.profile.email || "—";
+              const pts = candidate.scoreBreakdownPoints;
 
-                  return (
-                    <Fragment key={id}>
-                      <tr
-                        className={`cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50/80 ${rankStyle.bg}`}
-                        onClick={() => setExpandedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
-                      >
-                        <td className={`border-l-4 px-4 py-3 align-middle ${rankStyle.border}`}>
-                          <div className="flex items-center gap-2">
-                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-xs font-bold text-white`}>
-                              #{candidate.rank}
-                            </div>
-                            {rankStyle.icon}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-middle">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-                              <UserRound className="h-4 w-4" />
-                            </div>
-                            <span className="font-semibold text-slate-900">{fullName}</span>
-                          </div>
-                        </td>
-                        <td className="max-w-[220px] px-4 py-3 align-middle text-xs text-slate-600">{skillsText}</td>
-                        <td className="px-4 py-3 align-middle">
-                          <ScoreBar value={candidate.totalScore} />
-                        </td>
-                        <td className="max-w-[200px] px-4 py-3 align-middle text-xs text-emerald-800">{strengthsPreview}</td>
-                        <td className="max-w-[200px] px-4 py-3 align-middle text-xs text-amber-800">{gapsPreview}</td>
-                        <td className="max-w-[240px] px-4 py-3 align-middle text-xs italic text-brand-800">{recPreview}</td>
-                        <td className="px-4 py-3 align-middle text-slate-400">
-                          <ChevronDown className={`h-5 w-5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                        </td>
-                      </tr>
-                      {expanded ? (
-                        <tr className={`${rankStyle.bg} border-b border-slate-100`}>
-                          <td colSpan={8} className="px-4 pb-5 pt-0">
-                            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                              <div className="mb-4 flex flex-wrap gap-2">
-                                <Button
-                                  variant={decision === "approved" ? "primary" : "secondary"}
-                                  size="sm"
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setDecisions((prev) => ({ ...prev, [id]: "approved" })); }}
-                                >
-                                  ✓ Approve
-                                </Button>
-                                <Button
-                                  variant={decision === "rejected" ? "danger" : "secondary"}
-                                  size="sm"
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setDecisions((prev) => ({ ...prev, [id]: "rejected" })); }}
-                                >
-                                  ✗ Reject
-                                </Button>
-                                <span className="self-center text-[11px] text-slate-500">Decision: {decision ?? "pending"}</span>
-                              </div>
-                              <div className="grid gap-4 lg:grid-cols-3">
-                                <div>
-                                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                                    <Check className="h-4 w-4" /> Strengths
-                                  </p>
-                                  <ul className="space-y-1 text-sm text-emerald-700">
-                                    {(candidate.strengths.length ? candidate.strengths : ["Strong profile alignment"]).slice(0, 6).map((item) => (
-                                      <li key={item}>• {item}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-700">
-                                    <TriangleAlert className="h-4 w-4" /> Gaps / Risks
-                                  </p>
-                                  <ul className="space-y-1 text-sm text-amber-700">
-                                    {(candidate.gaps.length ? candidate.gaps : ["No major risk signals identified"]).slice(0, 5).map((item) => (
-                                      <li key={item}>• {item}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-brand-700">
-                                    <Sparkles className="h-4 w-4" /> Recommendation
-                                  </p>
-                                  <p className="text-sm italic text-brand-700">{candidate.recommendation || "Good candidate for recruiter review."}</p>
-                                  <p className="mt-3 text-xs font-semibold text-slate-600">Score breakdown</p>
-                                  <ul className="mt-1 space-y-1 text-xs text-slate-600">
-                                    <li>Skills: {Math.round(candidate.breakdown.skillsMatch)}</li>
-                                    <li>Experience: {Math.round(candidate.breakdown.experienceMatch)}</li>
-                                    <li>Education: {Math.round(candidate.breakdown.educationMatch)}</li>
-                                    <li>Cultural fit: {Math.round(candidate.breakdown.culturalFit)}</li>
-                                  </ul>
-                                </div>
-                              </div>
-                              <p className="mt-4 border-t pt-3 text-xs text-slate-500">
-                                AI screening is a decision-support tool. Final hiring decisions remain with the recruiter.
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
+              return (
+                <Card key={id} className={`border-l-4 ${rankStyle.border} ${rankStyle.bg} p-5 shadow-sm`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="relative">
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-sm font-bold text-white`}>
+                          #{candidate.rank}
+                        </div>
+                        <div className="absolute -right-1 -top-1">{rankStyle.icon}</div>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <UserRound className="h-5 w-5 text-brand-600" />
+                          <h3 className="text-lg font-semibold text-slate-900">{fullName}</h3>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">{email}</p>
+                      </div>
+                    </div>
+                    <div className="min-w-[140px]">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overall score</p>
+                      <ScoreBar value={candidate.totalScore} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score breakdown</p>
+                    {pts ? (
+                      <>
+                        <PillarBar label="Skills match (max 35)" value={pts.skillsMatch} max={35} />
+                        <PillarBar label="Experience (max 25)" value={pts.experience} max={25} />
+                        <PillarBar label="Education (max 15)" value={pts.education} max={15} />
+                        <PillarBar label="Role relevance (max 15)" value={pts.roleRelevance} max={15} />
+                        <PillarBar label="Additional assets (max 10)" value={pts.additionalAssets} max={10} />
+                      </>
+                    ) : (
+                      <>
+                        <PercentBar label="Skills match" value={candidate.breakdown.skillsMatch} />
+                        <PercentBar label="Experience" value={candidate.breakdown.experienceMatch} />
+                        <PercentBar label="Education" value={candidate.breakdown.educationMatch} />
+                        <PercentBar label="Culture / relevance" value={candidate.breakdown.culturalFit} />
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {(candidate.strengths ?? []).slice(0, 8).map((s) => (
+                      <span key={s} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-100">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(candidate.gaps ?? []).slice(0, 6).map((g) => (
+                      <span key={g} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-900 ring-1 ring-red-100">
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+
+                  {candidate.relevanceSummary ? (
+                    <p className="mt-4 text-sm leading-relaxed text-slate-700">{candidate.relevanceSummary}</p>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-900 ring-1 ring-brand-100">
+                      {candidate.recommendation}
+                    </span>
+                    {candidate.hiringRisk ? (
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${hiringRiskBadgeClass(candidate.hiringRisk)}`}>
+                        Hiring risk: {candidate.hiringRisk}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                    <Button
+                      variant={decision === "approved" ? "primary" : "secondary"}
+                      size="sm"
+                      type="button"
+                      onClick={() => setDecisions((prev) => ({ ...prev, [id]: "approved" }))}
+                    >
+                      <Check className="mr-1 h-3.5 w-3.5" /> Accept
+                    </Button>
+                    <Button
+                      variant={decision === "rejected" ? "danger" : "secondary"}
+                      size="sm"
+                      type="button"
+                      onClick={() => setDecisions((prev) => ({ ...prev, [id]: "rejected" }))}
+                    >
+                      <TriangleAlert className="mr-1 h-3.5 w-3.5" /> Reject
+                    </Button>
+                    <Button
+                      variant={decision === "review" ? "primary" : "secondary"}
+                      size="sm"
+                      type="button"
+                      onClick={() => setDecisions((prev) => ({ ...prev, [id]: "review" }))}
+                    >
+                      <Sparkles className="mr-1 h-3.5 w-3.5" /> Review
+                    </Button>
+                    <span className="self-center text-[11px] text-slate-500">Decision: {decision ?? "pending"}</span>
+                  </div>
+
+                  <details className="mt-4 text-sm text-slate-600">
+                    <summary className="cursor-pointer font-medium text-slate-700">Full AI rationale</summary>
+                    <p className="mt-2 italic text-slate-600">{candidate.aiRecommendationFull}</p>
+                  </details>
+
+                  <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    AI screening supports your decision-making; final hiring choices remain with the recruiter.
+                  </p>
+                </Card>
+              );
+            })}
+          </div>
         </>
       ) : null}
     </div>

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { CalendarDays, Grid2X2, List, Plus, Rocket, Users } from "lucide-react";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { PageHeader } from "../../../components/layout/PageHeader";
@@ -14,17 +15,22 @@ import { useDebounce } from "../../../hooks/useDebounce";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { cn, compactSelectClassName } from "../../../lib/utils";
+import { getRtkQueryErrorMessage } from "../../../lib/rtkError";
 
 export default function JobsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("");
   const [sortBy, setSortBy] = useState("newest");
   const [view, setView] = useState<"grid" | "list">("grid");
   const debouncedSearch = useDebounce(search, 300);
-  const { data, isLoading } = useGetJobsQuery({ page, limit: 9, search: debouncedSearch, status: status || undefined });
+  const { data, isLoading, isError, error, refetch } = useGetJobsQuery({
+    page,
+    limit: 9,
+    search: debouncedSearch,
+    status: status || undefined,
+  });
   const sortedJobs = [...(data?.jobs ?? [])].sort((a, b) => {
     if (sortBy === "updated") return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     if (sortBy === "applicants") return (b.applicantCount ?? 0) - (a.applicantCount ?? 0);
@@ -38,10 +44,31 @@ export default function JobsPage() {
     : "Post your first job and let AI find the best candidates for you";
 
   useEffect(() => {
-    if (searchParams.get("openNew") === "1") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openNew") === "1") {
       router.replace("/jobs/new");
     }
-  }, [router, searchParams]);
+  }, [router]);
+
+  useEffect(() => {
+    if (!isError || !error) return;
+    toast.error(`Unable to load jobs: ${getRtkQueryErrorMessage(error)}`);
+  }, [isError, error]);
+
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="My Jobs" subtitle="Create, monitor and run AI screenings." />
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
+          <p className="font-semibold">We couldn&apos;t load your jobs</p>
+          <p className="mt-1 text-sm opacity-90">{error ? getRtkQueryErrorMessage(error) : "Check your connection and try again."}</p>
+          <Button type="button" className="mt-4" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

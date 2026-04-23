@@ -12,7 +12,6 @@ import {
   useGetJobBenchmarkQuery,
   useUpdateJobMutation,
   useDeleteJobMutation,
-  type PatchJobPayload,
 } from "../../../../store/api/jobsApi";
 import { JobStatsPanel, type JobStatsShape } from "../../../../components/jobs/JobStatsPanel";
 import { JobBenchmarkPanel, type JobBenchmarkShape } from "../../../../components/jobs/JobBenchmarkPanel";
@@ -26,55 +25,7 @@ import { TagInput } from "../../../../components/ui/TagInput";
 import type { ExperienceLevel, Job } from "../../../../types";
 import { cn } from "../../../../lib/utils";
 import { getRtkQueryErrorMessage } from "../../../../lib/rtkError";
-
-type Draft = {
-  title: string;
-  description: string;
-  domain: string;
-  location: string;
-  employmentType: Job["employmentType"];
-  experienceLevel: ExperienceLevel;
-  minExperienceYears: number;
-  education: string;
-  skills: string[];
-};
-
-function jobToDraft(job: Job): Draft {
-  return {
-    title: job.title,
-    description: job.description,
-    domain: job.requirements.domain,
-    location: job.location,
-    employmentType: job.employmentType,
-    experienceLevel: job.requirements.experienceLevel,
-    minExperienceYears: job.requirements.minExperienceYears,
-    education: job.requirements.education ?? "",
-    skills: [...(job.requirements.skills ?? [])],
-  };
-}
-
-function buildPatch(original: Job, draft: Draft): PatchJobPayload | null {
-  const patch: PatchJobPayload = {};
-  if (draft.title.trim() !== original.title) patch.title = draft.title.trim();
-  if (draft.description.trim() !== original.description) patch.description = draft.description.trim();
-  if (draft.location.trim() !== original.location) patch.location = draft.location.trim();
-  if (draft.employmentType !== original.employmentType) patch.employmentType = draft.employmentType;
-
-  const req: PatchJobPayload["requirements"] = {};
-  const o = original.requirements;
-  if (draft.domain.trim() !== o.domain) req.domain = draft.domain.trim();
-  if (draft.experienceLevel !== o.experienceLevel) req.experienceLevel = draft.experienceLevel;
-  if (draft.minExperienceYears !== o.minExperienceYears) req.minExperienceYears = draft.minExperienceYears;
-  const eduDraft = draft.education.trim();
-  const eduOrig = (o.education ?? "").trim();
-  if (eduDraft !== eduOrig) req.education = eduDraft || undefined;
-  const skillsEqual =
-    draft.skills.length === o.skills.length && draft.skills.every((s, i) => s === o.skills[i]);
-  if (!skillsEqual) req.skills = draft.skills;
-
-  if (Object.keys(req).length > 0) patch.requirements = req;
-  return Object.keys(patch).length > 0 ? patch : null;
-}
+import { buildUpdateJobBody, jobToEditDraft, type JobEditDraft } from "../../../../lib/jobApiMapping";
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
@@ -88,22 +39,24 @@ export default function JobDetailPage() {
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
 
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<JobEditDraft | null>(null);
+  /** Snapshot when entering edit mode — used to compute PUT body aligned with API. */
+  const [baselineDraft, setBaselineDraft] = useState<JobEditDraft | null>(null);
   const [skillsInput, setSkillsInput] = useState("");
 
   useEffect(() => {
-    if (job) setDraft(jobToDraft(job));
+    if (job) setDraft(jobToEditDraft(job));
   }, [job]);
 
   const syncDraftFromJob = useCallback(() => {
-    if (job) setDraft(jobToDraft(job));
+    if (job) setDraft(jobToEditDraft(job));
   }, [job]);
 
   const handleStatusChange = async (next: Job["status"]) => {
     if (!job || next === job.status) return;
     try {
       await updateJob({ id, body: { status: next } }).unwrap();
-      toast.success("Status updated.");
+      toast.success(`Status updated to “${next}”.`);
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));
     }
@@ -111,20 +64,28 @@ export default function JobDetailPage() {
 
   const handleSave = async () => {
     if (!job || !draft) return;
-    if (draft.skills.length === 0) {
-      toast.error("Add at least one skill.");
+    if (!draft.requirementsTitle.trim() || !draft.requirementsDescription.trim()) {
+      toast.error("Requirements title and description cannot be empty.");
       return;
     }
-    const patch = buildPatch(job, draft);
-    if (!patch) {
-      toast.success("Nothing to save.");
+    if (draft.skills.length === 0) {
+      toast.error("Add at least one required skill.");
+      return;
+    }
+    const baseline = baselineDraft ?? jobToEditDraft(job);
+    const body = buildUpdateJobBody(baseline, draft);
+    if (!body) {
+      toast.success("No changes to save.");
       setEditing(false);
+      setBaselineDraft(null);
+      setSkillsInput("");
       return;
     }
     try {
-      await updateJob({ id, body: patch }).unwrap();
-      toast.success("Job updated.");
+      await updateJob({ id, body }).unwrap();
+      toast.success("Job saved successfully.");
       setEditing(false);
+      setBaselineDraft(null);
       setSkillsInput("");
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));
@@ -134,19 +95,28 @@ export default function JobDetailPage() {
   const handleCancelEdit = () => {
     syncDraftFromJob();
     setEditing(false);
+    setBaselineDraft(null);
     setSkillsInput("");
   };
 
   const handleDelete = async () => {
-    if (!job || !draft) return;
-    if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) return;
+    if (!job) return;
+    if (!window.confirm(`Close "${job.title}"? The job will be marked as closed.`)) return;
     try {
       await deleteJob(id).unwrap();
-      toast.success("Job deleted.");
+      toast.success("Job closed successfully.");
       router.push("/jobs");
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));
     }
+  };
+
+  const startEditing = () => {
+    if (job) {
+      setBaselineDraft(jobToEditDraft(job));
+      setDraft(jobToEditDraft(job));
+    }
+    setEditing(true);
   };
 
   if (!id) return null;
@@ -187,7 +157,7 @@ export default function JobDetailPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             {!editing ? (
-              <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
+              <Button type="button" variant="secondary" size="sm" onClick={startEditing}>
                 Edit
               </Button>
             ) : (
@@ -201,7 +171,7 @@ export default function JobDetailPage() {
               </>
             )}
             <Button type="button" variant="danger" size="sm" loading={deleting} disabled={deleting || editing} onClick={() => void handleDelete()}>
-              Delete
+              Close job
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -224,13 +194,22 @@ export default function JobDetailPage() {
         {!editing ? (
           <>
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">{job.title}</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Posted role</p>
+            </div>
+            <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-800 dark:text-brand-300">Role requirements</h3>
+              <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{job.requirements.requirementsTitle}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{job.requirements.requirementsDescription}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Job description</h3>
               <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">{job.description}</p>
             </div>
             <dl className="grid gap-3 text-sm text-slate-700 dark:text-slate-200 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-semibold uppercase text-slate-500">Location</dt>
-                <dd className="mt-1">{job.location}</dd>
+                <dd className="mt-1">{job.location || "—"}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold uppercase text-slate-500">Employment</dt>
@@ -241,7 +220,7 @@ export default function JobDetailPage() {
                 <dd className="mt-1">{job.requirements.domain}</dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase text-slate-500">Experience level</dt>
+                <dt className="text-xs font-semibold uppercase text-slate-500">Experience band</dt>
                 <dd className="mt-1 capitalize">{job.requirements.experienceLevel}</dd>
               </div>
               <div>
@@ -257,7 +236,7 @@ export default function JobDetailPage() {
             </dl>
             {job.requirements.skills?.length ? (
               <div>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Skills</p>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Skills</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {job.requirements.skills.map((s) => (
                     <SkillBadge key={s} skill={s} variant="match" />
@@ -268,12 +247,23 @@ export default function JobDetailPage() {
           </>
         ) : (
           <div className="space-y-4">
-            <Input label="Title" value={draft.title} onChange={(e) => setDraft((d) => (d ? { ...d, title: e.target.value } : d))} />
+            <Input label="Job title" value={draft.title} onChange={(e) => setDraft((d) => (d ? { ...d, title: e.target.value } : d))} />
             <Textarea
-              label="Description"
+              label="Job description"
               rows={6}
               value={draft.description}
               onChange={(e) => setDraft((d) => (d ? { ...d, description: e.target.value } : d))}
+            />
+            <Input
+              label="Requirements title"
+              value={draft.requirementsTitle}
+              onChange={(e) => setDraft((d) => (d ? { ...d, requirementsTitle: e.target.value } : d))}
+            />
+            <Textarea
+              label="Requirements description"
+              rows={4}
+              value={draft.requirementsDescription}
+              onChange={(e) => setDraft((d) => (d ? { ...d, requirementsDescription: e.target.value } : d))}
             />
             <div className="grid gap-4 md:grid-cols-2">
               <Input label="Location" value={draft.location} onChange={(e) => setDraft((d) => (d ? { ...d, location: e.target.value } : d))} />
@@ -292,14 +282,18 @@ export default function JobDetailPage() {
             <Input label="Domain" value={draft.domain} onChange={(e) => setDraft((d) => (d ? { ...d, domain: e.target.value } : d))} />
             <div className="grid gap-4 md:grid-cols-2">
               <Select
-                label="Experience level"
+                label="Experience band"
                 options={[
                   { label: "Junior", value: "junior" },
                   { label: "Mid", value: "mid" },
                   { label: "Senior", value: "senior" },
                 ]}
                 value={draft.experienceLevel}
-                onChange={(e) => setDraft((d) => (d ? { ...d, experienceLevel: e.target.value as ExperienceLevel } : d))}
+                onChange={(e) => {
+                  const level = e.target.value as ExperienceLevel;
+                  const years = level === "junior" ? 1 : level === "senior" ? 7 : 3;
+                  setDraft((d) => (d ? { ...d, experienceLevel: level, minExperienceYears: years } : d));
+                }}
               />
               <Input
                 label="Minimum years experience"
@@ -317,7 +311,7 @@ export default function JobDetailPage() {
               onChange={(e) => setDraft((d) => (d ? { ...d, education: e.target.value } : d))}
             />
             <div>
-              <p className="mb-1 text-sm font-medium text-slate-700">Skills</p>
+              <p className="mb-1 text-sm font-medium text-slate-700 dark:text-slate-200">Required skills</p>
               <TagInput
                 showAddButton
                 value={draft.skills}

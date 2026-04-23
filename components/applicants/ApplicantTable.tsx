@@ -87,8 +87,11 @@ const ApplicantRow = ({
   const scoreRaw = row.totalScore;
   const scoreDisplay = scoreRaw != null && !Number.isNaN(Number(scoreRaw)) ? Number(scoreRaw) : null;
   const open = () => onSelect(row);
-  const sourceLabel = row.source === "umurava_platform" ? "Umurava" : row.source === "csv_upload" ? "CSV" : "PDF";
-  const sourceVariant = row.source === "umurava_platform" ? "info" : row.source === "pdf_upload" ? "neutral" : "neutral";
+  const fileLower = row.originalFileName?.toLowerCase() ?? "";
+  const isExcelSheet = row.source === "csv_upload" && fileLower.endsWith(".xlsx");
+  const sourceLabel =
+    row.source === "umurava_platform" ? "Umurava" : row.source === "pdf_upload" ? "PDF" : isExcelSheet ? "Excel" : "CSV";
+  const sourceVariant = row.source === "umurava_platform" ? "info" : "neutral";
   const statusVariant =
     row.status === "shortlisted"
       ? "success"

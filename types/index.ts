@@ -1,12 +1,38 @@
-// ─── Backend-aligned types (feature/ai-integration API) ─────────────────────
+// ─── API types: Fastify `/api/v1/jobs` ↔ Mongoose Job model ───────────────────
 
-export interface BackendJobRequirements {
-  skills: string[];
-  experience_years: number;
-  education_level: string;
-  nice_to_have: string[];
+/** Education enum on Job.requirements (matches backend JobRequirementsSchema). */
+export type ApiEducationLevel = "none" | "certificate" | "bachelor" | "master" | "phd";
+
+/** Nested requirements document returned by GET/POST/PUT jobs. */
+export interface ApiJobRequirements {
+  title: string;
+  description: string;
+  mustHaveSkills?: string[];
+  niceToHaveSkills?: string[];
+  minYearsExperience?: number;
+  educationLevel?: ApiEducationLevel;
+  domain?: string;
+  location?: string;
+  remoteAllowed?: boolean;
+  softSkills?: string[];
+  salaryRange?: { min?: number; max?: number; currency?: string };
 }
 
+/** Job document as returned by the API (lean JSON). */
+export interface ApiJob {
+  _id: string;
+  title: string;
+  description: string;
+  requirements: ApiJobRequirements;
+  recruiterId?: string;
+  status: "draft" | "active" | "closed";
+  createdAt?: string;
+  updatedAt?: string;
+  /** Present on GET /jobs/:id */
+  applicantCount?: number;
+}
+
+/** Optional scoring weights (legacy UI; not persisted by current backend — omit from requests). */
 export interface ScoringWeights {
   skills: number;
   experience: number;
@@ -14,18 +40,12 @@ export interface ScoringWeights {
   cultural_fit: number;
 }
 
-export interface BackendJob {
-  _id: string;
-  title: string;
-  description: string;
-  requirements: BackendJobRequirements;
-  scoring_weights: ScoringWeights;
-  createdAt?: string;
-  updatedAt?: string;
-}
+/** @deprecated Use ApiJob — kept for legacy docs only */
+export type BackendJob = ApiJob;
 
 export interface BackendParsedProfile {
   name: string;
+  email?: string;
   skills: string[];
   experience_years: number;
   education: string;
@@ -45,20 +65,46 @@ export interface DimensionScores {
   experience: number;
   education: number;
   cultural_fit: number;
+  additional_assets?: number;
+}
+
+/** Point caps: 35 / 25 / 15 / 15 / 10 (Scenario 1). */
+export interface PlatformScoreBreakdownPoints {
+  skillsMatch: number;
+  experience: number;
+  education: number;
+  roleRelevance: number;
+  additionalAssets: number;
+}
+
+export interface ReasoningDetail {
+  relevanceSummary: string;
+  recommendation: string;
+  hiringRisk: "Low" | "Medium" | "High";
 }
 
 export interface BackendRankedResult {
   rank: number;
+  screening_kind?: "legacy" | "umurava_platform_ai";
   applicant: BackendApplicant;
   composite_score: number;
   dimension_scores: DimensionScores;
   strengths: string[];
   gaps: string[];
   recommendation: string;
+  score_breakdown_points?: PlatformScoreBreakdownPoints;
+  reasoning_detail?: ReasoningDetail;
 }
 
 export interface BackendScreeningResults {
   ranked: BackendRankedResult[];
+  meta?: {
+    jobId?: string;
+    screenedAt?: string;
+    totalCandidatesScreened?: number;
+    screeningKind?: string;
+    averageScore?: number;
+  };
 }
 
 export interface BackendScreeningRun {
@@ -185,8 +231,13 @@ export interface UmuravaProfile {
 
 export type ExperienceLevel = "junior" | "mid" | "senior";
 
-/** Stored on Job documents (API requirements object). */
+/**
+ * UI-facing requirements (adapted from ApiJob.requirements).
+ * `requirementsTitle` / `requirementsDescription` map to API nested `requirements.title` / `requirements.description`.
+ */
 export interface JobRequirements {
+  requirementsTitle: string;
+  requirementsDescription: string;
   domain: string;
   experienceLevel: ExperienceLevel;
   minExperienceYears: number;
@@ -353,7 +404,7 @@ export interface Notification {
   message: string;
   type: "info" | "success" | "warning" | "error";
   channel: "in_app" | "email" | "system";
-  readAt?: string;
+  readAt?: string | null;
   metadata?: { jobId?: string; screeningId?: string; [key: string]: unknown };
   createdAt: string;
   updatedAt: string;

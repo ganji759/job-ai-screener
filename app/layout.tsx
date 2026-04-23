@@ -1,9 +1,10 @@
 import "./globals.css";
+import type { ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
 import { Providers } from "./providers";
 import { ToastStack } from "../components/ui/Toast";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>

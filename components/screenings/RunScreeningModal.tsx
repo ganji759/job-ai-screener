@@ -1,58 +1,43 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Brain, Loader2, Search, Sparkles, WandSparkles, XCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Brain, Database, FileSpreadsheet, FileText, Link2, Loader2, Upload, WandSparkles, XCircle } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
 import { useGetJobsQuery } from "../../store/api/jobsApi";
-import { useGetScreeningsQuery, useGetScreeningStatusQuery, useRunScreeningMutation } from "../../store/api/screeningsApi";
-import { useGetJobStatsQuery } from "../../store/api/jobsApi";
+import {
+  useRunPlatformScreeningMutation,
+  useRunExternalScreeningMutation,
+} from "../../store/api/screeningsApi";
+import { useExternalIngestApplicantsMutation, useGetApplicantsQuery, useUploadFilesMutation } from "../../store/api/applicantsApi";
+import type { Job } from "../../types";
 import toast from "react-hot-toast";
+import { getRtkQueryErrorMessage } from "../../lib/rtkError";
 
-const RUNNING_MESSAGES = [
-  "Analyzing profiles...",
-  "Scoring candidates...",
-  "Ranking results...",
-  "Generating AI explanations...",
-];
+type Step = 1 | 2 | 3 | 4;
+type Scenario = "umurava" | "external" | null;
 
-const JobOption = ({
-  jobId,
-  title,
-  selected,
-  lastScreenedAt,
-  onSelect,
-}: {
-  jobId: string;
-  title: string;
-  selected: boolean;
-  lastScreenedAt?: string;
-  onSelect: (jobId: string) => void;
-}) => {
-  const { data } = useGetJobStatsQuery(jobId, { skip: !jobId });
-  const applicantCount = Number(data?.applicantCount ?? 0);
-  const disabled = applicantCount === 0;
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onSelect(jobId)}
-      disabled={disabled}
-      className={`w-full rounded-xl border p-3 text-left transition ${
-        selected ? "border-brand-500 bg-brand-50 shadow-sm" : "border-slate-200 bg-white hover:border-brand-300 hover:bg-slate-50"
-      } ${disabled ? "cursor-not-allowed opacity-60 hover:border-slate-200 hover:bg-white" : ""}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-semibold text-slate-900">{title}</p>
-        <span className="text-xs text-slate-500">
-          Last screened {lastScreenedAt ? new Date(lastScreenedAt).toLocaleDateString() : "Never"}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-slate-600">{applicantCount} applicant{applicantCount === 1 ? "" : "s"}</p>
-      {disabled ? <p className="mt-1 text-xs font-medium text-amber-700">Upload applicants first</p> : null}
-    </button>
-  );
+const formatJobLabel = (job: Job) => {
+  const domain = job.requirements?.domain?.trim() || "—";
+  const loc = job.location?.trim() || "—";
+  return `${job.title} — ${domain} — ${loc}`;
 };
+
+/** Prefer API `message`, then RTK helper; handle quota / timeout status codes. */
+function screeningErrorMessage(err: unknown): string {
+  const e = err as { status?: number; data?: { error?: string; message?: string } };
+  if (typeof e?.data?.message === "string" && e.data.message.trim()) return e.data.message;
+  if (typeof e?.data?.error === "string" && e.data.error.trim()) return e.data.error;
+  const base = getRtkQueryErrorMessage(err, "");
+  const text = base || "Screening failed. Please try again.";
+  if (e?.status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(text)) {
+    return "Gemini quota exceeded. Please wait a few minutes and try again.";
+  }
+  if (e?.status === 504 || e?.status === 408 || /timed out|timeout/i.test(text)) {
+    return "Request timed out. Try Top 10 instead of Top 20, or retry in a moment.";
+  }
+  return text;
+}
 
 export const RunScreeningModal = ({
   open,
@@ -63,171 +48,174 @@ export const RunScreeningModal = ({
   open: boolean;
   onClose: () => void;
   onCreated?: (screeningId: string) => void;
-  /** When set (e.g. re-run), open on step 2 with this job */
   initialJobId?: string;
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [query, setQuery] = useState("");
+  const [step, setStep] = useState<Step>(1);
   const [jobId, setJobId] = useState("");
-  const [size, setSize] = useState<10 | 20>(10);
-  const [advanced, setAdvanced] = useState(false);
-  const [weights, setWeights] = useState({ skills: 50, experience: 30, education: 20 });
-  const [progress, setProgress] = useState(0);
+  const [scenario, setScenario] = useState<Scenario>(null);
+  const [topN, setTopN] = useState<10 | 20>(10);
   const [error, setError] = useState("");
-  const [activeScreeningId, setActiveScreeningId] = useState<string | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
-  const [msgIdx, setMsgIdx] = useState(0);
-  const completionHandled = useRef(false);
 
-  const [runScreening] = useRunScreeningMutation();
-  const { data: jobsData } = useGetJobsQuery({ page: 1, limit: 100, status: "active" }, { skip: !open });
-  const { data: screeningData } = useGetScreeningsQuery(undefined, { skip: !open });
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [resumeLinksText, setResumeLinksText] = useState("");
+  const [analyzeCandidateCount, setAnalyzeCandidateCount] = useState(0);
 
-  const { data: polledScreening } = useGetScreeningStatusQuery(activeScreeningId ?? "_", {
-    skip: !activeScreeningId,
-    pollingInterval: activeScreeningId ? 2000 : 0,
-  });
+  const { data: jobsData, isLoading: jobsLoading, isError: jobsError } = useGetJobsQuery(
+    { page: 1, limit: 200 },
+    { skip: !open },
+  );
+  const [runPlatform, { isLoading: platformLoading }] = useRunPlatformScreeningMutation();
+  const [runExternal, { isLoading: externalRunLoading }] = useRunExternalScreeningMutation();
+  const [uploadFile] = useUploadFilesMutation();
+  const [externalIngest] = useExternalIngestApplicantsMutation();
+
+  const { data: pendingUmurava, isFetching: pendingUmuravaLoading } = useGetApplicantsQuery(
+    { jobId, limit: 500, page: 1, status: "pending", source: "umurava_platform" },
+    { skip: !open || !jobId },
+  );
+  const pendingPlatformCount = pendingUmurava?.total ?? pendingUmurava?.applicants?.length ?? 0;
 
   const jobs = jobsData?.jobs ?? [];
-  const lastByJob = useMemo(
-    () =>
-      new Map(
-        [...(screeningData?.screenings ?? [])]
-          .sort((a, b) => +new Date(b.updatedAt ?? b.createdAt) - +new Date(a.updatedAt ?? a.createdAt))
-          .map((item) => [item.jobId, item.updatedAt ?? item.createdAt]),
-      ),
-    [screeningData?.screenings],
-  );
-  const filteredJobs = useMemo(() => {
-    if (!query.trim()) return jobs;
-    const q = query.toLowerCase();
-    return jobs.filter((job) => job.title.toLowerCase().includes(q));
-  }, [jobs, query]);
-  const selectedJob = jobs.find((job) => job._id === jobId);
-  const totalWeight = weights.skills + weights.experience + weights.education;
+  const selectedJob = jobs.find((j) => j._id === jobId);
 
-  const polling = Boolean(
-    activeScreeningId &&
-      polledScreening &&
-      polledScreening.status !== "completed" &&
-      polledScreening.status !== "failed",
-  );
-
-  const preventClose = step === 3 && !error && (isStarting || polling);
+  const resetForm = useCallback(() => {
+    setStep(1);
+    setJobId("");
+    setScenario(null);
+    setTopN(10);
+    setError("");
+    setPdfFiles([]);
+    setCsvFile(null);
+    setExcelFile(null);
+    setResumeLinksText("");
+    setAnalyzeCandidateCount(0);
+  }, []);
 
   useEffect(() => {
     if (!open) {
-      completionHandled.current = false;
-      setStep(1);
-      setQuery("");
-      setJobId("");
-      setSize(10);
-      setAdvanced(false);
-      setWeights({ skills: 50, experience: 30, education: 20 });
-      setProgress(0);
-      setError("");
-      setActiveScreeningId(null);
-      setIsStarting(false);
-      setMsgIdx(0);
+      resetForm();
       return;
     }
-    completionHandled.current = false;
-    setQuery("");
     setError("");
-    setProgress(0);
-    setActiveScreeningId(null);
-    setIsStarting(false);
-    setMsgIdx(0);
-    setSize(10);
-    setAdvanced(false);
-    setWeights({ skills: 50, experience: 30, education: 20 });
     if (initialJobId) {
       setJobId(initialJobId);
       setStep(2);
     } else {
       setJobId("");
       setStep(1);
+      setScenario(null);
     }
-  }, [open, initialJobId]);
+  }, [open, initialJobId, resetForm]);
 
-  useEffect(() => {
-    const st = polledScreening?.status;
-    if (!st || !activeScreeningId) return;
-    if (st === "queued") setProgress(38);
-    else if (st === "running") setProgress(74);
-    else if (st === "completed") setProgress(100);
-  }, [polledScreening?.status, activeScreeningId]);
+  const uploadOne = async (file: File, fileType: "pdf" | "csv" | "excel") => {
+    const fd = new FormData();
+    fd.append("jobId", jobId);
+    fd.append("fileType", fileType);
+    fd.append("file", file);
+    await uploadFile({ jobId, formData: fd }).unwrap();
+  };
 
-  useEffect(() => {
-    if (!polledScreening || !activeScreeningId || completionHandled.current) return;
-    const doc = polledScreening as { _id?: unknown; status?: string; errorMessage?: string };
-    if (polledScreening.status === "failed") {
-      setError(String((doc as { error?: unknown; errorMessage?: unknown }).error ?? doc.errorMessage ?? "Screening failed."));
-      setActiveScreeningId(null);
-      setProgress(0);
+  const handlePlatformRun = async () => {
+    if (!jobId) return;
+    setError("");
+    setAnalyzeCandidateCount(pendingPlatformCount);
+    setStep(4);
+    try {
+      const res = await runPlatform({ jobId, topN }).unwrap();
+      const id = res.screeningId;
+      if (!id) throw new Error("Missing screening id");
+      toast.success("Screening complete.");
+      onCreated?.(id);
+      onClose();
+    } catch (err) {
+      setStep(3);
+      const msg = screeningErrorMessage(err);
+      setError(msg);
+      toast.error(msg);
+    }
+  };
+
+  const handleExternalRun = async () => {
+    if (!jobId) return;
+    setError("");
+
+    const links = resumeLinksText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const hasInputs = pdfFiles.length > 0 || csvFile || excelFile || links.length > 0;
+    if (!hasInputs) {
+      const msg = "Add at least one PDF, spreadsheet, or resume link.";
+      setError(msg);
+      toast.error(msg);
       return;
     }
-    if (polledScreening.status === "completed") {
-      completionHandled.current = true;
-      const id = String(doc._id ?? activeScreeningId);
-      const jobTitle = selectedJob?.title ?? "the selected job";
-      setActiveScreeningId(null);
-      onClose();
-      toast.success(`Screening complete — Top ${size} candidates shortlisted for ${jobTitle}.`);
+
+    setStep(4);
+    try {
+      for (const file of pdfFiles) {
+        await uploadOne(file, "pdf");
+      }
+      if (csvFile) await uploadOne(csvFile, "csv");
+      if (excelFile) await uploadOne(excelFile, "excel");
+
+      if (links.length) {
+        await externalIngest({ jobId, resumeLinks: links }).unwrap();
+      }
+
+      const res = await runExternal({ jobId, topN }).unwrap();
+      const id = res.screeningId;
+      if (!id) throw new Error("Missing screening id");
+      toast.success("Screening complete.");
       onCreated?.(id);
+      onClose();
+    } catch (err) {
+      setStep(3);
+      const msg = screeningErrorMessage(err);
+      setError(msg);
+      toast.error(msg);
     }
-  }, [polledScreening, activeScreeningId, onClose, onCreated, selectedJob?.title, size]);
+  };
+
+  const busy = platformLoading || externalRunLoading || step === 4;
+  const preventClose = busy;
 
   const close = () => {
+    if (preventClose) return;
     onClose();
   };
 
-  const isAwaitingUi = step === 3 && !error && (isStarting || polling);
-
-  useEffect(() => {
-    if (!isAwaitingUi) return;
-    const t = window.setInterval(() => setMsgIdx((i) => (i + 1) % RUNNING_MESSAGES.length), 2500);
-    return () => window.clearInterval(t);
-  }, [isAwaitingUi]);
-
-  const run = async () => {
-    if (!jobId) return;
-    if (advanced && totalWeight !== 100) return;
-    setError("");
+  const goScenario = (s: Scenario) => {
+    setScenario(s);
     setStep(3);
-    setProgress(12);
-    setIsStarting(true);
-    try {
-      const res = await runScreening({
-        jobId,
-        shortlistSize: size,
-        weights: {
-          skills: weights.skills,
-          experience: weights.experience,
-          education: weights.education,
-        },
-      }).unwrap();
-      setIsStarting(false);
-      setActiveScreeningId(String(res.screeningId));
-      setProgress(28);
-    } catch (err) {
-      setIsStarting(false);
-      setProgress(0);
-      setError((err as { data?: { error?: string } })?.data?.error ?? "Screening failed. Please retry.");
-    }
+    setError("");
   };
+
+  const pdfInputId = "run-screening-pdfs";
+  const csvInputId = "run-screening-csv";
+  const excelInputId = "run-screening-excel";
 
   return (
     <Modal open={open} onClose={close} preventClose={preventClose}>
-      {step !== 3 ? (
+      {step !== 4 ? (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">{step === 1 ? "Run AI Screening" : "Configure Screening"}</h3>
+            <h3 className="text-lg font-semibold text-slate-900">
+              {step === 1 && "Run AI Screening"}
+              {step === 2 && "Choose scenario"}
+              {step === 3 && (scenario === "umurava" ? "Umurava platform screening" : "External sources")}
+            </h3>
             <p className="mt-1 text-sm text-slate-600">
-              {step === 1 ? "Select a job to screen candidates for" : "Tune shortlist size and scoring settings"}
+              {step === 1 && "Select the job you want to screen candidates for."}
+              {step === 2 && "Pick how candidates are sourced for this run."}
+              {step === 3 && scenario === "umurava" && "Confirm shortlist size and run using Umurava talent profiles."}
+              {step === 3 && scenario === "external" && "Upload files and/or paste resume links, then run screening."}
             </p>
           </div>
-          <button type="button" onClick={close} className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+          <button type="button" onClick={close} disabled={preventClose} className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40">
             <XCircle className="h-5 w-5" />
           </button>
         </div>
@@ -235,23 +223,32 @@ export const RunScreeningModal = ({
 
       {step === 1 ? (
         <div className="space-y-3">
+          <label className="block text-sm font-medium text-slate-700" htmlFor="job-select">
+            Job
+          </label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search jobs..." className="pl-9" />
+            <select
+              id="job-select"
+              value={jobId}
+              disabled={jobsLoading || jobsError}
+              onChange={(e) => setJobId(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:opacity-60"
+            >
+              <option value="">
+                {jobsLoading ? "Loading jobs…" : jobsError ? "Could not load jobs" : "Select a job…"}
+              </option>
+              {jobs.map((job) => (
+                <option key={job._id} value={job._id}>
+                  {formatJobLabel(job)}
+                </option>
+              ))}
+            </select>
+            {jobsLoading ? (
+              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+            ) : null}
           </div>
-          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-            {filteredJobs.map((job) => (
-              <JobOption
-                key={job._id}
-                jobId={job._id}
-                title={job.title}
-                selected={jobId === job._id}
-                lastScreenedAt={lastByJob.get(job._id)}
-                onSelect={setJobId}
-              />
-            ))}
-          </div>
-          <Button className="w-full" disabled={!jobId} onClick={() => setStep(2)}>
+          {jobsError ? <p className="text-sm text-red-600">Check your connection and try again.</p> : null}
+          <Button className="w-full" disabled={!jobId || jobsLoading} onClick={() => setStep(2)}>
             Continue
           </Button>
         </div>
@@ -259,94 +256,208 @@ export const RunScreeningModal = ({
 
       {step === 2 ? (
         <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => goScenario("umurava")}
+              className="flex flex-col items-start rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+            >
+              <Database className="mb-2 h-8 w-8 text-brand-600" />
+              <p className="font-semibold text-slate-900">Screen from Umurava Platform</p>
+              <p className="mt-1 text-xs text-slate-600">Use structured talent profiles from the Umurava database (pending applicants for this job).</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => goScenario("external")}
+              className="flex flex-col items-start rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+            >
+              <Upload className="mb-2 h-8 w-8 text-brand-600" />
+              <p className="font-semibold text-slate-900">Screen from External Sources</p>
+              <p className="mt-1 text-xs text-slate-600">Upload PDFs, CSV/Excel, or paste resume links — then score uploaded candidates.</p>
+            </button>
+          </div>
+          <Button variant="secondary" className="w-full" type="button" onClick={() => setStep(1)}>
+            Back
+          </Button>
+        </div>
+      ) : null}
+
+      {step === 3 && scenario === "umurava" ? (
+        <div className="space-y-4">
+          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+            Job: <span className="font-semibold">{selectedJob ? formatJobLabel(selectedJob) : jobId}</span>
+          </p>
+          <div className="rounded-xl border border-brand-100 bg-brand-50/50 px-3 py-2 text-sm text-brand-900">
+            {pendingUmuravaLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Counting pending applicants…
+              </span>
+            ) : (
+              <>
+                <span className="font-semibold">{pendingPlatformCount}</span> Umurava candidate
+                {pendingPlatformCount === 1 ? "" : "s"} with status <span className="font-medium">pending</span> will be sent to the AI
+                scorer (Gemini).
+              </>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            {[10, 20].map((v) => (
+            {([10, 20] as const).map((v) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setSize(v as 10 | 20)}
-                className={`rounded-xl border p-3 text-left ${size === v ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}
+                onClick={() => setTopN(v)}
+                className={`rounded-xl border p-3 text-left ${topN === v ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}
               >
                 <p className="font-semibold text-slate-900">Top {v}</p>
-                <p className="text-xs text-slate-600">Shortlist top-ranked candidates</p>
+                <p className="text-xs text-slate-600">Shortlist size</p>
               </button>
             ))}
           </div>
-
-          <button type="button" className="text-sm font-semibold text-brand-700 hover:underline" onClick={() => setAdvanced((v) => !v)}>
-            {advanced ? "Hide advanced weights" : "Show advanced scoring weights"}
-          </button>
-
-          {advanced ? (
-            <div className="space-y-3 rounded-xl border border-slate-200 p-3">
-              {(
-                [
-                  ["skills", "Skills Match weight"],
-                  ["experience", "Experience weight"],
-                  ["education", "Education weight"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="block text-sm text-slate-700">
-                  <div className="mb-1 flex justify-between">
-                    <span>{label}</span>
-                    <span>{weights[key]}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={weights[key]}
-                    onChange={(e) => setWeights((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                    className="w-full accent-brand-600"
-                  />
-                </label>
-              ))}
-              <p className={`text-xs ${totalWeight === 100 ? "text-emerald-600" : "text-red-600"}`}>Weights total: {totalWeight}% (must be 100%)</p>
-            </div>
-          ) : null}
-
-          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-            {size} candidates will be shortlisted for <span className="font-semibold">{selectedJob?.title}</span>.
-          </p>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <div className="flex gap-2">
-            <Button className="flex-1" variant="secondary" onClick={() => setStep(1)}>
+            <Button variant="secondary" className="flex-1" type="button" onClick={() => setStep(2)}>
               Back
             </Button>
-            <Button className="flex-1" onClick={() => void run()} disabled={advanced && totalWeight !== 100}>
-              <Sparkles className="h-4 w-4" />
-              Start Screening
+            <Button
+              className="flex-1"
+              type="button"
+              disabled={platformLoading || pendingPlatformCount === 0 || pendingUmuravaLoading}
+              onClick={() => void handlePlatformRun()}
+            >
+              <WandSparkles className="h-4 w-4" />
+              Run AI Screening
             </Button>
           </div>
         </div>
       ) : null}
 
-      {step === 3 ? (
-        <div className="space-y-5 py-4 text-center">
-          {error ? (
-            <>
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
-                <XCircle className="h-7 w-7" />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-900">Screening failed</h4>
-              <p className="text-sm text-slate-600">{error}</p>
-              <Button className="w-full" onClick={() => setStep(2)}>
-                Retry
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-700">
-                {progress < 100 ? <Brain className="h-7 w-7 animate-pulse" /> : <WandSparkles className="h-7 w-7" />}
-              </div>
-              <h4 className="text-lg font-semibold text-slate-900">Running AI Screening</h4>
-              <p className="text-sm text-slate-600">{RUNNING_MESSAGES[msgIdx % RUNNING_MESSAGES.length]}</p>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress}%` }} />
-              </div>
-              <p className="text-xs font-semibold text-brand-700">{progress}%</p>
-              {progress < 100 ? <Loader2 className="mx-auto h-4 w-4 animate-spin text-brand-700" /> : null}
-            </>
-          )}
+      {step === 3 && scenario === "external" ? (
+        <div className="space-y-4">
+          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+            Job: <span className="font-semibold">{selectedJob ? formatJobLabel(selectedJob) : jobId}</span>
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {([10, 20] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setTopN(v)}
+                className={`rounded-xl border p-3 text-left ${topN === v ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}
+              >
+                <p className="font-semibold text-slate-900">Top {v}</p>
+                <p className="text-xs text-slate-600">Shortlist size</p>
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
+              <FileText className="h-4 w-4 text-brand-600" />
+              PDF resumes
+            </p>
+            <label
+              htmlFor={pdfInputId}
+              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Upload className="mb-2 h-6 w-6 text-brand-600" />
+              Drag & drop PDFs here or click to browse (multiple)
+              <input
+                id={pdfInputId}
+                type="file"
+                accept="application/pdf,.pdf"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const list = e.target.files ? Array.from(e.target.files) : [];
+                  setPdfFiles(list);
+                }}
+              />
+            </label>
+            {pdfFiles.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                {pdfFiles.map((f) => (
+                  <li key={f.name + f.size}>{f.name}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
+                <FileSpreadsheet className="h-4 w-4 text-brand-600" />
+                CSV
+              </p>
+              <label htmlFor={csvInputId} className="block cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-brand-700 hover:bg-slate-50">
+                {csvFile ? csvFile.name : "Choose CSV…"}
+                <input
+                  id={csvInputId}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
+                <FileSpreadsheet className="h-4 w-4 text-brand-600" />
+                Excel
+              </p>
+              <label htmlFor={excelInputId} className="block cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-brand-700 hover:bg-slate-50">
+                {excelFile ? excelFile.name : "Choose Excel…"}
+                <input
+                  id={excelInputId}
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  className="hidden"
+                  onChange={(e) => setExcelFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
+              <Link2 className="h-4 w-4 text-brand-600" />
+              Resume links (one URL per line)
+            </p>
+            <textarea
+              value={resumeLinksText}
+              onChange={(e) => setResumeLinksText(e.target.value)}
+              placeholder={"https://example.com/resume.pdf\n..."}
+              rows={4}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            />
+          </div>
+
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" type="button" onClick={() => setStep(2)}>
+              Back
+            </Button>
+            <Button className="flex-1" type="button" disabled={externalRunLoading} onClick={() => void handleExternalRun()}>
+              <WandSparkles className="h-4 w-4" />
+              Run Screening
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 4 ? (
+        <div className="space-y-5 py-6 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+            <Brain className="h-7 w-7 animate-pulse" />
+          </div>
+          <h4 className="text-lg font-semibold text-slate-900">AI is screening candidates…</h4>
+          <p className="text-sm text-slate-600">
+            {scenario === "umurava" && analyzeCandidateCount > 0
+              ? `AI is analyzing ${analyzeCandidateCount} candidate${analyzeCandidateCount === 1 ? "" : "s"}…`
+              : "This may take a minute while profiles are scored and ranked."}
+          </p>
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-brand-700" />
         </div>
       ) : null}
     </Modal>

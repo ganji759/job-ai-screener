@@ -8,6 +8,7 @@ import { JobForm, type JobSubmitValues } from "../../../../components/jobs/JobFo
 import { useCreateJobMutation, type CreateJobPayload } from "../../../../store/api/jobsApi";
 import { Card } from "../../../../components/ui/Card";
 import { getRtkQueryErrorMessage } from "../../../../lib/rtkError";
+import { mapEducationStringToLevel } from "../../../../lib/jobApiMapping";
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -18,29 +19,28 @@ export default function NewJobPage() {
       .map((s) => s.trim())
       .filter((s) => s.length > 0 && !/^type a skill and press enter$/i.test(s));
     if (skills.length === 0) {
-      toast.error("Add at least one real skill (not the placeholder text).");
+      toast.error("Add at least one skill — remove the placeholder text if it was left in the field.");
       return;
     }
     const payload: CreateJobPayload = {
       title: values.title.trim(),
       description: values.description.trim(),
       requirements: {
-        skills,
-        experience_years: values.minExperienceYears,
-        education_level: values.education.trim() || "Not specified",
-        nice_to_have: [],
-      },
-      scoring_weights: {
-        skills: 0.40,
-        experience: 0.35,
-        education: 0.15,
-        cultural_fit: 0.10,
+        title: values.requirementsTitle.trim(),
+        description: values.requirementsDescription.trim(),
+        mustHaveSkills: skills,
+        niceToHaveSkills: [],
+        minYearsExperience: values.minExperienceYears,
+        educationLevel: mapEducationStringToLevel(values.education),
+        domain: values.domain.trim() || "general",
+        location: values.location.trim() || undefined,
+        remoteAllowed: values.employmentType === "remote",
       },
     };
 
     try {
       await createJob(payload).unwrap();
-      toast.success("Job created successfully!");
+      toast.success("Job created successfully. You can publish it from the job page when you're ready.");
       router.push("/jobs");
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));

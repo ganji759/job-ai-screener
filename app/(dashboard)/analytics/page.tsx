@@ -290,7 +290,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} domain={[0, "auto"]} />
-                  <Tooltip formatter={(value: number) => [value, "Screenings"]} />
+                  <Tooltip formatter={(value) => [Number(value ?? 0), "Screenings"]} />
                   <Area type="monotone" dataKey="screenings" stroke={CHART_COLORS.blue} fill="url(#screeningsGradient)" strokeWidth={2.5} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="range" />
                   <YAxis allowDecimals={false} />
-                  <Tooltip formatter={(value: number, _name, payload) => [`${value} (${Math.round((value / Math.max(1, scoreDistribution.reduce((sum, row) => sum + row.count, 0))) * 100)}%)`, payload?.payload?.range ?? "Range"]} />
+                  <Tooltip formatter={(value, _name, payload) => [`${Number(value ?? 0)} (${Math.round((Number(value ?? 0) / Math.max(1, scoreDistribution.reduce((sum, row) => sum + row.count, 0))) * 100)}%)`, payload?.payload?.range ?? "Range"]} />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                     <LabelList dataKey="count" position="top" />
                     {scoreDistribution.map((row) => (
@@ -350,7 +350,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="skill" type="category" width={100} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(_value: number, _name, payload) => [`Jobs: ${payload?.payload?.jobsNeed ?? 0}, Candidates: ${payload?.payload?.candidatesHave ?? 0}`, payload?.payload?.skill ?? "Skill"]} />
+                  <Tooltip formatter={(_value, _name, payload) => [`Jobs: ${payload?.payload?.jobsNeed ?? 0}, Candidates: ${payload?.payload?.candidatesHave ?? 0}`, payload?.payload?.skill ?? "Skill"]} />
                   <Bar dataKey="jobsNeed" fill="url(#skillsGradient)" radius={[0, 8, 8, 0]}>
                     <LabelList dataKey="jobsNeed" position="right" />
                   </Bar>
@@ -369,7 +369,7 @@ export default function AnalyticsPage() {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} (${sourceTotal ? Math.round((value / sourceTotal) * 100) : 0}%)`, name]} />
+                    <Tooltip formatter={(value, name) => [`${Number(value ?? 0)} (${sourceTotal ? Math.round((Number(value ?? 0) / sourceTotal) * 100) : 0}%)`, String(name ?? "")]} />
                     <Pie data={sourceBreakdown} dataKey="value" nameKey="name" innerRadius={65} outerRadius={95} paddingAngle={2}>
                       {sourceBreakdown.map((item) => (
                         <Cell key={item.name} fill={item.color} />
@@ -484,9 +484,9 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="4 4" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} />
                   <YAxis dataKey="title" type="category" width={140} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value: number, _name, payload) => [`${Math.round(value)}/100, ${payload?.payload?.candidates ?? 0} candidates`, payload?.payload?.title ?? "Job"]} />
+                  <Tooltip formatter={(value, _name, payload) => [`${Math.round(Number(value ?? 0))}/100, ${payload?.payload?.candidates ?? 0} candidates`, payload?.payload?.title ?? "Job"]} />
                   <Bar dataKey="avgScore" radius={[0, 8, 8, 0]}>
-                    <LabelList dataKey="avgScore" position="right" formatter={(v: number) => `${Math.round(v)}`} />
+                    <LabelList dataKey="avgScore" position="right" formatter={(v) => `${Math.round(Number(v ?? 0))}`} />
                     {avgScoreByJob.map((row) => (
                       <Cell key={row.title} fill={row.avgScore >= 70 ? CHART_COLORS.green : row.avgScore >= 40 ? CHART_COLORS.yellow : CHART_COLORS.red} />
                     ))}

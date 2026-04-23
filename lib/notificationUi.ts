@@ -46,7 +46,7 @@ export function classifyNotification(n: Notification): NotificationVisualKind {
 export function notificationMatchesTab(
   n: Notification,
   tab: "all" | "unread" | "screenings" | "jobs" | "system",
-  isUnreadFn: (id: string, readAt?: string) => boolean,
+  isUnreadFn: (id: string, readAt?: string | null) => boolean,
 ): boolean {
   const unread = isUnreadFn(n._id, n.readAt);
   if (tab === "unread") return unread;

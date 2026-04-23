@@ -34,7 +34,11 @@ export const ApplicantDetailDrawer = ({
         : applicant.status === "screened"
           ? "info"
           : "warning";
-  const sourceVariant = applicant.source === "umurava_platform" ? "info" : applicant.source === "pdf_upload" ? "neutral" : "neutral";
+  const fileLower = applicant.originalFileName?.toLowerCase() ?? "";
+  const isExcelSheet = applicant.source === "csv_upload" && fileLower.endsWith(".xlsx");
+  const sourceDisplay =
+    applicant.source === "umurava_platform" ? "Umurava Platform" : applicant.source === "pdf_upload" ? "PDF" : isExcelSheet ? "Excel" : "CSV";
+  const sourceVariant = applicant.source === "umurava_platform" ? "info" : "neutral";
 
   return (
     <Drawer open={open} onClose={onClose}>
@@ -57,7 +61,7 @@ export const ApplicantDetailDrawer = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="info">Job ID: {applicant.jobId}</Badge>
-          <Badge variant={sourceVariant}>{applicant.source === "umurava_platform" ? "Umurava" : applicant.source === "csv_upload" ? "CSV" : "PDF"}</Badge>
+          <Badge variant={sourceVariant}>{sourceDisplay}</Badge>
           <Badge variant={statusVariant}>{applicant.status}</Badge>
         </div>
 

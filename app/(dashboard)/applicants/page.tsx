@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Clock3, Filter, Loader2, Star, Upload, Users, XCircle, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
@@ -20,7 +19,6 @@ const PDF_MAX_BYTES = 5 * 1024 * 1024;
 const PDF_MAX_FILES = 10;
 
 export default function ApplicantsPage() {
-  const searchParams = useSearchParams();
   const [openUpload, setOpenUpload] = useState(false);
   const [openFilterDrawer, setOpenFilterDrawer] = useState(false);
   const [tab, setTab] = useState<"umurava" | "csv" | "pdf">("umurava");
@@ -29,10 +27,11 @@ export default function ApplicantsPage() {
   const [uploadFiles, { isLoading: isUploadingFiles }] = useUploadFilesMutation();
   const [ingestProfiles, { isLoading: isIngestingProfiles }] = useIngestProfilesMutation();
   const [deleteApplicant] = useDeleteApplicantMutation();
+  /** Empty string = all jobs (API uses jobId=all). */
   const [jobId, setJobId] = useState("");
   const [modalJobId, setModalJobId] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "screened" | "shortlisted" | "rejected">("all");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "umurava_platform" | "csv_upload" | "pdf_upload">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "umurava_platform" | "pdf_upload" | "csv_upload" | "excel_upload">("all");
   const [scoreFilter, setScoreFilter] = useState<"all" | "0-40" | "40-70" | "70-100">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -46,25 +45,19 @@ export default function ApplicantsPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, Applicant["status"]>>({});
 
   const jobs = jobsData?.jobs ?? [];
-  const activeJobs = useMemo(() => jobs.filter((j) => j.status === "active"), [jobs]);
-
-  useEffect(() => {
-    if (jobs.length > 0 && !jobId) {
-      setJobId(jobs[0]._id);
-    }
-  }, [jobs, jobId]);
 
   const openUploadModal = useCallback(() => {
-    const firstActive = activeJobs[0]?._id ?? "";
-    setModalJobId(firstActive);
+    const firstJobId = jobs[0]?._id ?? "";
+    setModalJobId(firstJobId);
     setModalError("");
     setOpenUpload(true);
-  }, [activeJobs]);
+  }, [jobs]);
 
-  const { data: applicantsData, isFetching: isLoadingApplicants } = useGetApplicantsQuery(
-    { jobId, page: 1, limit: FULL_LIST_LIMIT },
-    { skip: !jobId },
-  );
+  const { data: applicantsData, isFetching: isLoadingApplicants } = useGetApplicantsQuery({
+    jobId: jobId || "all",
+    page: 1,
+    limit: FULL_LIST_LIMIT,
+  });
 
   const rawApplicants = applicantsData?.applicants ?? [];
 
@@ -88,15 +81,33 @@ export default function ApplicantsPage() {
     const q = search.trim().toLowerCase();
     return allApplicants.filter((applicant) => {
       const byStatus = statusFilter === "all" ? true : applicant.status === statusFilter;
-      const bySource = sourceFilter === "all" ? true : applicant.source === sourceFilter;
+      const fileName = applicant.originalFileName?.toLowerCase() ?? "";
+      const isExcelUpload = applicant.source === "csv_upload" && fileName.endsWith(".xlsx");
+      const bySource =
+        sourceFilter === "all"
+          ? true
+          : sourceFilter === "excel_upload"
+            ? isExcelUpload
+            : sourceFilter === "csv_upload"
+              ? applicant.source === "csv_upload" && !fileName.endsWith(".xlsx")
+              : applicant.source === sourceFilter;
       const bySearch = !q
         ? true
         : `${applicant.profile.firstName} ${applicant.profile.lastName}`.toLowerCase().includes(q) ||
           applicant.profile.title.toLowerCase().includes(q) ||
           (applicant.profile.skills ?? []).some((skill) => skill.toLowerCase().includes(q));
-      const score = Number(applicant.totalScore ?? 0);
+      const rawScore = applicant.totalScore;
+      const scoreNum = rawScore != null && rawScore !== "" && !Number.isNaN(Number(rawScore)) ? Number(rawScore) : null;
       const byScore =
-        scoreFilter === "all" ? true : scoreFilter === "0-40" ? score <= 40 : scoreFilter === "40-70" ? score > 40 && score < 70 : score >= 70;
+        scoreFilter === "all"
+          ? true
+          : scoreNum === null
+            ? false
+            : scoreFilter === "0-40"
+              ? scoreNum <= 40
+              : scoreFilter === "40-70"
+                ? scoreNum > 40 && scoreNum < 70
+                : scoreNum >= 70;
       return byStatus && bySource && bySearch && byScore;
     });
   }, [allApplicants, statusFilter, sourceFilter, search, scoreFilter]);
@@ -176,7 +187,7 @@ export default function ApplicantsPage() {
         const ft = csvExcelFile.name.toLowerCase().endsWith(".xlsx") ? "excel" : "csv";
         formData.append("fileType", ft);
         formData.append("file", csvExcelFile);
-        const result = await uploadFiles(formData).unwrap();
+        const result = await uploadFiles({ jobId: modalJobId, formData }).unwrap();
         insertedCount = result.inserted;
       } else if (tab === "pdf") {
         for (const file of pdfFiles) {
@@ -184,7 +195,7 @@ export default function ApplicantsPage() {
           formData.append("jobId", modalJobId);
           formData.append("fileType", "pdf");
           formData.append("file", file);
-          const result = await uploadFiles(formData).unwrap();
+          const result = await uploadFiles({ jobId: modalJobId, formData }).unwrap();
           insertedCount += result.inserted;
         }
       }
@@ -197,10 +208,11 @@ export default function ApplicantsPage() {
   };
 
   useEffect(() => {
-    if (searchParams.get("openUpload") === "1") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openUpload") === "1") {
       openUploadModal();
     }
-  }, [searchParams, openUploadModal]);
+  }, [openUploadModal]);
 
   if (jobsLoading) {
     return (
@@ -237,6 +249,7 @@ export default function ApplicantsPage() {
             aria-label="Select job for applicants"
             disabled={!jobs.length}
           >
+            <option value="">All Jobs</option>
             {jobs.map((job) => (
               <option key={job._id} value={job._id}>
                 {job.title}
@@ -312,6 +325,7 @@ export default function ApplicantsPage() {
             }}
             className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
           >
+            <option value="">All Jobs</option>
             {jobs.map((job) => (
               <option key={job._id} value={job._id}>
                 {job.title}
@@ -324,9 +338,10 @@ export default function ApplicantsPage() {
             className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
           >
             <option value="all">All Sources</option>
-            <option value="umurava_platform">Umurava</option>
-            <option value="csv_upload">CSV</option>
+            <option value="umurava_platform">Umurava Platform</option>
             <option value="pdf_upload">PDF</option>
+            <option value="csv_upload">CSV</option>
+            <option value="excel_upload">Excel</option>
           </select>
           <select
             value={statusFilter}
@@ -409,14 +424,15 @@ export default function ApplicantsPage() {
               className="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3"
             >
               <option value="">Choose a job...</option>
-              {activeJobs.map((job) => (
+              {jobs.map((job) => (
                 <option key={job._id} value={job._id}>
                   {job.title}
+                  {job.status !== "active" ? ` (${job.status})` : ""}
                 </option>
               ))}
             </select>
             <p className="mt-1 text-xs text-slate-500">Applicants will be linked to this job for AI screening</p>
-            {activeJobs.length === 0 ? (
+            {jobs.length === 0 ? (
               <p className="mt-2 text-sm font-medium text-amber-800">Please create a job first before uploading applicants</p>
             ) : null}
           </div>
@@ -634,9 +650,10 @@ export default function ApplicantsPage() {
             className="h-11 w-full rounded-lg border border-slate-200 px-3"
           >
             <option value="all">All Sources</option>
-            <option value="umurava_platform">Umurava</option>
-            <option value="csv_upload">CSV</option>
+            <option value="umurava_platform">Umurava Platform</option>
             <option value="pdf_upload">PDF</option>
+            <option value="csv_upload">CSV</option>
+            <option value="excel_upload">Excel</option>
           </select>
           <label className="block text-sm font-medium text-slate-700">Status</label>
           <select

@@ -15,6 +15,8 @@ import type { ExperienceLevel, Job } from "../../types";
 type JobFormValues = {
   title: string;
   description: string;
+  requirementsTitle: string;
+  requirementsDescription: string;
   domain: string;
   location: string;
   employmentType: Job["employmentType"];
@@ -46,6 +48,8 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
     defaultValues: {
       title: "",
       description: "",
+      requirementsTitle: "",
+      requirementsDescription: "",
       domain: "",
       location: "",
       employmentType: "full_time",
@@ -68,7 +72,11 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
     (values.location?.trim().length ?? 0) >= 1;
 
   const hasSkillContent = skills.length > 0 || skillsInput.trim() !== "";
-  const stepTwoBasicsValid = Number.isInteger(Number(values.minExperienceYears)) && Number(values.minExperienceYears) >= 0;
+  const stepTwoBasicsValid =
+    Number.isInteger(Number(values.minExperienceYears)) &&
+    Number(values.minExperienceYears) >= 0 &&
+    (values.requirementsTitle?.trim().length ?? 0) >= 3 &&
+    (values.requirementsDescription?.trim().length ?? 0) >= 10;
 
   const clearSkillsErrorIfHasContent = (tags: string[], draft: string) => {
     if (tags.length > 0 || draft.trim()) setSkillsError(null);
@@ -82,7 +90,7 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
       return;
     }
     if (step === 1) {
-      const valid = await trigger(["experienceLevel", "minExperienceYears"]);
+      const valid = await trigger(["experienceLevel", "minExperienceYears", "requirementsTitle", "requirementsDescription"]);
       if (!valid) return;
       if (!hasSkillContent) {
         setSkillsError("Please add at least one required skill");
@@ -185,6 +193,31 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
 
         {step === 1 ? (
           <motion.div key="step-2" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} className="space-y-4">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium text-slate-700">Requirements Title</span>
+              <Input
+                className={cn(errors.requirementsTitle ? "border-red-500" : "")}
+                placeholder="e.g. Core Requirements"
+                {...register("requirementsTitle", {
+                  required: "Requirements title is required",
+                  minLength: { value: 3, message: "Requirements title must be at least 3 characters" },
+                })}
+              />
+              {errors.requirementsTitle?.message ? <p className="animate-fade-in-up text-xs text-red-500">{errors.requirementsTitle.message}</p> : null}
+            </label>
+            <div>
+              <Textarea
+                label="Requirements Description"
+                rows={4}
+                className={cn(errors.requirementsDescription ? "border-red-500" : "")}
+                placeholder="Describe what makes a candidate a strong fit for this role..."
+                {...register("requirementsDescription", {
+                  required: "Requirements description is required",
+                  minLength: { value: 10, message: "Requirements description must be at least 10 characters" },
+                })}
+                error={errors.requirementsDescription?.message}
+              />
+            </div>
             <div>
               <p className="mb-1 text-sm font-medium text-slate-700">Skills</p>
               <TagInput
@@ -257,6 +290,8 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
                 </div>
                 <p className="mt-3 text-sm text-slate-700">Level: {values.experienceLevel}</p>
                 <p className="text-sm text-slate-700">Minimum experience: {values.minExperienceYears} years</p>
+                <p className="mt-2 text-sm font-medium text-slate-800">{values.requirementsTitle}</p>
+                <p className="text-sm text-slate-700">{values.requirementsDescription}</p>
                 {values.education?.trim() ? <p className="text-sm text-slate-700">Education: {values.education}</p> : null}
               </div>
             </div>

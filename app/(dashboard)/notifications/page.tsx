@@ -3,7 +3,6 @@
 import { AnimatePresence } from "framer-motion";
 import { Bell, CheckCheck, ChevronDown, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { PageHeader } from "../../../components/layout/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Modal } from "../../../components/ui/Modal";
@@ -50,8 +49,7 @@ const GROUP_LABEL: Record<TimeGroup, string> = {
 };
 
 export default function NotificationsPage() {
-  const searchParams = useSearchParams();
-  const highlightedId = searchParams.get("notificationId");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("all");
   const [limit, setLimit] = useState(20);
   const [, setMinutePulse] = useState(0);
@@ -80,13 +78,18 @@ export default function NotificationsPage() {
   }, []);
 
   const isUnread = useCallback(
-    (id: string, readAt?: string) => {
+    (id: string, readAt?: string | null) => {
       if (localUnreadIds.has(id)) return true;
       if (localReadIds.has(id)) return false;
       return !readAt;
     },
     [localReadIds, localUnreadIds],
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setHighlightedId(params.get("notificationId"));
+  }, []);
 
   useEffect(() => {
     if (!highlightedId || !data?.notifications?.length) return;

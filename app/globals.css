@@ -1,8 +1,9 @@
+/* Custom variables + keyframes first (Tailwind: @import before @tailwind) */
+@import "../src/styles/globals.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import "../src/styles/globals.css";
 
 @layer base {
   html {
