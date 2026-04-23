@@ -1,3 +1,11 @@
+export type {
+  AvailabilityStatus,
+  AvailabilityType,
+  LanguageProficiency,
+  SkillLevel,
+  TalentProfile,
+} from "./talentProfile";
+
 export interface UmuravaProfile {
   id: string;
   firstName: string;
@@ -49,6 +57,40 @@ export interface ScoringBreakdown {
   experienceMatch: number;
   educationMatch: number;
   culturalFit: number;
+}
+
+/** Scenario 1 — Umurava platform rubric (points sum to 100). */
+export interface PlatformScoringBreakdown {
+  /** 0–35 */
+  skillsMatch: number;
+  /** 0–25 */
+  experience: number;
+  /** 0–15 */
+  education: number;
+  /** 0–15 */
+  roleRelevance: number;
+  /** 0–10 */
+  additionalAssets: number;
+}
+
+export interface PlatformReasoning {
+  strengths: string[];
+  gaps: string[];
+  relevanceSummary: string;
+  recommendation: string;
+  hiringRisk: "Low" | "Medium" | "High";
+}
+
+export interface PlatformCandidateResult {
+  candidateId: string;
+  rank: number;
+  totalScore: number;
+  scoreBreakdown: PlatformScoringBreakdown;
+  reasoning: PlatformReasoning;
+  mustHaveSkillsMet: string[];
+  mustHaveSkillsMissing: string[];
+  estimatedOnboardingTime: string;
+  aiConfidenceScore: number;
 }
 
 export interface CandidateResult {
