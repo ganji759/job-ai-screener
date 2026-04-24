@@ -13,6 +13,14 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
   MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
+  /**
+   * Comma-separated resolvers for Node’s DNS (helps `mongodb+srv` when `querySrv ETIMEOUT` — ISP/router DNS often blocks or stalls SRV).
+   * Example: `1.1.1.1,8.8.8.8`
+   */
+  MONGODB_DNS_SERVERS: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_EXPIRES_IN: z.string().default("24h"),
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
@@ -32,6 +40,14 @@ const envSchema = z.object({
   /** Pool insights call after platform scoring (shorter helps full request finish sooner). */
   GEMINI_INSIGHTS_TIMEOUT_MS: z.coerce.number().int().positive().default(14_000),
   GEMINI_INSIGHTS_RETRIES: z.coerce.number().int().min(1).max(5).default(1),
+  /**
+   * Optional: base URL of the Python AI service (apps/ai). When set, Node forwards all
+   * Gemini calls to `${AI_SERVICE_URL}/ai/generate`. When empty, Node uses the in-process
+   * @google/generative-ai SDK. Recommended value for local dev: http://localhost:8000
+   */
+  AI_SERVICE_URL: z.string().url().optional().or(z.literal("").transform(() => undefined)),
+  /** Safety margin added to the Python HTTP request on top of the Gemini timeout. */
+  AI_SERVICE_TIMEOUT_BUFFER_MS: z.coerce.number().int().positive().default(5_000),
   REDIS_ENABLED: z.preprocess(parseBooleanEnv, z.boolean()).default(false),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),

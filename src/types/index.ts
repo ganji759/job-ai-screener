@@ -36,6 +36,24 @@ export interface UmuravaProfile {
   expectedSalary?: number;
   location: string;
   remotePreference: "remote" | "hybrid" | "onsite" | "flexible";
+  /** Optional richer fields populated by the Python AI service (POST /normalise/pdf). */
+  headline?: string;
+  bio?: string;
+  projects?: {
+    name: string;
+    description: string;
+    technologies?: string[];
+    role?: string;
+    link?: string | null;
+    startDate?: string;
+    endDate?: string;
+  }[];
+  availability?: {
+    status: "Available" | "Open to Opportunities" | "Not Available";
+    type: "Full-time" | "Part-time" | "Contract";
+    startDate?: string | null;
+  };
+  socialLinks?: { linkedin?: string | null; github?: string | null; portfolio?: string | null };
 }
 
 export interface JobRequirements {

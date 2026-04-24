@@ -18,6 +18,8 @@ const ScreeningSchema = new Schema({
   errorMessage: String,
   queueJobId: String,
   durationMs: Number,
+  /** Per-applicant HR decisions: key = Applicant `._id` (string). */
+  recruiterDecisions: { type: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 
 ScreeningSchema.index({ jobId: 1, status: 1 });

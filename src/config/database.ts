@@ -1,7 +1,41 @@
+import dns from "node:dns";
+
 import mongoose from "mongoose";
 
 import { env } from "./env";
 import { logger } from "../utils/logger";
+
+// Set alternative DNS resolvers at module load time so SRV lookups use them
+// from the very first connection attempt (helps `querySrv ETIMEOUT` on networks
+// where the default resolver blocks or stalls MongoDB Atlas SRV records).
+{
+  const dnsServers = env.MONGODB_DNS_SERVERS?.split(",").map((s) => s.trim()).filter(Boolean);
+  if (dnsServers?.length) {
+    dns.setServers(dnsServers);
+    logger.info({ servers: dnsServers }, "DNS resolvers overridden for MongoDB SRV");
+  }
+}
+
+/**
+ * Atlas URIs sometimes include `&?appName=Cluster0`. That parses as the key `?appName`, which
+ * the driver rejects ("option ?appname is not supported"). `appName` in the URI is optional.
+ */
+const sanitizeMongoUri = (uri: string): string => {
+  const q = uri.indexOf("?");
+  if (q === -1) return uri;
+  const base = uri.slice(0, q);
+  let qs = uri.slice(q + 1);
+  qs = qs.replace(/&\?/g, "&").replace(/^\?+/, "");
+  const params = new URLSearchParams(qs);
+  for (const key of [...params.keys()]) {
+    const lower = key.toLowerCase();
+    if (lower === "appname" || key.startsWith("?")) {
+      params.delete(key);
+    }
+  }
+  const rest = params.toString();
+  return rest ? `${base}?${rest}` : base;
+};
 
 let reconnectTimeout: NodeJS.Timeout | null = null;
 
@@ -43,7 +77,7 @@ export const connectDatabase = async (): Promise<void> => {
       return;
     }
 
-    await mongoose.connect(env.MONGODB_URI, {
+    await mongoose.connect(sanitizeMongoUri(env.MONGODB_URI), {
       serverSelectionTimeoutMS: 10_000,
       retryWrites: true,
     });

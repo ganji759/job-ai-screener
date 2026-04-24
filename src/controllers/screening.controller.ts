@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { Types } from "mongoose";
 import { z } from "zod";
 import { redisDel, redisGet, redisSet } from "../config/redis";
 import { JobModel } from "../models/Job.model";
@@ -13,6 +14,28 @@ import {
 } from "../services/screening.service";
 import type { CandidateResult, PlatformCandidateResult, UmuravaProfile } from "../types";
 import { notifyUser } from "../services/notification.service";
+import {
+  mergeRecruiterDecisionRecords,
+  scheduleAutoRejectionEmails,
+  SendAcceptanceEmailsBodySchema,
+  sendAcceptanceEmailsForScreening,
+} from "../services/screening-outreach.service";
+
+const RecruiterDecisionEntrySchema = z.object({
+  decision: z.enum(["approved", "rejected", "review"]),
+  hrNote: z.string().default(""),
+  decidedAt: z.string().optional(),
+  aiLabel: z.string().optional(),
+});
+
+const RecruiterDecisionsBodySchema = z.record(z.string(), RecruiterDecisionEntrySchema);
+
+/** Mongoose may return a Map or plain object for Mixed / Map fields. */
+const plainRecruiterDecisions = (raw: unknown): Record<string, unknown> => {
+  if (!raw || typeof raw !== "object") return {};
+  if (raw instanceof Map) return Object.fromEntries(raw.entries());
+  return { ...(raw as Record<string, unknown>) };
+};
 
 const toLowerSkills = (skills: unknown): string[] =>
   Array.isArray(skills) ? skills.map((s) => String(s).trim().toLowerCase()).filter(Boolean) : [];
@@ -394,6 +417,50 @@ export const syncPlatformScreening = async (request: FastifyRequest, reply: Fast
   }
 };
 
+/**
+ * POST /api/v1/screenings/run-for-job — one-click screening for a single job.
+ *
+ * Screens ALL pending applicants for the job regardless of source (umurava_platform,
+ * csv_upload, pdf_upload). Designed for the "Run AI Screening" button on the job's
+ * Screenings/Applicants pages where the recruiter has a job in scope and just wants
+ * results without picking a scenario.
+ *
+ * Body: `{ jobId: string, shortlistSize?: 10 | 20 }` — defaults to 10.
+ */
+export const runScreeningForJobAllSources = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const parsed = z
+    .object({
+      jobId: z.string().min(1, "jobId is required"),
+      shortlistSize: z.union([z.literal(10), z.literal(20)]).optional(),
+    })
+    .strip()
+    .safeParse(request.body ?? {});
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    return void reply.code(400).send({
+      error: "Invalid request body",
+      message: "Expected { jobId: string, shortlistSize?: 10 | 20 }.",
+      fieldErrors: flat.fieldErrors,
+    });
+  }
+  const shortlistSize = (parsed.data.shortlistSize ?? 10) as 10 | 20;
+  try {
+    await persistSyncScreening(request, reply, {
+      jobId: parsed.data.jobId,
+      shortlistSize,
+      applicantExtraFilter: { status: "pending" },
+    });
+  } catch (err) {
+    request.log.error({ err }, "runScreeningForJobAllSources");
+    if (!reply.sent) {
+      reply.code(500).send({
+        error: "Screening failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  }
+};
+
 /** POST /api/v1/screenings/external — uploads only (`csv_upload` / `pdf_upload`), pending. */
 export const syncExternalScreening = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   request.log.info({ body: request.body }, "POST /screenings/external body");
@@ -468,6 +535,101 @@ export const listScreenings = async (request: FastifyRequest, reply: FastifyRepl
   });
 
   reply.send(payload);
+};
+
+/**
+ * PUT /api/v1/screenings/:id/recruiter-decisions — merge HR decisions (per applicant id).
+ * Body: `{ [applicantMongoId]: { decision, hrNote, decidedAt?, aiLabel? } }`
+ */
+export const saveRecruiterDecisions = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const recruiterId = request.user?.userId;
+  if (!recruiterId || !Types.ObjectId.isValid(recruiterId)) {
+    return void reply.code(401).send({ error: "Unauthorized" });
+  }
+  const { id } = request.params as { id: string };
+  if (!Types.ObjectId.isValid(id)) {
+    return void reply.code(400).send({ error: "Invalid screening id" });
+  }
+  const parsed = RecruiterDecisionsBodySchema.safeParse(request.body ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const message = first ? `${String(first.path[0] ?? "body")}: ${first.message}` : "Invalid request body";
+    return void reply.code(400).send({ error: "Invalid body", message, details: parsed.error.issues });
+  }
+  // Match the same { _id, recruiterId } filter shape as getScreeningResults (string ids; let Mongoose cast to ObjectId).
+  const screening = await ScreeningModel.findOne({ _id: id, recruiterId });
+  if (!screening) {
+    return void reply.code(404).send({ error: "Screening not found" });
+  }
+  if (screening.status !== "completed") {
+    return void reply.code(400).send({ error: "Can only record decisions on a completed screening" });
+  }
+
+  const current = plainRecruiterDecisions(screening.get("recruiterDecisions"));
+  const merged = mergeRecruiterDecisionRecords(current, parsed.data);
+  // Mixed fields are not always persisted by `save()`; `$set` always writes the document.
+  const upd = await ScreeningModel.updateOne(
+    { _id: id, recruiterId },
+    { $set: { recruiterDecisions: merged } },
+  );
+  if (upd.matchedCount === 0) {
+    return void reply.code(404).send({ error: "Screening not found" });
+  }
+  await redisDel(`screening:${id}`);
+
+  const job = await JobModel.findById(screening.jobId).lean();
+  if (job) {
+    scheduleAutoRejectionEmails({
+      screeningId: id,
+      jobId: screening.jobId,
+      jobTitle: String(job.title ?? "the role"),
+      previousMerged: current,
+      incoming: parsed.data,
+    });
+  }
+
+  reply.send({ success: true, recruiterDecisions: merged });
+};
+
+/**
+ * POST /api/v1/screenings/:id/send-acceptance-emails — email all HR-approved shortlisted candidates.
+ * Body: `{ message: string, subject?: string }`
+ */
+export const sendAcceptanceEmails = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const recruiterId = request.user?.userId;
+  if (!recruiterId || !Types.ObjectId.isValid(recruiterId)) {
+    return void reply.code(401).send({ error: "Unauthorized" });
+  }
+  const { id } = request.params as { id: string };
+  if (!Types.ObjectId.isValid(id)) {
+    return void reply.code(400).send({ error: "Invalid screening id" });
+  }
+  const parsed = SendAcceptanceEmailsBodySchema.safeParse(request.body ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const message = first ? `${String(first.path[0] ?? "body")}: ${first.message}` : "Invalid request body";
+    return void reply.code(400).send({ error: "Invalid body", message, details: parsed.error.issues });
+  }
+  try {
+    const result = await sendAcceptanceEmailsForScreening({
+      screeningId: id,
+      recruiterId,
+      body: parsed.data,
+    });
+    reply.send({ success: true, ...result });
+  } catch (err) {
+    const code = String((err as Error)?.message ?? "");
+    if (code === "SCREENING_INVALID") {
+      return void reply.code(404).send({ error: "Screening not found or not complete" });
+    }
+    if (code === "NO_SHORTLIST") {
+      return void reply.code(400).send({ error: "No shortlist for this screening" });
+    }
+    if (code === "JOB_NOT_FOUND") {
+      return void reply.code(404).send({ error: "Job not found" });
+    }
+    throw err;
+  }
 };
 
 /** GET /api/v1/screenings/:id/results — ranked shortlist shaped for the Next.js dashboard (`ranked`, legacy applicant envelope). */
@@ -608,6 +770,9 @@ export const getScreeningResults = async (request: FastifyRequest, reply: Fastif
     return mapLegacyRow(entry as CandidateResult);
   });
 
+  const rdRaw = (screening as { recruiterDecisions?: unknown }).recruiterDecisions;
+  const recruiterDecisions = plainRecruiterDecisions(rdRaw);
+
   reply.send({
     ranked,
     meta: {
@@ -616,6 +781,7 @@ export const getScreeningResults = async (request: FastifyRequest, reply: Fastif
       totalCandidatesScreened: stored?.totalEvaluated ?? stored?.totalAnalyzed ?? ranked.length,
       screeningKind: String((stored as { screeningKind?: string }).screeningKind ?? ""),
       averageScore: screening.averageScore ?? (stored as { averageScore?: number }).averageScore,
+      recruiterDecisions,
     },
   });
 };
@@ -643,12 +809,77 @@ export const screeningHistoryByJob = async (request: FastifyRequest, reply: Fast
   reply.send(list);
 };
 
+const escapeCsvCell = (val: string): string => {
+  const s = val ?? "";
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
+const buildShortlistExportCsv = (
+  shortlist: unknown[],
+  decisions: Record<string, unknown>,
+): string => {
+  const header = [
+    "rank",
+    "candidateId",
+    "totalScore",
+    "ai_recommendation",
+    "hr_decision",
+    "hr_note",
+    "hr_decidedAt",
+  ];
+  const lines = [header.map(escapeCsvCell).join(",")];
+  for (const entry of shortlist) {
+    if (entry == null || typeof entry !== "object") continue;
+    const o = entry as Record<string, unknown>;
+    const candidateId = String(o.candidateId ?? "");
+    const rank = o.rank != null ? String(o.rank) : "";
+    const totalScore = o.totalScore != null ? String(o.totalScore) : "";
+    let aiRec = "";
+    if (isPlatformShortlistEntry(entry)) {
+      const cr = entry;
+      aiRec = String(cr.reasoning?.recommendation ?? "");
+    } else {
+      aiRec = String((o as unknown as CandidateResult).recommendation ?? "");
+    }
+    const dec = decisions[candidateId] as { decision?: string; hrNote?: string; decidedAt?: string } | undefined;
+    lines.push(
+      [rank, candidateId, totalScore, aiRec, dec?.decision ?? "", dec?.hrNote ?? "", dec?.decidedAt ?? ""]
+        .map((c) => escapeCsvCell(String(c)))
+        .join(","),
+    );
+  }
+  return lines.join("\r\n");
+};
+
 export const exportScreening = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { id } = request.params as { id: string };
-  const screening = await ScreeningModel.findById(id).lean();
+  const recruiterId = request.user?.userId;
+  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+
+  const body = (request.body as { format?: string } | undefined) ?? {};
+  const format = String(body.format ?? "pdf").toLowerCase();
+
+  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
   if (!screening?.results) return void reply.code(404).send({ error: "Completed screening not found" });
   const job = await JobModel.findById(screening.jobId).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
+
+  const rdRaw = (screening as { recruiterDecisions?: unknown }).recruiterDecisions;
+  const recruiterDecisions = plainRecruiterDecisions(rdRaw);
+  const shortlist = (screening.results as { shortlist?: unknown[] }).shortlist;
+  if (!Array.isArray(shortlist)) {
+    return void reply.code(404).send({ error: "No shortlist" });
+  }
+
+  if (format === "csv") {
+    const csv = buildShortlistExportCsv(shortlist, recruiterDecisions);
+    return void reply
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename=shortlist-${id}.csv`)
+      .send(Buffer.from("\uFEFF" + csv, "utf8"));
+  }
+
   const buffer = await generateShortlistPDF(screening.results, { title: job.title });
   reply.header("Content-Type", "application/pdf").header("Content-Disposition", `attachment; filename=shortlist-${id}.pdf`).send(buffer);
 };
