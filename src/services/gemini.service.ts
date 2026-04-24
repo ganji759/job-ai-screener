@@ -186,9 +186,16 @@ const scoreAllCandidatesLegacy = async (
   );
 
   const merged: CandidateResult[] = [];
+  const errors: string[] = [];
   settled.forEach((entry) => {
     if (entry.status === "fulfilled") merged.push(...entry.value);
+    else errors.push(entry.reason instanceof Error ? entry.reason.message : String(entry.reason));
   });
+
+  if (merged.length === 0) {
+    const reason = errors[0] ?? "All Gemini scoring batches failed with no output.";
+    throw new Error(reason);
+  }
 
   return sortAndRankCandidates(merged);
 };
