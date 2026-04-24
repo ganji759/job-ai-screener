@@ -11,17 +11,18 @@ import { cn } from "../../lib/utils";
 export const ApplicantTable = ({
   applicants,
   onDelete,
-  onStatusChange,
   onClearFilters,
   hasActiveFilters,
   onOpenUpload,
+  jobTitleById,
 }: {
   applicants: Applicant[];
   onDelete: (applicantId: string) => void;
-  onStatusChange: (applicantId: string, status: Applicant["status"]) => void;
   onClearFilters: () => void;
   hasActiveFilters: boolean;
   onOpenUpload: () => void;
+  /** Optional: resolve jobId -> human-readable job title. Missing ids fall back to a short id. */
+  jobTitleById?: Record<string, string>;
 }) => {
   const [selected, setSelected] = useState<Applicant | null>(null);
   const rowProps = useMemo(
@@ -29,8 +30,9 @@ export const ApplicantTable = ({
       applicants,
       onSelect: (row: Applicant) => setSelected(row),
       onDelete,
+      jobTitleById: jobTitleById ?? {},
     }),
-    [applicants, onDelete],
+    [applicants, onDelete, jobTitleById],
   );
   if (applicants.length === 0) {
     return (
@@ -49,10 +51,13 @@ export const ApplicantTable = ({
     );
   }
 
+  const selectedJobTitle = selected ? (jobTitleById?.[String(selected.jobId)] ?? undefined) : undefined;
+
   return (
     <div className="overflow-x-auto rounded-xl border border-brand-100 dark:border-slate-700">
-      <div className="grid min-w-[960px] grid-cols-[2fr_1.2fr_1.8fr_0.9fr_1fr_0.8fr_0.8fr] bg-brand-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-brand-900 dark:bg-slate-800 dark:text-slate-100">
+      <div className="grid min-w-[1080px] grid-cols-[1.8fr_1.1fr_1.3fr_1.5fr_0.8fr_0.9fr_0.7fr_0.8fr] bg-brand-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-brand-900 dark:bg-slate-800 dark:text-slate-100">
         <span className="sticky top-0">Name</span>
+        <span>Job</span>
         <span>Title</span>
         <span>Skills</span>
         <span>Source</span>
@@ -62,10 +67,23 @@ export const ApplicantTable = ({
       </div>
       <div className="max-h-[540px] overflow-y-auto">
         {applicants.map((applicant, index) => (
-          <ApplicantRow key={applicant._id} index={index} applicants={rowProps.applicants} onSelect={rowProps.onSelect} onDelete={rowProps.onDelete} />
+          <ApplicantRow
+            key={applicant._id}
+            index={index}
+            applicants={rowProps.applicants}
+            onSelect={rowProps.onSelect}
+            onDelete={rowProps.onDelete}
+            jobTitleById={rowProps.jobTitleById}
+          />
         ))}
       </div>
-      <ApplicantDetailDrawer open={Boolean(selected)} onClose={() => setSelected(null)} applicant={selected} onDelete={onDelete} onStatusChange={onStatusChange} />
+      <ApplicantDetailDrawer
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        applicant={selected}
+        onDelete={onDelete}
+        jobTitle={selectedJobTitle}
+      />
     </div>
   );
 };
@@ -75,11 +93,13 @@ const ApplicantRow = ({
   applicants,
   onSelect,
   onDelete,
+  jobTitleById,
 }: {
   index: number;
   applicants: Applicant[];
   onSelect: (row: Applicant) => void;
   onDelete: (id: string) => void;
+  jobTitleById: Record<string, string>;
 }) => {
   const row = applicants[index];
   const fullName = `${row.profile.firstName} ${row.profile.lastName}`;
@@ -108,11 +128,13 @@ const ApplicantRow = ({
   };
 
   const skills = row.profile.skills ?? [];
+  const jobTitle = jobTitleById[String(row.jobId)] ?? "";
+  const jobFallback = row.jobId ? `#${String(row.jobId).slice(-6)}` : "—";
 
   return (
     <div
       className={cn(
-        "grid min-w-[960px] grid-cols-[2fr_1.2fr_1.8fr_0.9fr_1fr_0.8fr_0.8fr] items-center border-t border-brand-100 px-4 py-3 text-sm text-slate-700 transition-colors",
+        "grid min-w-[1080px] grid-cols-[1.8fr_1.1fr_1.3fr_1.5fr_0.8fr_0.9fr_0.7fr_0.8fr] items-center border-t border-brand-100 px-4 py-3 text-sm text-slate-700 transition-colors",
         index % 2 === 0 ? "bg-white" : "bg-[#f9fafb]",
         "hover:bg-slate-100/80",
         "dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80 dark:focus-visible:bg-slate-800/60",
@@ -125,6 +147,19 @@ const ApplicantRow = ({
           <span className="block truncate text-xs text-slate-500">{row.profile.email}</span>
         </span>
       </button>
+      <span className="min-w-0 truncate pr-2" title={jobTitle || String(row.jobId)}>
+        {jobTitle ? (
+          <Link
+            href={`/jobs/${row.jobId}`}
+            className="truncate font-medium text-brand-700 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {jobTitle}
+          </Link>
+        ) : (
+          <span className="text-slate-500">{jobFallback}</span>
+        )}
+      </span>
       <span className="truncate pr-2">{row.profile.title}</span>
       <span className="flex flex-wrap gap-1 pr-2">
         {skills.slice(0, 3).map((skill) => (

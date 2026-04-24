@@ -198,25 +198,27 @@ export const RunScreeningModal = ({
   const csvInputId = "run-screening-csv";
   const excelInputId = "run-screening-excel";
 
+  const isExternalStep = step === 3 && scenario === "external";
+
   return (
-    <Modal open={open} onClose={close} preventClose={preventClose}>
+    <Modal open={open} onClose={close} preventClose={preventClose} size={isExternalStep ? "sm" : "md"}>
       {step !== 4 ? (
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className={`flex items-start justify-between gap-3 ${isExternalStep ? "mb-2.5" : "mb-4"}`}>
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">
+            <h3 className={`font-semibold text-slate-900 ${isExternalStep ? "text-base" : "text-lg"}`}>
               {step === 1 && "Run AI Screening"}
               {step === 2 && "Choose scenario"}
               {step === 3 && (scenario === "umurava" ? "Umurava platform screening" : "External sources")}
             </h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className={`text-slate-600 ${isExternalStep ? "mt-0.5 text-xs" : "mt-1 text-sm"}`}>
               {step === 1 && "Select the job you want to screen candidates for."}
               {step === 2 && "Pick how candidates are sourced for this run."}
               {step === 3 && scenario === "umurava" && "Confirm shortlist size and run using Umurava talent profiles."}
-              {step === 3 && scenario === "external" && "Upload files and/or paste resume links, then run screening."}
+              {step === 3 && scenario === "external" && "Upload files and/or paste resume links."}
             </p>
           </div>
           <button type="button" onClick={close} disabled={preventClose} className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40">
-            <XCircle className="h-5 w-5" />
+            <XCircle className={isExternalStep ? "h-4 w-4" : "h-5 w-5"} />
           </button>
         </div>
       ) : null}
@@ -332,8 +334,8 @@ export const RunScreeningModal = ({
       ) : null}
 
       {step === 3 && scenario === "external" ? (
-        <div className="space-y-4">
-          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+        <div className="space-y-2.5">
+          <p className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
             Job: <span className="font-semibold">{selectedJob ? formatJobLabel(selectedJob) : jobId}</span>
           </p>
 
@@ -343,25 +345,25 @@ export const RunScreeningModal = ({
                 key={v}
                 type="button"
                 onClick={() => setTopN(v)}
-                className={`rounded-xl border p-3 text-left ${topN === v ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}
+                className={`rounded-lg border px-2.5 py-1.5 text-left ${topN === v ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}
               >
-                <p className="font-semibold text-slate-900">Top {v}</p>
-                <p className="text-xs text-slate-600">Shortlist size</p>
+                <p className="text-sm font-semibold text-slate-900">Top {v}</p>
+                <p className="text-[11px] text-slate-600">Shortlist size</p>
               </button>
             ))}
           </div>
 
           <div>
-            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
-              <FileText className="h-4 w-4 text-brand-600" />
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-800">
+              <FileText className="h-3.5 w-3.5 text-brand-600" />
               PDF resumes
             </p>
             <label
               htmlFor={pdfInputId}
-              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600 hover:bg-slate-50"
+              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50/80 px-3 py-3 text-center text-xs text-slate-600 hover:bg-slate-50"
             >
-              <Upload className="mb-2 h-6 w-6 text-brand-600" />
-              Drag & drop PDFs here or click to browse (multiple)
+              <Upload className="mb-1 h-4 w-4 text-brand-600" />
+              Drag & drop PDFs or click to browse
               <input
                 id={pdfInputId}
                 type="file"
@@ -375,7 +377,7 @@ export const RunScreeningModal = ({
               />
             </label>
             {pdfFiles.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-xs text-slate-600">
+              <ul className="mt-1 space-y-0.5 text-[11px] text-slate-600">
                 {pdfFiles.map((f) => (
                   <li key={f.name + f.size}>{f.name}</li>
                 ))}
@@ -383,13 +385,13 @@ export const RunScreeningModal = ({
             ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
-                <FileSpreadsheet className="h-4 w-4 text-brand-600" />
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-brand-600" />
                 CSV
               </p>
-              <label htmlFor={csvInputId} className="block cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-brand-700 hover:bg-slate-50">
+              <label htmlFor={csvInputId} className="block cursor-pointer truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-brand-700 hover:bg-slate-50">
                 {csvFile ? csvFile.name : "Choose CSV…"}
                 <input
                   id={csvInputId}
@@ -401,11 +403,11 @@ export const RunScreeningModal = ({
               </label>
             </div>
             <div>
-              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
-                <FileSpreadsheet className="h-4 w-4 text-brand-600" />
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-brand-600" />
                 Excel
               </p>
-              <label htmlFor={excelInputId} className="block cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-brand-700 hover:bg-slate-50">
+              <label htmlFor={excelInputId} className="block cursor-pointer truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-brand-700 hover:bg-slate-50">
                 {excelFile ? excelFile.name : "Choose Excel…"}
                 <input
                   id={excelInputId}
@@ -419,22 +421,22 @@ export const RunScreeningModal = ({
           </div>
 
           <div>
-            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
-              <Link2 className="h-4 w-4 text-brand-600" />
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-800">
+              <Link2 className="h-3.5 w-3.5 text-brand-600" />
               Resume links (one URL per line)
             </p>
             <textarea
               value={resumeLinksText}
               onChange={(e) => setResumeLinksText(e.target.value)}
-              placeholder={"https://example.com/resume.pdf\n..."}
-              rows={4}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              placeholder={"https://example.com/resume.pdf"}
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
           </div>
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-xs text-red-600">{error}</p> : null}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-1">
             <Button variant="secondary" className="flex-1" type="button" onClick={() => setStep(2)}>
               Back
             </Button>

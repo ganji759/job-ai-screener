@@ -3,17 +3,28 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
 
+type ModalSize = "sm" | "md" | "lg";
+
+const SIZE_CLASS: Record<ModalSize, string> = {
+  sm: "max-w-[460px] p-4",
+  md: "max-w-[600px] p-6",
+  lg: "max-w-[760px] p-6",
+};
+
 export const Modal = ({
   open,
   onClose,
   children,
   preventClose,
+  size = "md",
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   /** When true, Escape and backdrop click do not close (e.g. long-running operations). */
   preventClose?: boolean;
+  /** Controls modal width and padding. Defaults to `md` (600px). */
+  size?: ModalSize;
 }) => {
   useEffect(() => {
     if (!open) return;
@@ -46,7 +57,7 @@ export const Modal = ({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="w-full max-w-[600px] rounded-xl border border-brand-100 bg-white p-6 shadow-brand outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:border-slate-600 dark:bg-slate-800 dark:shadow-2xl"
+            className={`w-full rounded-xl border border-brand-100 bg-white shadow-brand outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:border-slate-600 dark:bg-slate-800 dark:shadow-2xl ${SIZE_CLASS[size]}`}
             onClick={(e) => e.stopPropagation()}
             tabIndex={-1}
           >

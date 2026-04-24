@@ -104,6 +104,11 @@ export interface BackendScreeningResults {
     totalCandidatesScreened?: number;
     screeningKind?: string;
     averageScore?: number;
+    /** HR decisions keyed by applicant `._id` (from ranked rows). */
+    recruiterDecisions?: Record<
+      string,
+      { decision: string; hrNote: string; decidedAt?: string; aiLabel?: string }
+    >;
   };
 }
 
@@ -361,6 +366,36 @@ export interface ApplicantProfile {
   bio?: string;
   phone?: string;
   totalYearsExperience?: number;
+  /**
+   * Rich fields populated by the Python AI service (backend/apps/ai `/normalise/pdf`).
+   * All optional so older applicants (heuristic / CSV) remain valid.
+   */
+  headline?: string;
+  languages?: { name: string; level: string }[];
+  experience?: {
+    company: string;
+    title: string;
+    startDate: string;
+    endDate?: string;
+    description: string;
+    yearsInRole?: number;
+  }[];
+  certifications?: { name: string; issuer: string; year?: number; issueDate?: string }[];
+  projects?: {
+    name: string;
+    description: string;
+    technologies?: string[];
+    role?: string;
+    link?: string | null;
+    startDate?: string;
+    endDate?: string;
+  }[];
+  availability?: {
+    status: AvailabilityStatus;
+    type: AvailabilityType;
+    startDate?: string | null;
+  };
+  socialLinks?: { linkedin?: string | null; github?: string | null; portfolio?: string | null };
 }
 
 export interface Applicant {

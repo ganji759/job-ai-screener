@@ -35,6 +35,15 @@ function adaptApiApplicant(a: Record<string, unknown>): Applicant {
     bio: profile.bio != null ? String(profile.bio) : undefined,
     phone: profile.phone != null ? String(profile.phone) : undefined,
     totalYearsExperience: typeof profile.totalYearsExperience === "number" ? profile.totalYearsExperience : undefined,
+    headline: profile.headline != null ? String(profile.headline) : undefined,
+    languages: Array.isArray(profile.languages) ? (profile.languages as ApplicantProfile["languages"]) : undefined,
+    experience: Array.isArray(profile.experience) ? (profile.experience as ApplicantProfile["experience"]) : undefined,
+    certifications: Array.isArray(profile.certifications)
+      ? (profile.certifications as ApplicantProfile["certifications"])
+      : undefined,
+    projects: Array.isArray(profile.projects) ? (profile.projects as ApplicantProfile["projects"]) : undefined,
+    availability: profile.availability as ApplicantProfile["availability"],
+    socialLinks: profile.socialLinks as ApplicantProfile["socialLinks"],
   };
 
   let totalScore: number | undefined;
@@ -166,9 +175,32 @@ export const applicantsApi = baseApi.injectEndpoints({
       invalidatesTags: ["Applicants"],
     }),
 
-    // Not in backend — kept for UI compatibility
+    /**
+     * Backend has no `GET /applicants/:id`. We fetch the recruiter-wide list with a large
+     * page and find the record locally. Cached under the same `Applicants` tag so the
+     * list and detail view share invalidation.
+     */
     getApplicant: builder.query<Applicant, string>({
-      query: (id) => ({ url: `/applicants/${id}`, method: "get" }),
+      async queryFn(id, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: "/applicants",
+          method: "get",
+          params: { jobId: "all", limit: 10000, offset: 0 },
+        });
+        if (result.error) return { error: result.error };
+        const body = result.data as {
+          applicants?: Record<string, unknown>[];
+          data?: Record<string, unknown>[];
+        };
+        const rows = body.applicants ?? body.data ?? [];
+        const match = rows.find((row) => String(row._id) === id);
+        if (!match) {
+          return {
+            error: { status: 404, data: { error: "Applicant not found" } },
+          };
+        }
+        return { data: adaptApiApplicant(match) };
+      },
       providesTags: (_result, _err, id) => [{ type: "Applicants", id }],
     }),
     deleteApplicant: builder.mutation<{ deleted: number }, string>({

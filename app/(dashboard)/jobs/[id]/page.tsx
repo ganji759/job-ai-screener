@@ -8,13 +8,9 @@ import { ArrowRight } from "lucide-react";
 import { PageHeader } from "../../../../components/layout/PageHeader";
 import {
   useGetJobQuery,
-  useGetJobStatsQuery,
-  useGetJobBenchmarkQuery,
   useUpdateJobMutation,
   useDeleteJobMutation,
 } from "../../../../store/api/jobsApi";
-import { JobStatsPanel, type JobStatsShape } from "../../../../components/jobs/JobStatsPanel";
-import { JobBenchmarkPanel, type JobBenchmarkShape } from "../../../../components/jobs/JobBenchmarkPanel";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { SkillBadge } from "../../../../components/ui/SkillBadge";
@@ -32,8 +28,6 @@ export default function JobDetailPage() {
   const router = useRouter();
   const id = params.id ?? "";
   const { data: job, isLoading: jobLoading, isError, error } = useGetJobQuery(id, { skip: !id });
-  const { data: stats, isLoading: statsLoading } = useGetJobStatsQuery(id, { skip: !id });
-  const { data: benchmark } = useGetJobBenchmarkQuery(id, { skip: !id });
 
   const [updateJob, { isLoading: updating }] = useUpdateJobMutation();
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
@@ -338,18 +332,6 @@ export default function JobDetailPage() {
           </Link>
         </div>
       </Card>
-
-      {statsLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 animate-shimmer rounded-2xl" />
-          ))}
-        </div>
-      ) : (
-        <JobStatsPanel stats={(stats ?? {}) as JobStatsShape} jobId={id} />
-      )}
-
-      <JobBenchmarkPanel benchmark={(benchmark ?? {}) as JobBenchmarkShape} />
     </div>
   );
 }

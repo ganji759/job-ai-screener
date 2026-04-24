@@ -1,13 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type ComponentType, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, Brain, Briefcase, CalendarDays, Cpu, PlusCircle, TrendingUp, UploadCloud, Users } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Activity,
+  Brain,
+  Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  Cpu,
+  FileText,
+  PlusCircle,
+  Target,
+  TrendingUp,
+  UploadCloud,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { useGetDashboardAnalyticsQuery } from "../../../store/api/screeningsApi";
 import { PageHeader } from "../../../components/layout/PageHeader";
-import { ActivityFeed } from "../../../components/dashboard/ActivityFeed";
+import { ActivityFeed, type ActivityKind } from "../../../components/dashboard/ActivityFeed";
 import { Card } from "../../../components/ui/Card";
 import { humanizeDurationMs } from "../../../lib/utils";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
@@ -37,7 +65,7 @@ const useCountUp = (value: number): number => {
     const delta = safe / steps;
     const id = window.setInterval(() => {
       current += delta;
-      if (current >= safe) {
+      if ((delta >= 0 && current >= safe) || (delta < 0 && current <= safe)) {
         setDisplay(safe);
         window.clearInterval(id);
       } else {
@@ -48,6 +76,25 @@ const useCountUp = (value: number): number => {
   }, [safe, frame]);
 
   return Math.round(display);
+};
+
+type Bucket = { range: string; count: number };
+type SourceRow = { source: string; count: number };
+type StatusRow = { status: string; count: number };
+type DayRow = { date: string; count: number };
+type SkillRow = { skill: string; count: number };
+type JobRow = { jobId: string; title: string; status: string; applicants: number; screenings: number; avgScore: number };
+type ActivityRow = { kind: ActivityKind; title: string; subtitle: string; at: string };
+
+const SOURCE_COLORS: Record<string, string> = {
+  umurava_platform: "#4f46e5",
+  pdf_upload: "#0ea5e9",
+  csv_upload: "#f59e0b",
+};
+const SOURCE_LABELS: Record<string, string> = {
+  umurava_platform: "Umurava Platform",
+  pdf_upload: "PDF Upload",
+  csv_upload: "CSV / Excel",
 };
 
 export default function DashboardPage() {
@@ -65,98 +112,84 @@ export default function DashboardPage() {
     year: "numeric",
   });
 
-  const scoreDistribution = (analytics.scoreDistribution as Array<{ range: string; count: number }> | undefined) ?? [
-    { range: "0-20", count: 0 },
-    { range: "20-40", count: 0 },
-    { range: "40-60", count: 0 },
-    { range: "60-80", count: 0 },
-    { range: "80-100", count: 0 },
-  ];
-  const hasScoreDistribution = scoreDistribution.some((item) => item.count > 0);
-  const totalDistributionCount = scoreDistribution.reduce((acc, item) => acc + item.count, 0);
-  const avgScore = Math.round(
-    scoreDistribution.reduce((acc, item) => acc + item.count * (Number(item.range.split("-")[1] ?? 0)), 0) /
-      Math.max(1, totalDistributionCount),
-  );
-  const shortlistRate = Number(analytics.totalApplicants ?? 0) > 0 ? Math.round((Number(analytics.totalScreenings ?? 0) / Number(analytics.totalApplicants)) * 100) : 0;
+  const totalJobs = Number(analytics.totalJobs ?? 0);
+  const activeJobs = Number(analytics.activeJobs ?? 0);
+  const totalApplicants = Number(analytics.totalApplicants ?? 0);
+  const totalScreenings = Number(analytics.totalScreenings ?? 0);
+  const completedScreenings = Number(analytics.completedScreenings ?? 0);
+  const totalShortlisted = Number(analytics.totalShortlisted ?? 0);
+  const totalRejected = Number(analytics.totalRejected ?? 0);
+  const totalPending = Number(analytics.totalPending ?? 0);
+  const avgScore = Number(analytics.averageMatchScore ?? 0);
+  const shortlistRate = Number(analytics.shortlistRate ?? 0);
   const avgTimeMs = Number(analytics.averageTimeToScreen ?? 0);
 
-  const lineChartData = useMemo(() => {
-    const countsByDay = new Map<string, number>();
-    const start = new Date();
-    start.setDate(start.getDate() - 29);
-    for (let i = 0; i < 30; i += 1) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      countsByDay.set(d.toISOString().slice(0, 10), 0);
-    }
+  const scoreDistribution = (analytics.scoreDistribution as Bucket[] | undefined) ?? [];
+  const hasScoreDistribution = scoreDistribution.some((item) => item.count > 0);
 
-    const recentActivity = Array.isArray(analytics.recentActivity)
-      ? (analytics.recentActivity as Array<{ createdAt?: string }>)
-      : [];
-    recentActivity.forEach((item) => {
-      const key = new Date(item.createdAt ?? "").toISOString().slice(0, 10);
-      if (countsByDay.has(key)) {
-        countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
-      }
-    });
+  const sourceMix = (analytics.sourceMix as SourceRow[] | undefined) ?? [];
+  const hasSourceMix = sourceMix.some((s) => s.count > 0);
 
-    return [...countsByDay.entries()].map(([date, count]) => ({
-      date,
-      label: new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      screenings: count,
-    }));
-  }, [analytics.recentActivity]);
-  const hasLineData = lineChartData.some((row) => row.screenings > 0);
+  const statusFunnel = (analytics.statusFunnel as StatusRow[] | undefined) ?? [];
+  const funnelTotal = statusFunnel.reduce((acc, r) => acc + r.count, 0);
 
-  const activityItems = useMemo(() => {
-    const jobById = new Map((jobsData?.jobs ?? []).map((job) => [job._id, job.title]));
-    const recent = Array.isArray(analytics.recentActivity)
-      ? (analytics.recentActivity as Array<{ status?: string; createdAt?: string; jobId?: string }>)
-      : [];
-    return recent.slice(0, 8).map((item) => {
-      const rawStatus = String(item.status ?? "").toLowerCase();
-      const kind = rawStatus.includes("upload")
-        ? ("upload" as const)
-        : rawStatus.includes("job")
-          ? ("job_change" as const)
-          : ("completed_screening" as const);
-      const action = kind === "upload"
-        ? "Uploaded applicants for"
-        : kind === "job_change"
-          ? "Updated job status for"
-          : item.status === "completed"
-            ? "Completed screening for"
-            : "Updated screening for";
-      return {
-        kind,
-        action,
-        jobName: jobById.get(String(item.jobId ?? "")) ?? "a job",
-        timeAgo: getRelativeTime(String(item.createdAt ?? new Date().toISOString())),
-      };
-    });
-  }, [analytics.recentActivity, jobsData?.jobs]);
+  const screeningsOverTime = (analytics.screeningsOverTime as DayRow[] | undefined) ?? [];
+  const applicantsOverTime = (analytics.applicantsOverTime as DayRow[] | undefined) ?? [];
+  const trendData = useMemo(
+    () =>
+      screeningsOverTime.map((row, idx) => ({
+        date: row.date,
+        label: new Date(row.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        screenings: row.count,
+        applicants: applicantsOverTime[idx]?.count ?? 0,
+      })),
+    [screeningsOverTime, applicantsOverTime],
+  );
+  const hasTrendData = trendData.some((d) => d.screenings > 0 || d.applicants > 0);
 
-  const demandSkills = (Array.isArray(analytics.topSkillsInDemand) ? (analytics.topSkillsInDemand as string[]) : []).slice(0, 3);
+  const topSkillsInDemand = (analytics.topSkillsInDemand as SkillRow[] | undefined) ?? [];
+  const topCandidateSkills = (analytics.topCandidateSkills as SkillRow[] | undefined) ?? [];
+  const topSkillGaps = (analytics.topSkillGaps as SkillRow[] | undefined) ?? [];
 
-  const animatedAvgScore = useCountUp(avgScore);
-  const animatedShortlistRate = useCountUp(shortlistRate);
-  const animatedAvgTime = useCountUp(Math.round(avgTimeMs / 60000));
+  const jobsBreakdown = (analytics.jobsBreakdown as JobRow[] | undefined) ?? [];
+
+  const recentActivity = (analytics.recentActivity as ActivityRow[] | undefined) ?? [];
+  const activityItems = recentActivity.map((a) => ({
+    kind: a.kind,
+    title: a.title,
+    subtitle: a.subtitle,
+    timeAgo: getRelativeTime(a.at),
+  }));
+
+  const animatedAvgScore = useCountUp(Math.round(avgScore));
+  const animatedShortlistRate = useCountUp(Math.round(shortlistRate));
+  const animatedAvgTimeSec = useCountUp(Math.round(avgTimeMs / 1000));
+  const animatedApplicants = useCountUp(totalApplicants);
+  const animatedScreenings = useCountUp(totalScreenings);
+  const animatedShortlisted = useCountUp(totalShortlisted);
+
   const stats = [
-    { label: "Total Jobs", value: Number(analytics.totalJobs ?? 0), trend: "+8%", positive: true, icon: Briefcase, href: "/jobs" },
-    { label: "Active Jobs", value: Number(analytics.activeJobs ?? 0), trend: "+12%", positive: true, icon: TrendingUp, href: "/jobs" },
-    { label: "Applicants", value: Number(analytics.totalApplicants ?? 0), trend: "-2%", positive: false, icon: Users, href: "/applicants" },
-    { label: "Screenings", value: Number(analytics.totalScreenings ?? 0), trend: "+5%", positive: true, icon: Cpu, href: "/screenings" },
+    { label: "Total Jobs", value: totalJobs, hint: `${activeJobs} active`, icon: Briefcase, href: "/jobs", color: "text-brand-600 bg-brand-50" },
+    { label: "Applicants", value: animatedApplicants, hint: `${totalPending} pending`, icon: Users, href: "/applicants", color: "text-sky-600 bg-sky-50" },
+    { label: "Screenings", value: animatedScreenings, hint: `${completedScreenings} completed`, icon: Cpu, href: "/screenings", color: "text-violet-600 bg-violet-50" },
+    { label: "Shortlisted", value: animatedShortlisted, hint: `${totalRejected} rejected`, icon: Target, href: "/applicants?status=shortlisted", color: "text-emerald-600 bg-emerald-50" },
   ];
 
   return (
     <div className="space-y-8">
       <PageHeader title="Dashboard" subtitle="AI-powered recruiter analytics and screening intelligence." />
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-violet-600 p-6 text-white shadow-[0_12px_30px_rgba(79,70,229,0.25)]">
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-violet-600 p-6 text-white shadow-[0_12px_30px_rgba(79,70,229,0.25)]"
+      >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-2xl font-bold">{greeting}, {recruiterFirstName} 👋</p>
-            <p className="mt-1 text-sm text-white/90">Here's what's happening with your recruiting today.</p>
+            <p className="text-2xl font-bold">
+              {greeting}, {recruiterFirstName} 👋
+            </p>
+            <p className="mt-1 text-sm text-white/90">Here&apos;s what&apos;s happening with your recruiting today.</p>
           </div>
           <div className="text-right">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs text-white/95">
@@ -167,6 +200,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+
       {isLoading ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-brand-100 bg-white py-16 text-slate-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" aria-hidden />
@@ -174,6 +208,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* Top stat cards */}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {stats.map((item, idx) => {
               const Icon = item.icon;
@@ -187,42 +222,102 @@ export default function DashboardPage() {
                     className="rounded-xl border border-brand-100 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition duration-200 hover:shadow-[0_10px_20px_rgba(15,23,42,0.12)]"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="rounded-xl bg-brand-50 p-2 text-brand-600">
+                      <span className={`rounded-xl p-2 ${item.color}`}>
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.positive ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>{item.trend}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{item.hint}</span>
                     </div>
                     <p className="mt-3 text-xs uppercase text-slate-500">{item.label}</p>
-                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 * idx }} className="mt-1 text-3xl font-bold text-brand-900">
-                      {item.value}
-                    </motion.p>
+                    <p className="mt-1 text-3xl font-bold text-brand-900">{item.value}</p>
                   </motion.div>
                 </Link>
               );
             })}
           </div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="grid gap-4 lg:grid-cols-3">
+
+          {/* KPI row */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="grid gap-4 lg:grid-cols-3"
+          >
             <Card className={metricBoxClass}>
-              <h3 className="text-lg font-semibold text-[#1a1a2e]">Average Time To Screen</h3>
-              <p className="mt-1 text-sm text-slate-600">End-to-end latency for completed runs.</p>
-              <p className="mt-4 text-3xl font-bold text-brand-700">{animatedAvgTime}m</p>
-              <p className="text-xs text-slate-500">{humanizeDurationMs(avgTimeMs)}</p>
-              <div className="mt-3 h-2 rounded-full bg-brand-100"><div className="h-2 rounded-full bg-brand-600" style={{ width: `${Math.min(100, Math.round((animatedAvgTime / 120) * 100))}%` }} /></div>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Avg Time To Screen</h3>
+                  <p className="mt-1 text-xs text-slate-600">End-to-end latency across completed runs.</p>
+                </div>
+                <span className="rounded-lg bg-brand-50 p-2 text-brand-600">
+                  <Activity className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-4 text-3xl font-bold text-brand-700">
+                {avgTimeMs > 0 ? humanizeDurationMs(avgTimeMs) : "—"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {completedScreenings === 0
+                  ? "No completed screenings yet."
+                  : `Based on ${completedScreenings} screening${completedScreenings === 1 ? "" : "s"}.`}
+              </p>
+              <div className="mt-3 h-1.5 rounded-full bg-brand-100">
+                <div
+                  className="h-1.5 rounded-full bg-brand-600"
+                  style={{ width: `${Math.min(100, (animatedAvgTimeSec / 120) * 100)}%` }}
+                />
+              </div>
             </Card>
+
             <Card className={metricBoxClass}>
-              <h3 className="text-lg font-semibold text-[#1a1a2e]">Avg Match Score</h3>
-              <p className="mt-1 text-sm text-slate-600">Last 30 days</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Avg Match Score</h3>
+                  <p className="mt-1 text-xs text-slate-600">Mean across every scored candidate.</p>
+                </div>
+                <span className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                  <TrendingUp className="h-4 w-4" />
+                </span>
+              </div>
               <p className="mt-4 text-3xl font-bold text-emerald-600">{animatedAvgScore} / 100</p>
-              <div className="mt-3 h-2 rounded-full bg-emerald-100"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, animatedAvgScore)}%` }} /></div>
+              <p className="mt-1 text-xs text-slate-500">
+                {totalShortlisted + totalRejected === 0
+                  ? "No candidates scored yet."
+                  : `${totalShortlisted + totalRejected} candidate${totalShortlisted + totalRejected === 1 ? "" : "s"} scored.`}
+              </p>
+              <div className="mt-3 h-1.5 rounded-full bg-emerald-100">
+                <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, animatedAvgScore)}%` }} />
+              </div>
             </Card>
+
             <Card className={metricBoxClass}>
-              <h3 className="text-lg font-semibold text-[#1a1a2e]">Shortlist Rate</h3>
-              <p className="mt-1 text-sm text-slate-600">Candidates making the shortlist</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Shortlist Rate</h3>
+                  <p className="mt-1 text-xs text-slate-600">Shortlisted ÷ (shortlisted + rejected).</p>
+                </div>
+                <span className="rounded-lg bg-violet-50 p-2 text-violet-600">
+                  <Target className="h-4 w-4" />
+                </span>
+              </div>
               <p className="mt-4 text-3xl font-bold text-violet-600">{animatedShortlistRate}%</p>
-              <div className="mt-3 h-2 rounded-full bg-violet-100"><div className="h-2 rounded-full bg-violet-500" style={{ width: `${Math.min(100, animatedShortlistRate)}%` }} /></div>
+              <p className="mt-1 text-xs text-slate-500">
+                {totalShortlisted + totalRejected === 0
+                  ? "Run a screening to compute this."
+                  : `${totalShortlisted} shortlisted · ${totalRejected} rejected.`}
+              </p>
+              <div className="mt-3 h-1.5 rounded-full bg-violet-100">
+                <div className="h-1.5 rounded-full bg-violet-500" style={{ width: `${Math.min(100, animatedShortlistRate)}%` }} />
+              </div>
             </Card>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="grid gap-4 lg:grid-cols-3">
+
+          {/* Quick actions */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid gap-4 lg:grid-cols-3"
+          >
             {[
               {
                 title: "Post New Job",
@@ -254,14 +349,21 @@ export default function DashboardPage() {
             ].map((action, idx) => {
               const Icon = action.icon;
               return (
-                <motion.div key={action.title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + idx * 0.07 }}>
+                <motion.div
+                  key={action.title}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 + idx * 0.07 }}
+                >
                   <Card className={`border-l-4 ${action.accent}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-lg font-semibold text-[#1a1a2e]">{action.title}</h3>
                         <p className="mt-1 text-sm text-slate-600">{action.description}</p>
                       </div>
-                      <span className="rounded-lg bg-brand-50 p-2 text-brand-600"><Icon className="h-5 w-5" /></span>
+                      <span className="rounded-lg bg-brand-50 p-2 text-brand-600">
+                        <Icon className="h-5 w-5" />
+                      </span>
                     </div>
                     <Link href={action.href} className={`mt-4 inline-flex rounded-lg px-3 py-2 text-sm font-semibold text-white ${action.ctaClass}`}>
                       {action.cta}
@@ -271,44 +373,64 @@ export default function DashboardPage() {
               );
             })}
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }} className="grid gap-4 lg:grid-cols-2">
+
+          {/* Trend + Score distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="grid gap-4 lg:grid-cols-2"
+          >
             <Card>
-              <h3 className="text-lg font-semibold text-[#1a1a2e]">Screenings Over Time</h3>
-              <p className="mb-2 text-sm text-slate-600">Screening activity over the last 30 days.</p>
+              <h3 className="text-lg font-semibold text-[#1a1a2e]">Activity Over Time</h3>
+              <p className="mb-2 text-sm text-slate-600">Daily applicants uploaded and screenings run (last 30 days).</p>
               <div className="h-64">
-                {hasLineData ? (
+                {hasTrendData ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={lineChartData}>
+                    <AreaChart data={trendData}>
+                      <defs>
+                        <linearGradient id="g-app" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="g-scr" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 12 }} tickMargin={8} />
-                      <YAxis tick={{ fill: "#64748b", fontSize: 12 }} />
+                      <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} tickMargin={6} />
+                      <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} />
                       <Tooltip />
-                      <Line type="monotone" dataKey="screenings" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3, fill: "#4f46e5" }} />
-                    </LineChart>
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Area type="monotone" dataKey="applicants" name="Applicants" stroke="#0ea5e9" fill="url(#g-app)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="screenings" name="Screenings" stroke="#4f46e5" fill="url(#g-scr)" strokeWidth={2} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-brand-200 bg-brand-50/40 text-center">
                     <p className="text-2xl">📈</p>
-                    <p className="mt-2 font-medium text-slate-700">No screening trends yet</p>
-                    <p className="mt-1 text-xs text-slate-500">Run your first screening to start seeing time-based insights.</p>
+                    <p className="mt-2 font-medium text-slate-700">No activity in the last 30 days</p>
+                    <p className="mt-1 text-xs text-slate-500">Upload applicants or run a screening to start seeing trends.</p>
                   </div>
                 )}
               </div>
             </Card>
+
             <Card>
               <h3 className="text-lg font-semibold text-[#1a1a2e]">Candidate Score Distribution</h3>
-              <p className="mb-2 text-sm text-slate-600">Across all screenings</p>
+              <p className="mb-2 text-sm text-slate-600">Across all completed screenings.</p>
               <div className="h-64">
                 {hasScoreDistribution ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={scoreDistribution}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="range" />
-                      <YAxis allowDecimals={false} />
+                      <XAxis dataKey="range" tick={{ fill: "#64748b", fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} />
                       <Tooltip />
-                      <Bar dataKey="count">
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                         {scoreDistribution.map((_, i) => (
-                          <Cell key={i} fill={i <= 1 ? "#ef4444" : i <= 3 ? "#f59e0b" : "#22c55e"} />
+                          <Cell key={i} fill={i <= 1 ? "#ef4444" : i <= 2 ? "#f59e0b" : i === 3 ? "#22c55e" : "#16a34a"} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -317,69 +439,285 @@ export default function DashboardPage() {
                   <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-brand-200 bg-brand-50/40 text-center">
                     <p className="text-2xl">🧪</p>
                     <p className="mt-2 font-medium text-slate-700">No scored candidates yet</p>
-                    <p className="mt-1 text-xs text-slate-500">Candidate score distribution appears once screening data is available.</p>
+                    <p className="mt-1 text-xs text-slate-500">Score distribution appears once screenings complete.</p>
                   </div>
                 )}
               </div>
             </Card>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="grid gap-4 lg:grid-cols-2">
+
+          {/* Source mix + Funnel */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32 }}
+            className="grid gap-4 lg:grid-cols-2"
+          >
+            <Card>
+              <h3 className="text-lg font-semibold text-[#1a1a2e]">Candidate Source Mix</h3>
+              <p className="mb-2 text-sm text-slate-600">Where your pipeline is sourced from.</p>
+              <div className="h-64">
+                {hasSourceMix ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Tooltip
+                        formatter={(value, _name, item) => {
+                          const src = String((item as { payload?: { source?: string } })?.payload?.source ?? "");
+                          return [String(value ?? 0), SOURCE_LABELS[src] ?? src];
+                        }}
+                      />
+                      <Pie
+                        data={sourceMix}
+                        dataKey="count"
+                        nameKey="source"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        label={(entry) => {
+                          const src = String((entry as { source?: string }).source ?? "");
+                          return SOURCE_LABELS[src] ?? src;
+                        }}
+                      >
+                        {sourceMix.map((entry, i) => (
+                          <Cell key={i} fill={SOURCE_COLORS[entry.source] ?? "#94a3b8"} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-brand-200 bg-brand-50/40 text-center">
+                    <p className="text-2xl">🪣</p>
+                    <p className="mt-2 font-medium text-slate-700">No applicants yet</p>
+                    <p className="mt-1 text-xs text-slate-500">Upload candidates to see source breakdown.</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <h3 className="text-lg font-semibold text-[#1a1a2e]">Applicant Funnel</h3>
+              <p className="mb-2 text-sm text-slate-600">Status distribution across your pool.</p>
+              <div className="flex h-64 flex-col justify-center space-y-3">
+                {funnelTotal === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-brand-200 bg-brand-50/40 text-center">
+                    <p className="text-2xl">🧭</p>
+                    <p className="mt-2 font-medium text-slate-700">Funnel is empty</p>
+                    <p className="mt-1 text-xs text-slate-500">Applicant statuses appear after screenings run.</p>
+                  </div>
+                ) : (
+                  statusFunnel.map((row) => {
+                    const pct = funnelTotal ? Math.round((row.count / funnelTotal) * 100) : 0;
+                    const colors: Record<string, string> = {
+                      pending: "bg-slate-400",
+                      shortlisted: "bg-emerald-500",
+                      rejected: "bg-red-400",
+                    };
+                    const labels: Record<string, string> = {
+                      pending: "Pending",
+                      shortlisted: "Shortlisted",
+                      rejected: "Rejected",
+                    };
+                    return (
+                      <div key={row.status}>
+                        <div className="flex items-center justify-between text-xs font-medium text-slate-600">
+                          <span>{labels[row.status] ?? row.status}</span>
+                          <span>
+                            {row.count} · {pct}%
+                          </span>
+                        </div>
+                        <div className="mt-1 h-3 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-3 rounded-full ${colors[row.status] ?? "bg-slate-500"}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Skills demand / pool / gaps */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.36 }}
+            className="grid gap-4 lg:grid-cols-3"
+          >
+            <SkillList
+              title="Top Skills In Demand"
+              subtitle="Aggregated from your job requirements."
+              items={topSkillsInDemand}
+              emptyText="Add job requirements to see demand."
+              barClass="bg-brand-500"
+              trackClass="bg-brand-100"
+            />
+            <SkillList
+              title="Top Skills In Pool"
+              subtitle="Most common skills in your applicant pool."
+              items={topCandidateSkills}
+              emptyText="Upload applicants to populate."
+              barClass="bg-emerald-500"
+              trackClass="bg-emerald-100"
+            />
+            <SkillList
+              title="Top Skill Gaps"
+              subtitle="Missing skills surfaced by screenings."
+              items={topSkillGaps}
+              emptyText="Run a screening to surface gaps."
+              barClass="bg-red-400"
+              trackClass="bg-red-100"
+            />
+          </motion.div>
+
+          {/* Activity + Jobs breakdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="grid gap-4 lg:grid-cols-2"
+          >
             <ActivityFeed items={activityItems} />
             <Card>
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-[#1a1a2e]">Active Jobs Quick View</h3>
+                <h3 className="text-lg font-semibold text-[#1a1a2e]">Jobs Breakdown</h3>
                 <Link className="text-xs font-semibold text-brand-700" href="/jobs">
                   View all jobs
                 </Link>
               </div>
-              <div className="space-y-3">
-                {(jobsData?.jobs ?? []).length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-8 text-center">
-                    <p className="text-sm text-slate-600">No active jobs yet.</p>
-                    <Link href="/jobs/new" className="mt-4 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">
-                      Post Your First Job
-                    </Link>
-                  </div>
-                ) : (
-                  (jobsData?.jobs ?? []).slice(0, 5).map((job) => (
-                    <div key={job._id} className="rounded-xl border border-brand-100 px-4 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{job.title}</p>
-                        <span className="rounded-full bg-brand-100 px-2 py-1 text-xs font-semibold text-brand-700">{job.status}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{job.applicantCount ?? 0} applicants</span>
-                        <Link href={`/jobs/${job._id}/screenings`} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white">
-                          Screen Now
-                        </Link>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              {jobsBreakdown.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-8 text-center">
+                  <p className="text-sm text-slate-600">No active jobs yet.</p>
+                  <Link href="/jobs?openNew=1" className="mt-4 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">
+                    Post Your First Job
+                  </Link>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-slate-100">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Job</th>
+                        <th className="px-3 py-2 text-right">Applicants</th>
+                        <th className="px-3 py-2 text-right">Screenings</th>
+                        <th className="px-3 py-2 text-right">Avg Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobsBreakdown.slice(0, 6).map((j) => (
+                        <tr key={j.jobId} className="border-t border-slate-100 hover:bg-slate-50/50">
+                          <td className="px-3 py-2">
+                            <Link href={`/jobs/${j.jobId}/screenings`} className="font-medium text-brand-800 hover:underline">
+                              {j.title}
+                            </Link>
+                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                              {j.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-slate-700">{j.applicants}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-slate-700">{j.screenings}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-slate-900">
+                            {j.screenings > 0 ? j.avgScore.toFixed(1) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
+
+          {/* Screening status summary */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.44 }}
+          >
             <Card>
-            <div className="mb-2 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-brand-600" />
-              <h3 className="text-lg font-semibold text-[#1a1a2e]">Talent Pool Intelligence</h3>
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              Recommendation: prioritize profiles with strong skills overlap and reduce gaps using targeted sourcing.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {demandSkills.map((skill) => (
-                <span key={skill} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{skill}</span>
-              ))}
-            </div>
-            <Link href="/analytics" className="mt-4 inline-flex rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white">
-              View Full Analytics
-            </Link>
+              <div className="mb-2 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-brand-600" />
+                <h3 className="text-lg font-semibold text-[#1a1a2e]">Screening Health</h3>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-4">
+                <HealthStat icon={CheckCircle2} label="Completed" value={completedScreenings} color="text-emerald-600 bg-emerald-50" />
+                <HealthStat icon={Activity} label="Running" value={Number(analytics.runningScreenings ?? 0)} color="text-amber-600 bg-amber-50" />
+                <HealthStat icon={XCircle} label="Failed" value={Number(analytics.failedScreenings ?? 0)} color="text-red-600 bg-red-50" />
+                <HealthStat icon={FileText} label="Jobs with data" value={jobsBreakdown.filter((j) => j.applicants > 0).length} color="text-brand-600 bg-brand-50" />
+              </div>
             </Card>
           </motion.div>
         </>
       )}
+    </div>
+  );
+}
+
+function SkillList({
+  title,
+  subtitle,
+  items,
+  emptyText,
+  barClass,
+  trackClass,
+}: {
+  title: string;
+  subtitle: string;
+  items: SkillRow[];
+  emptyText: string;
+  barClass: string;
+  trackClass: string;
+}) {
+  const max = items.reduce((acc, it) => Math.max(acc, it.count), 0);
+  return (
+    <Card>
+      <h3 className="text-lg font-semibold text-[#1a1a2e]">{title}</h3>
+      <p className="mb-3 text-sm text-slate-600">{subtitle}</p>
+      {items.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-3 py-6 text-center text-xs text-slate-500">
+          {emptyText}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {items.slice(0, 6).map((it) => {
+            const pct = max > 0 ? Math.round((it.count / max) * 100) : 0;
+            return (
+              <li key={it.skill}>
+                <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+                  <span className="truncate">{it.skill}</span>
+                  <span className="tabular-nums text-slate-500">{it.count}</span>
+                </div>
+                <div className={`mt-1 h-2 rounded-full ${trackClass}`}>
+                  <div className={`h-2 rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function HealthStat({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 px-4 py-3">
+      <div className="flex items-center justify-between">
+        <span className={`rounded-lg p-1.5 ${color}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
+      </div>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
     </div>
   );
 }

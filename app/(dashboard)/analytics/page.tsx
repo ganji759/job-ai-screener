@@ -36,12 +36,29 @@ const CHART_COLORS = {
 type Range = (typeof ranges)[number];
 type DateBucket = { key: string; label: string; screenings: number; screened: number; shortlisted: number };
 
-const formatSkill = (value: string) =>
-  value
+/**
+ * Coerce to display string. Backend `topSkillsInDemand` is `{ skill, count }[]`, not `string[]`.
+ */
+const skillNameFrom = (raw: unknown): string => {
+  if (raw == null) return "";
+  if (typeof raw === "string") return raw.trim();
+  if (typeof raw === "object" && raw !== null && "skill" in raw) {
+    const s = (raw as { skill: unknown }).skill;
+    if (s == null) return "";
+    return String(s).trim();
+  }
+  return String(raw).trim();
+};
+
+const formatSkill = (value: unknown) => {
+  const s = skillNameFrom(value);
+  if (!s) return "—";
+  return s
     .split(/[\s.-]/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+};
 
 const getTrend = (current: number, previous: number) => {
   if (previous <= 0) return { positive: current >= 0, value: current > 0 ? 100 : 0 };

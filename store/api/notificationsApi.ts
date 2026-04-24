@@ -66,8 +66,28 @@ export const notificationsApi = baseApi.injectEndpoints({
         }
       },
     }),
+    /**
+     * Backend exposes only `DELETE /notifications/:id`. Fetch the current list and
+     * delete each notification in parallel; report how many succeeded.
+     */
     deleteAllNotifications: builder.mutation<{ success: boolean; deleted: number }, void>({
-      query: () => ({ url: "/notifications/all", method: "delete" }),
+      async queryFn(_arg, _api, _extra, baseQuery) {
+        const listResult = await baseQuery({
+          url: "/notifications",
+          method: "get",
+          params: { page: 1, limit: 500 },
+        });
+        if (listResult.error) return { error: listResult.error };
+        const body = listResult.data as { notifications?: { _id: string }[] };
+        const ids = (body.notifications ?? []).map((n) => n._id).filter(Boolean);
+        if (ids.length === 0) return { data: { success: true, deleted: 0 } };
+
+        const outcomes = await Promise.all(
+          ids.map((id) => baseQuery({ url: `/notifications/${id}`, method: "delete" })),
+        );
+        const deleted = outcomes.filter((o) => !o.error).length;
+        return { data: { success: deleted === ids.length, deleted } };
+      },
       invalidatesTags: ["Notifications"],
     }),
     deleteNotification: builder.mutation<{ success: boolean }, string>({

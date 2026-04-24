@@ -150,6 +150,23 @@ export const screeningsApi = baseApi.injectEndpoints({
       invalidatesTags: ["Screenings", "Applicants"],
     }),
 
+    /**
+     * POST /api/v1/screenings/run-for-job — one-click screening for a single job.
+     * Screens ALL pending applicants for the job (any source). Used by the in-job
+     * "Run AI Screening" buttons where the recruiter doesn't need to pick a scenario.
+     */
+    runScreeningForJob: builder.mutation<
+      { screeningId: string },
+      { jobId: string; shortlistSize?: 10 | 20 }
+    >({
+      query: (body) => ({ url: "/screenings/run-for-job", method: "post", data: body }),
+      transformResponse: (raw: unknown) => {
+        const r = raw as Record<string, unknown>;
+        return { screeningId: String(r.screeningId ?? "") };
+      },
+      invalidatesTags: ["Screenings", "Applicants"],
+    }),
+
     /** POST /api/v1/screenings/external — sync CSV/PDF-upload applicants */
     runExternalScreening: builder.mutation<
       { screeningId: string },
@@ -187,6 +204,34 @@ export const screeningsApi = baseApi.injectEndpoints({
     }),
 
     // Not in backend — kept for UI compatibility (will 404 gracefully)
+    /**
+     * PUT /api/v1/screenings/:id/recruiter-decisions — persist HR accept/reject/review + notes (merged per applicant id).
+     */
+    saveRecruiterDecisions: builder.mutation<
+      { success: boolean; recruiterDecisions: Record<string, { decision: string; hrNote: string; decidedAt?: string; aiLabel?: string }> },
+      { id: string; body: Record<string, { decision: string; hrNote: string; decidedAt?: string; aiLabel?: string }> }
+    >({
+      query: ({ id, body }) => ({
+        url: `/screenings/${id}/recruiter-decisions`,
+        method: "put",
+        data: body,
+      }),
+      invalidatesTags: ["Screenings"],
+    }),
+
+    /** POST /api/v1/screenings/:id/send-acceptance-emails — congrats email to all HR-approved shortlisted candidates */
+    sendAcceptanceEmails: builder.mutation<
+      { success: boolean; sent: number; skipped: number; errors: string[] },
+      { id: string; message: string; subject?: string }
+    >({
+      query: ({ id, message, subject }) => ({
+        url: `/screenings/${id}/send-acceptance-emails`,
+        method: "post",
+        data: subject ? { message, subject } : { message },
+      }),
+      invalidatesTags: ["Screenings"],
+    }),
+
     getScreeningExplanations: builder.query<Record<string, unknown>, string>({
       query: (id) => ({ url: `/screenings/${id}/explanations`, method: "get" }),
       providesTags: ["Screenings"],
@@ -227,11 +272,14 @@ export const screeningsApi = baseApi.injectEndpoints({
 export const {
   useGetScreeningsQuery,
   useRunScreeningMutation,
+  useRunScreeningForJobMutation,
   useRunPlatformScreeningMutation,
   useRunExternalScreeningMutation,
   useGetScreeningQuery,
   useGetScreeningStatusQuery,
   useGetScreeningResultsQuery,
+  useSaveRecruiterDecisionsMutation,
+  useSendAcceptanceEmailsMutation,
   useGetScreeningExplanationsQuery,
   useGetJobScreeningsQuery,
   useExportScreeningMutation,

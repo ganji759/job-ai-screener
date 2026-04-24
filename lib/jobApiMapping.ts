@@ -37,17 +37,20 @@ export function employmentTypeFromRemote(remoteAllowed: boolean | undefined): Jo
 
 /** Normalizes Mongo `_id` / dates from API JSON. */
 export function adaptApiJobToJob(raw: ApiJob): Job {
-  const req = raw.requirements;
+  // Lean updates (e.g. `PUT` with only `status: "closed"`) still return a full job; be defensive
+  // in case of legacy or partial documents so the UI does not throw in transformResponse.
+  const req: Partial<ApiJobRequirements> = raw?.requirements ?? {};
   const educationLevel = req.educationLevel ?? "none";
   const minYears = req.minYearsExperience ?? 0;
 
   return {
-    _id: String(raw._id),
-    title: raw.title,
-    description: raw.description,
+    _id: String(raw?._id ?? ""),
+    title: String(raw?.title ?? ""),
+    description: String(raw?.description ?? ""),
     requirements: {
-      requirementsTitle: req.title,
-      requirementsDescription: req.description,
+      requirementsTitle: req.title != null && String(req.title).trim() !== "" ? String(req.title) : "Requirements",
+      requirementsDescription:
+        req.description != null && String(req.description).trim() !== "" ? String(req.description) : "—",
       domain: req.domain ?? "general",
       experienceLevel: minYearsToExperienceLevel(minYears),
       minExperienceYears: minYears,

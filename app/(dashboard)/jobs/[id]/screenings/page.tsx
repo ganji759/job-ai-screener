@@ -1,33 +1,58 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ExternalLink, Play } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
+import toast from "react-hot-toast";
 import { PageHeader } from "../../../../../components/layout/PageHeader";
-import { RunScreeningModal } from "../../../../../components/screenings/RunScreeningModal";
 import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { StatusBadge } from "../../../../../components/ui/StatusBadge";
 import { ProgressBar } from "../../../../../components/ui/ProgressBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
-import { useGetJobScreeningsQuery } from "../../../../../store/api/screeningsApi";
+import {
+  useGetJobScreeningsQuery,
+  useRunScreeningForJobMutation,
+} from "../../../../../store/api/screeningsApi";
+import { getRtkQueryErrorMessage } from "../../../../../lib/rtkError";
+
+/** Surface server-side `message` first (e.g. "No pending applicants"), then RTK helper. */
+function runErrorMessage(err: unknown): string {
+  const e = err as { status?: number; data?: { error?: string; message?: string } };
+  if (typeof e?.data?.message === "string" && e.data.message.trim()) return e.data.message;
+  if (typeof e?.data?.error === "string" && e.data.error.trim()) return e.data.error;
+  return getRtkQueryErrorMessage(err, "Screening failed. Please try again.");
+}
 
 export default function JobScreeningsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const { data, isLoading } = useGetJobScreeningsQuery(params.id);
+  const jobId = params.id;
+  const { data, isLoading } = useGetJobScreeningsQuery(jobId);
+  const [runForJob, { isLoading: running }] = useRunScreeningForJobMutation();
 
   const rows = Array.isArray(data) ? data : [];
+
+  const handleRun = async () => {
+    const toastId = toast.loading("Running AI screening on this job's applicants…");
+    try {
+      const res = await runForJob({ jobId, shortlistSize: 10 }).unwrap();
+      const sid = res.screeningId;
+      if (!sid) throw new Error("Screening did not return an id.");
+      toast.success("Screening complete.", { id: toastId });
+      router.push(`/screenings/${sid}`);
+    } catch (err) {
+      toast.error(runErrorMessage(err), { id: toastId });
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="Screenings" subtitle="Run AI screenings and open past results for this job." />
-        <Button onClick={() => setOpen(true)} className="shrink-0">
-          <Play className="h-4 w-4" />
-          Run screening
+        <PageHeader title="Screenings" subtitle="One-click AI screening for this job. Past results live below." />
+        <Button onClick={() => void handleRun()} loading={running} disabled={running} className="shrink-0">
+          <Sparkles className="h-4 w-4" />
+          Run AI Screening
         </Button>
       </div>
 
@@ -41,9 +66,9 @@ export default function JobScreeningsPage() {
           <div className="mt-6">
             <EmptyState
               title="No screenings yet"
-              description="Launch your first AI screening to rank applicants against this job."
-              actionLabel="Run screening"
-              action={() => setOpen(true)}
+              description="Click 'Run AI Screening' above to score the pending applicants for this job."
+              actionLabel={running ? "Running…" : "Run AI Screening"}
+              action={() => void handleRun()}
             />
           </div>
         ) : (
@@ -92,7 +117,6 @@ export default function JobScreeningsPage() {
           </div>
         )}
       </Card>
-      <RunScreeningModal open={open} onClose={() => setOpen(false)} onCreated={(id) => router.push(`/screenings/${id}`)} />
     </div>
   );
 }

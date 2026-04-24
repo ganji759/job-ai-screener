@@ -1,4 +1,6 @@
-﻿export const TOKEN_KEY = "umurava_token";
+import { clearUserOverrides } from "./settingsStorage";
+
+export const TOKEN_KEY = "umurava_token";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
@@ -17,4 +19,5 @@ export const clearToken = (): void => {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   document.cookie = `${TOKEN_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
+  clearUserOverrides();
 };

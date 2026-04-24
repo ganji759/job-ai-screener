@@ -3,6 +3,37 @@ export const NOTIFICATION_PREFS_KEY = "umurava_settings_notifications";
 export const AI_PREFS_KEY = "umurava_settings_ai";
 export const APPEARANCE_PREFS_KEY = "umurava_settings_appearance";
 export const SECURITY_PREFS_KEY = "umurava_settings_security";
+export const USER_OVERRIDES_KEY = "umurava_user_overrides";
+
+/**
+ * Backend `/auth/me` only persists `{ id, name, email, role }`. Anything the user changes
+ * in the settings UI beyond that (display name override, avatar) lives in the browser.
+ */
+export type UserOverrides = {
+  name?: string;
+  avatarUrl?: string | null;
+};
+
+export function loadUserOverrides(): UserOverrides {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(USER_OVERRIDES_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as UserOverrides;
+  } catch {
+    return {};
+  }
+}
+
+export function saveUserOverrides(next: UserOverrides): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(USER_OVERRIDES_KEY, JSON.stringify(next));
+}
+
+export function clearUserOverrides(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(USER_OVERRIDES_KEY);
+}
 
 export type ExtraProfile = {
   firstName: string;

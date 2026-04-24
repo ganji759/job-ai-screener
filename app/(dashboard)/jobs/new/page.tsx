@@ -40,7 +40,7 @@ export default function NewJobPage() {
 
     try {
       await createJob(payload).unwrap();
-      toast.success("Job created successfully. You can publish it from the job page when you're ready.");
+      toast.success("Job created and is open for applicants and screening.");
       router.push("/jobs");
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));

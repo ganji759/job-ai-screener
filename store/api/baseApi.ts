@@ -16,10 +16,11 @@ const axiosBaseQuery = (): BaseQueryFn<AxiosBaseQueryArgs, unknown, unknown> =>
     try {
       const result = await axiosInstance({ url, method, data, params, responseType });
       if (responseType === "blob") return { data: result.data };
-      // Backend wraps all responses in { data, error, meta } envelope
-      const body = result.data as { data?: unknown; error?: unknown };
-      if (body?.error) {
-        return { error: { status: "CUSTOM_ERROR", data: body.error } };
+      // If a payload includes both `error` and `success: true` (e.g. proxy), treat as success.
+      const body = result.data as { data?: unknown; error?: unknown; success?: boolean } | null;
+      const errFlag = body != null && typeof body === "object" && (body as { error?: unknown }).error;
+      if (errFlag && (body as { success?: boolean }).success !== true) {
+        return { error: { status: "CUSTOM_ERROR", data: (body as { error: unknown }).error } };
       }
       return { data: result.data };
     } catch (axiosError) {

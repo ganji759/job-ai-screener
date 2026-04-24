@@ -11,7 +11,7 @@ import { ApplicantTable } from "../../../components/applicants/ApplicantTable";
 import { Modal } from "../../../components/ui/Modal";
 import { cn, compactSelectClassName } from "../../../lib/utils";
 import { getRtkQueryErrorMessage } from "../../../lib/rtkError";
-import type { Applicant, UmuravaProfile } from "../../../types";
+import type { UmuravaProfile } from "../../../types";
 
 const FULL_LIST_LIMIT = 10000;
 const CSV_MAX_BYTES = 10 * 1024 * 1024;
@@ -42,9 +42,13 @@ export default function ApplicantsPage() {
   const [csvFileError, setCsvFileError] = useState("");
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfSkipped, setPdfSkipped] = useState(0);
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, Applicant["status"]>>({});
 
   const jobs = jobsData?.jobs ?? [];
+  const jobTitleById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const j of jobs) map[j._id] = j.title;
+    return map;
+  }, [jobs]);
 
   const openUploadModal = useCallback(() => {
     const firstJobId = jobs[0]?._id ?? "";
@@ -71,11 +75,8 @@ export default function ApplicantsPage() {
     };
   }, [rawApplicants]);
 
-  const allApplicants = useMemo(
-    () =>
-      rawApplicants.map((a) => (statusOverrides[a._id] ? { ...a, status: statusOverrides[a._id] } : a)),
-    [rawApplicants, statusOverrides],
-  );
+  // Status is driven entirely by the backend / screening result — no optimistic UI overrides.
+  const allApplicants = rawApplicants;
 
   const filteredApplicants = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -97,7 +98,7 @@ export default function ApplicantsPage() {
           applicant.profile.title.toLowerCase().includes(q) ||
           (applicant.profile.skills ?? []).some((skill) => skill.toLowerCase().includes(q));
       const rawScore = applicant.totalScore;
-      const scoreNum = rawScore != null && rawScore !== "" && !Number.isNaN(Number(rawScore)) ? Number(rawScore) : null;
+      const scoreNum = rawScore != null && !Number.isNaN(Number(rawScore)) ? Number(rawScore) : null;
       const byScore =
         scoreFilter === "all"
           ? true
@@ -144,10 +145,6 @@ export default function ApplicantsPage() {
     setSourceFilter("all");
     setScoreFilter("all");
     setPage(1);
-  };
-
-  const updateApplicantStatus = (applicantId: string, status: Applicant["status"]) => {
-    setStatusOverrides((prev) => ({ ...prev, [applicantId]: status }));
   };
 
   const handleDeleteApplicant = async (applicantId: string) => {
@@ -374,10 +371,10 @@ export default function ApplicantsPage() {
           <ApplicantTable
             applicants={pagedApplicants}
             onDelete={handleDeleteApplicant}
-            onStatusChange={updateApplicantStatus}
             onClearFilters={clearFilters}
             hasActiveFilters={hasActiveFilters}
             onOpenUpload={openUploadModal}
+            jobTitleById={jobTitleById}
           />
         )}
         <div className="flex items-center justify-between text-sm text-slate-600">
