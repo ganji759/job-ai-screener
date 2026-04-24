@@ -2,13 +2,106 @@ import { parse } from "csv-parse/sync";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import pdfParse from "pdf-parse";
+import { env } from "../config/env";
 import type { UmuravaProfile } from "../types";
+import { AiServiceError, normalisePdf } from "./aiClient";
+import { pythonProfileToUmurava } from "./pythonAdapter";
 import { callGeminiWithRetry } from "./gemini.service";
 import { safeParseTalentProfile, talentProfileToUmuravaProfile } from "./talentProfile.adapter";
 import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
 import { ZodResumeGeminiExtraction } from "../utils/jsonValidator";
 
-/** Regex / line heuristics when Gemini is unavailable — improves name/email vs "Unknown". */
+/** Curated dictionary of common tech / professional skills — matched against resume text when Gemini is unavailable. */
+const SKILL_DICTIONARY: string[] = [
+  "javascript", "typescript", "python", "java", "c#", "c++", "go", "golang", "rust",
+  "kotlin", "swift", "ruby", "php", "scala", "dart", "r", "matlab", "perl", "bash",
+  "react", "react.js", "next.js", "nextjs", "vue", "vue.js", "nuxt", "angular",
+  "svelte", "redux", "rxjs", "tailwind", "tailwindcss", "bootstrap", "material ui",
+  "html", "css", "sass", "scss", "less", "webpack", "vite", "rollup",
+  "node.js", "nodejs", "express", "fastify", "nestjs", "koa", "django", "flask",
+  "fastapi", "spring", "spring boot", "rails", "ruby on rails", "laravel", ".net",
+  "asp.net", "symfony",
+  "mongodb", "postgresql", "postgres", "mysql", "sqlite", "redis", "elasticsearch",
+  "dynamodb", "firebase", "firestore", "oracle", "sql server", "mssql", "cassandra",
+  "neo4j", "sql", "nosql",
+  "aws", "azure", "gcp", "google cloud", "docker", "kubernetes", "k8s", "terraform",
+  "ansible", "jenkins", "github actions", "gitlab ci", "circleci", "travis ci",
+  "prometheus", "grafana", "datadog", "sentry", "nginx", "apache",
+  "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy", "scipy",
+  "spark", "hadoop", "airflow", "dbt", "snowflake", "bigquery", "databricks",
+  "tableau", "power bi", "looker",
+  "react native", "flutter", "ionic", "android", "ios", "xcode",
+  "git", "github", "gitlab", "bitbucket", "jira", "confluence", "figma", "sketch",
+  "graphql", "rest api", "grpc", "websockets", "rabbitmq", "kafka", "mqtt",
+  "microservices", "serverless", "linux", "unix", "ci/cd",
+  "agile", "scrum", "kanban", "lean", "waterfall",
+  "seo", "sem", "content marketing", "copywriting", "google analytics",
+  "project management", "product management", "stakeholder management",
+  "communication", "leadership", "teamwork", "problem solving", "critical thinking",
+];
+
+/** Job-title patterns used when Gemini doesn't return a `title`. Ordered by specificity. */
+const TITLE_PATTERNS: RegExp[] = [
+  /\b(senior|junior|lead|principal|staff|associate|mid[-\s]?level)\s+(software|frontend|front[-\s]?end|backend|back[-\s]?end|full[-\s]?stack|mobile|android|ios|devops|site reliability|sre|cloud|data|machine learning|ml|ai|product|project|qa|test|security|network|systems)\s+(engineer|developer|scientist|analyst|manager|architect|designer|consultant|specialist)\b/i,
+  /\b(software|frontend|front[-\s]?end|backend|back[-\s]?end|full[-\s]?stack|mobile|android|ios|devops|cloud|data|machine learning|ml|ai|qa|test|security)\s+(engineer|developer|scientist|analyst|architect)\b/i,
+  /\b(ui|ux)(?:\s*[\/&]\s*(ui|ux))?\s+designer\b/i,
+  /\b(product|project|program|engineering)\s+manager\b/i,
+  /\b(data|business|financial|marketing)\s+analyst\b/i,
+  /\bweb\s+developer\b/i,
+  /\bhr\s+(manager|specialist|recruiter)\b/i,
+  /\bdigital\s+marketer\b/i,
+];
+
+/** Extract skills from raw resume text: "Skills" section + dictionary scan. */
+export const extractSkillsFromText = (rawText: string): string[] => {
+  const lower = rawText.toLowerCase();
+  const found = new Set<string>();
+
+  const sectionMatch = rawText.match(
+    /(?:^|\n)\s*(?:technical\s+skills|skills(?:\s*&\s*tools)?|technologies|tech\s+stack|core\s+competencies|competencies|expertise)\s*[:\-]?\s*\n([\s\S]{0,1200}?)(?:\n\s*\n|\n\s*[A-Z][A-Z\s&]{2,}\s*\n|$)/i,
+  );
+  if (sectionMatch?.[1]) {
+    sectionMatch[1]
+      .split(/[,;•·|\n]|\s{2,}/)
+      .map((s) => s.trim().replace(/^[-*●▪■]\s*/, "").toLowerCase())
+      .filter((s) => s.length >= 2 && s.length <= 40 && !/^(and|or|with|in|of|the|a|an|etc)$/i.test(s) && /[a-z]/i.test(s))
+      .forEach((s) => found.add(s));
+  }
+
+  for (const skill of SKILL_DICTIONARY) {
+    const escaped = skill.replace(/[.+*?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?:^|[^a-z0-9+#.])${escaped}(?:[^a-z0-9+#.]|$)`, "i");
+    if (re.test(lower)) found.add(skill);
+  }
+
+  return Array.from(found).slice(0, 50);
+};
+
+/** Detect a plausible job title / headline from the resume text. */
+export const extractTitleFromText = (rawText: string): string | undefined => {
+  const topLines = rawText
+    .split("\n")
+    .slice(0, 20)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  for (const line of topLines) {
+    for (const pattern of TITLE_PATTERNS) {
+      if (pattern.test(line)) {
+        return line.length <= 120 ? line : line.slice(0, 120);
+      }
+    }
+  }
+
+  for (const pattern of TITLE_PATTERNS) {
+    const m = rawText.match(pattern);
+    if (m?.[0]) return m[0].trim();
+  }
+
+  return undefined;
+};
+
+/** Regex / line heuristics when Gemini is unavailable — best-effort parse of name, title, and skills. */
 export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile> => {
   const text = rawText.replace(/\r\n/g, "\n");
   const compact = text.replace(/\s+/g, " ").trim();
@@ -18,9 +111,13 @@ export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile>
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !/^page\s+\d+/i.test(l));
+
   let firstName = "Unknown";
   let lastName = "Candidate";
-  const candidateLine = lines.find((l) => l.length >= 3 && l.length < 100 && !l.includes("@") && !/^\d/.test(l));
+  const candidateLine =
+    lines.slice(0, 8).find(
+      (l) => l.length >= 3 && l.length < 80 && !l.includes("@") && !/^\d/.test(l) && /^[A-Za-zÀ-ÿ'\-\s.]+$/.test(l),
+    ) ?? lines.find((l) => l.length >= 3 && l.length < 100 && !l.includes("@") && !/^\d/.test(l));
   if (candidateLine) {
     const parts = candidateLine.split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
@@ -31,18 +128,27 @@ export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile>
       lastName = "";
     }
   }
+
   const yearsMatch = compact.match(/(\d+)\s*\+?\s*(?:years?|yrs?|ans?)/i);
   const totalYearsExperience = yearsMatch ? Math.min(60, Number(yearsMatch[1])) : 0;
   const phoneMatch = compact.match(/(?:\+?\d[\d\s.-]{8,}\d)/);
+
+  const detectedTitle = extractTitleFromText(text);
+  const fallbackTitle =
+    lines[1] && lines[1] !== candidateLine && !lines[1].includes("@") && !/^\+?\d/.test(lines[1])
+      ? lines[1].slice(0, 120)
+      : "Professional";
+  const skills = extractSkillsFromText(text);
+
   return {
     id: randomUUID(),
     firstName,
     lastName,
     email,
     phone: phoneMatch ? phoneMatch[0].replace(/\s+/g, " ").trim() : undefined,
-    title: lines[1] && lines[1] !== candidateLine ? lines[1].slice(0, 120) : "Professional",
+    title: detectedTitle ?? fallbackTitle,
     summary: compact.slice(0, 2000),
-    skills: [],
+    skills,
     languages: [],
     experience: [],
     education: [],
@@ -73,13 +179,17 @@ const mergeGeminiResume = (
   const baseSkills = base.skills ?? [];
   const skills = fromGemini.length ? fromGemini : baseSkills;
 
+  const geminiTitle = typeof g.title === "string" ? g.title.trim() : "";
+  const titleIsPlaceholder = !geminiTitle || /^(professional|n\/a|unknown)$/i.test(geminiTitle);
+  const title = titleIsPlaceholder ? base.title ?? "Professional" : geminiTitle;
+
   return {
     ...base,
     firstName: (first || base.firstName) as string,
     lastName: (last || base.lastName) as string,
     email: typeof g.email === "string" && g.email.includes("@") ? g.email : base.email,
     phone: typeof g.phone === "string" ? g.phone : base.phone,
-    title: typeof g.title === "string" ? g.title : base.title,
+    title,
     summary: typeof g.summary === "string" ? g.summary : base.summary,
     skills,
     languages: Array.isArray(g.languages) ? (g.languages as UmuravaProfile["languages"]) : base.languages ?? [],
@@ -91,22 +201,71 @@ const mergeGeminiResume = (
   };
 };
 
-/** Uses `pdf-parse@1.x` — Node-compatible; Gemini structures fields; heuristics fill gaps. */
-export const parsePDF = async (buffer: Buffer): Promise<Partial<UmuravaProfile> & { rawText: string }> => {
-  let rawText = "";
-  try {
-    const data = await pdfParse(buffer);
-    rawText = typeof data?.text === "string" ? data.text : "";
-  } catch (error) {
-    throw new Error(`PDF text extraction failed: ${String(error)}`);
+/**
+ * Parse a PDF resume into a `UmuravaProfile`.
+ *
+ * Primary path: forwards to Python's `POST /normalise/pdf` (pdfplumber + Gemini via the AI service).
+ * Fallback path: if AI_SERVICE_URL is unset OR the Python service returns an error, drops back to
+ * the legacy Node path (pdf-parse + Gemini via /ai/generate + heuristics).
+ */
+export const parsePDF = async (
+  buffer: Buffer,
+  filename = "resume.pdf",
+): Promise<Partial<UmuravaProfile> & { rawText: string }> => {
+  if (env.AI_SERVICE_URL) {
+    try {
+      const parsed = await normalisePdf({ buffer, filename, mimetype: "application/pdf" });
+      const profile = pythonProfileToUmurava(parsed);
+      const rawText = await extractRawTextFromPdf(buffer).catch(() => "");
+      return {
+        ...profile,
+        headline: parsed.headline,
+        bio: parsed.bio ?? undefined,
+        projects: parsed.projects?.map((p) => ({
+          name: p.name,
+          description: p.description,
+          technologies: p.technologies,
+          role: p.role,
+          link: p.link,
+          startDate: p.startDate,
+          endDate: p.endDate,
+        })),
+        availability: parsed.availability,
+        socialLinks: parsed.socialLinks ?? undefined,
+        rawText,
+      };
+    } catch (err) {
+      const reason = err instanceof AiServiceError ? `${err.code}: ${err.message}` : String(err);
+      // eslint-disable-next-line no-console
+      console.warn(`[parsePDF] Python /normalise/pdf failed — falling back to Node parser. Reason: ${reason}`);
+    }
   }
+
+  return legacyParsePdf(buffer);
+};
+
+/** Fallback: Node-side PDF → profile (pdf-parse + Gemini via /ai/generate + heuristics). */
+const legacyParsePdf = async (buffer: Buffer): Promise<Partial<UmuravaProfile> & { rawText: string }> => {
+  const rawText = await extractRawTextFromPdf(buffer);
 
   try {
     const extracted = await callGeminiWithRetry(buildResumeExtractionPrompt(rawText), ZodResumeGeminiExtraction);
     const merged = mergeGeminiResume(rawText, extracted as Record<string, unknown>);
     return { ...merged, rawText };
-  } catch {
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(`[parsePDF] Gemini extraction failed — using heuristic fallback. Reason: ${reason}`);
     return { ...heuristicExtractResume(rawText), rawText };
+  }
+};
+
+const extractRawTextFromPdf = async (buffer: Buffer): Promise<string> => {
+  try {
+    const data = await pdfParse(buffer);
+    return typeof data?.text === "string" ? data.text : "";
+  } catch (error) {
+    throw new Error(`PDF text extraction failed: ${String(error)}`);
   }
 };
 
@@ -157,7 +316,8 @@ export const parseResumeFromUrl = async (url: string): Promise<Partial<UmuravaPr
     throw new Error(`Resume URL is not a PDF: ${url}`);
   }
   const arrayBuffer = await response.arrayBuffer();
-  return parsePDF(Buffer.from(arrayBuffer));
+  const filename = url.split("/").pop()?.split("?")[0] || "resume.pdf";
+  return parsePDF(Buffer.from(arrayBuffer), filename);
 };
 
 const mapFlatRowToProfile = (
@@ -194,7 +354,12 @@ export const normalizeProfile = (raw: unknown): UmuravaProfile => {
 
   const src = raw as Partial<UmuravaProfile>;
   const experience = src.experience ?? [];
-  const totalYearsExperience = experience.reduce((acc, item) => acc + (item.yearsInRole ?? 0), 0);
+  // Prefer the value computed upstream (Python /normalise/pdf returns it via yearsBetween).
+  // Only fall back to summing `yearsInRole` when upstream gave us nothing.
+  const summedFromRoles = experience.reduce((acc, item) => acc + (item.yearsInRole ?? 0), 0);
+  const totalYearsExperience = src.totalYearsExperience && src.totalYearsExperience > 0
+    ? src.totalYearsExperience
+    : summedFromRoles;
   return {
     id: src.id ?? randomUUID(),
     firstName: src.firstName ?? "Unknown",
@@ -213,5 +378,12 @@ export const normalizeProfile = (raw: unknown): UmuravaProfile => {
     expectedSalary: src.expectedSalary,
     location: src.location ?? "Unknown",
     remotePreference: src.remotePreference ?? "flexible",
+    // Preserve the richer fields populated by the Python AI service so the
+    // frontend applicant detail views can render headline, bio, projects, etc.
+    headline: src.headline,
+    bio: src.bio,
+    projects: src.projects,
+    availability: src.availability,
+    socialLinks: src.socialLinks,
   };
 };

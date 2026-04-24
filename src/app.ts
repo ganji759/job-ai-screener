@@ -16,10 +16,24 @@ import { notificationsRoutes } from "./routes/notifications.routes";
 import { screeningsRoutes } from "./routes/screenings.routes";
 import { registerConnection } from "./services/realtime.service";
 
+/** Browsers send different Origin values (localhost vs 127.0.0.1). Mismatch breaks credentialed PUT/POST after preflight. */
+const corsAllowedOrigins = (): string | string[] => {
+  const primary = env.FRONTEND_URL.replace(/\/+$/, "");
+  if (env.NODE_ENV !== "development") return primary;
+  return [...new Set([primary, "http://localhost:3000", "http://127.0.0.1:3000"])];
+};
+
 export const buildApp = async () => {
   const app = Fastify({ logger: true });
-  await app.register(cors, { origin: env.FRONTEND_URL, credentials: true });
-  await app.register(helmet);
+  await app.register(cors, {
+    origin: corsAllowedOrigins(),
+    credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  });
+  await app.register(helmet, {
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  });
   await app.register(multipart, { limits: { fileSize: env.MAX_FILE_SIZE_MB * 1024 * 1024 } });
   await app.register(websocket);
   await registerRateLimit(app);

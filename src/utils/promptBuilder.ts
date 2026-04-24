@@ -140,19 +140,25 @@ ${JSON.stringify(allResults, null, 2)}
 `;
 
 export const buildResumeExtractionPrompt = (rawText: string): string => `
-You extract structured candidate data from resume text for an ATS. Return ONLY valid JSON, no markdown fences.
-Use null or omit optional fields when unknown.
+You extract structured candidate data from resume text for an ATS. Return ONLY valid JSON, no markdown fences, no prose.
+Use null or omit optional fields when unknown — do NOT invent data.
 
-Schema (all keys optional except follow best effort):
+EXTRACTION RULES:
+- "title": the candidate's CURRENT job title or professional headline. Take it verbatim from the resume (e.g. "Senior Backend Engineer", "Full-Stack Developer", "UX Designer"). Do NOT output generic placeholders like "Professional", "Candidate", or "N/A".
+- "skills": a flat array of technical AND professional skills mentioned anywhere in the resume (programming languages, frameworks, databases, cloud platforms, tools, methodologies). Normalize to lowercase. Include at least 5 items if the resume contains a Skills section; do NOT return an empty array unless the resume truly lists no skills.
+- "experience": each role as its own item with exact company name and title.
+- Dates: prefer "YYYY-MM" format; use "Present" for current roles.
+
+Schema:
 {
   "firstName": string?,
   "lastName": string?,
   "fullName": string?,
   "email": string?,
   "phone": string?,
-  "title": string (current target role or headline)?,
+  "title": string?,
   "summary": string (2-4 sentences)?,
-  "skills": string[] (technical and professional skills, lowercase ok),
+  "skills": string[],
   "languages": [{ "name": string, "level": string }]?,
   "experience": [{ "company": string, "title": string, "startDate": string, "endDate": string?, "description": string, "yearsInRole": number }]?,
   "education": [{ "institution": string, "degree": string, "field": string, "graduationYear": number }]?,

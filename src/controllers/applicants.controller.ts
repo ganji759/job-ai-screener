@@ -376,11 +376,59 @@ export const bulkDeleteApplicants = async (request: FastifyRequest, reply: Fasti
   reply.send({ deleted: result.deletedCount });
 };
 
+/**
+ * POST /applicants/:id/enhance — re-run the AI profile extraction on the applicant's stored
+ * `rawText` (populated at upload time). Used to refresh old records whose `experience[]` or
+ * `education[]` came back empty from an earlier/weaker prompt. No-ops gracefully when the
+ * Python service is unreachable or the applicant has no rawText.
+ */
 export const enhanceApplicant = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { id } = request.params as { id: string };
   const applicant = await ApplicantModel.findById(id).lean();
   if (!applicant) return void reply.code(404).send({ error: "Applicant not found" });
-  reply.send({ enhancedProfile: applicant.profile });
+
+  const recruiterId = request.user?.userId;
+  if (recruiterId) {
+    const job = await JobModel.findOne({ _id: applicant.jobId, recruiterId }).lean();
+    if (!job) return void reply.code(404).send({ error: "Applicant not found" });
+  }
+
+  const rawText = applicant.rawText;
+  if (!rawText || rawText.trim().length < 50) {
+    return void reply.code(400).send({
+      error: "No rawText stored for this applicant — re-upload the source PDF to refresh the profile.",
+    });
+  }
+
+  try {
+    const { normaliseText } = await import("../services/aiClient");
+    const { pythonProfileToUmurava } = await import("../services/pythonAdapter");
+    const parsed = await normaliseText(rawText);
+    const merged = {
+      ...pythonProfileToUmurava(parsed),
+      headline: parsed.headline,
+      bio: parsed.bio ?? undefined,
+      projects: parsed.projects?.map((p) => ({
+        name: p.name,
+        description: p.description,
+        technologies: p.technologies,
+        role: p.role,
+        link: p.link,
+        startDate: p.startDate,
+        endDate: p.endDate,
+      })),
+      availability: parsed.availability,
+      socialLinks: parsed.socialLinks ?? undefined,
+    };
+    const profile = normalizeProfile(merged);
+    await ApplicantModel.updateOne({ _id: id }, { $set: { profile } });
+    reply.send({ enhancedProfile: profile });
+  } catch (err) {
+    request.log.error({ err }, "enhanceApplicant failed");
+    reply.code(502).send({
+      error: err instanceof Error ? err.message : "Failed to re-extract profile",
+    });
+  }
 };
 
 const ScreenPlatformBodySchema = z.object({
