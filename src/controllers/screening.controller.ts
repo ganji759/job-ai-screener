@@ -218,13 +218,22 @@ const persistSyncScreening = async (
 
   const applicants = await ApplicantModel.find({ jobId: opts.jobId, ...opts.applicantExtraFilter }).lean();
   if (!applicants.length) {
-    return void reply.code(400).send({ error: "No pending applicants for this screening scenario" });
+    return void reply.code(400).send({ error: "No applicants eligible for screening. Upload candidates first, or check that they have not all been shortlisted in a previous run." });
   }
 
   const normalizedRequirements = leanJobToJobRequirements(job as Parameters<typeof leanJobToJobRequirements>[0]);
   const candidates = applicants.map((a) => a.profile as UmuravaProfile);
   const started = Date.now();
-  const results = await scoreAllCandidates(normalizedRequirements, candidates);
+  let results: Awaited<ReturnType<typeof scoreAllCandidates>>;
+  try {
+    results = await scoreAllCandidates(normalizedRequirements, candidates);
+  } catch (scoringErr) {
+    const message = scoringErr instanceof Error ? scoringErr.message : "AI scoring failed";
+    return void reply.code(500).send({ error: "Screening failed", message });
+  }
+  if (results.length === 0) {
+    return void reply.code(500).send({ error: "Screening failed", message: "AI scoring returned no results. Check your Gemini API key and model configuration." });
+  }
   const shortlist = results.slice(0, opts.shortlistSize);
   const insights = await generatePoolInsights(normalizedRequirements, results);
 
@@ -448,7 +457,9 @@ export const runScreeningForJobAllSources = async (request: FastifyRequest, repl
     await persistSyncScreening(request, reply, {
       jobId: parsed.data.jobId,
       shortlistSize,
-      applicantExtraFilter: { status: "pending" },
+      // Include rejected applicants so re-runs work after a failed screening.
+      // Shortlisted applicants are excluded — they are already in a completed shortlist.
+      applicantExtraFilter: { status: { $in: ["pending", "rejected"] } },
     });
   } catch (err) {
     request.log.error({ err }, "runScreeningForJobAllSources");
