@@ -52,6 +52,11 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
   FRONTEND_URL: z.string().url("FRONTEND_URL must be a valid URL"),
+  /** Optional extra allowed origins (comma-separated). Use this to whitelist Vercel preview URLs or additional domains without code changes. */
+  CORS_ORIGINS: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: z.preprocess(parseBooleanEnv, z.boolean()).default(false),

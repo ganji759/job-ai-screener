@@ -19,8 +19,14 @@ import { registerConnection } from "./services/realtime.service";
 /** Browsers send different Origin values (localhost vs 127.0.0.1). Mismatch breaks credentialed PUT/POST after preflight. */
 const corsAllowedOrigins = (): string | string[] => {
   const primary = env.FRONTEND_URL.replace(/\/+$/, "");
-  if (env.NODE_ENV !== "development") return primary;
-  return [...new Set([primary, "http://localhost:3000", "http://127.0.0.1:3000"])];
+  const extra = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    : [];
+  const base = env.NODE_ENV !== "development"
+    ? [primary, ...extra]
+    : [primary, ...extra, "http://localhost:3000", "http://127.0.0.1:3000"];
+  const unique = [...new Set(base)];
+  return unique.length === 1 ? unique[0] : unique;
 };
 
 export const buildApp = async () => {
