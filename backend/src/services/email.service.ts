@@ -1,7 +1,7 @@
 ﻿import nodemailer from "nodemailer";
 import { env } from "../config/env";
 
-const SMTP_TIMEOUT_MS = 10_000;
+const SMTP_TIMEOUT_MS = 30_000;
 
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
