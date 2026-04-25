@@ -2,9 +2,27 @@ import { buildApp } from "./app";
 import { connectDatabase, disconnectDatabase } from "./config/database";
 import { connectRedis, disconnectRedis } from "./config/redis";
 import { env } from "./config/env";
+import { logger } from "./utils/logger";
+
+const connectWithRetry = async (maxAttempts = 10, baseDelayMs = 3_000): Promise<void> => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await connectDatabase();
+      return;
+    } catch (err) {
+      const delayMs = Math.min(baseDelayMs * attempt, 30_000);
+      if (attempt === maxAttempts) {
+        logger.fatal({ err }, `MongoDB unreachable after ${maxAttempts} attempts — giving up`);
+        throw err;
+      }
+      logger.warn({ err, attempt, maxAttempts, delayMs }, "MongoDB connect failed, retrying…");
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+};
 
 const start = async (): Promise<void> => {
-  await connectDatabase();
+  await connectWithRetry();
   if (env.REDIS_ENABLED) {
     await connectRedis();
     await import("./workers/screening.worker");

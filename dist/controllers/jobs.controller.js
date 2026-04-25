@@ -1,22 +1,31 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.benchmarkJob = exports.jobStats = exports.deleteJob = exports.updateJob = exports.getJob = exports.createJob = exports.listJobs = void 0;
+const mongoose_1 = require("mongoose");
 const zod_1 = require("zod");
 const Applicant_model_1 = require("../models/Applicant.model");
 const Job_model_1 = require("../models/Job.model");
 const Screening_model_1 = require("../models/Screening.model");
 const notification_service_1 = require("../services/notification.service");
 const JobSchema = zod_1.z.object({ title: zod_1.z.string(), description: zod_1.z.string(), requirements: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()) }).strip();
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const listJobs = async (request, reply) => {
-    const { status, search = "", page = "1", limit = "20" } = request.query;
     const userId = request.user?.userId;
-    const query = { recruiterId: userId };
+    if (!userId || !mongoose_1.Types.ObjectId.isValid(userId)) {
+        return void reply.code(401).send({ error: "Unauthorized" });
+    }
+    const queryParams = request.query;
+    const status = typeof queryParams.status === "string" ? queryParams.status : undefined;
+    const search = typeof queryParams.search === "string" ? queryParams.search.trim() : "";
+    const pageRaw = typeof queryParams.page === "string" ? queryParams.page : undefined;
+    const limitRaw = typeof queryParams.limit === "string" ? queryParams.limit : undefined;
+    const query = { recruiterId: new mongoose_1.Types.ObjectId(userId) };
     if (status)
         query.status = status;
     if (search)
-        query.title = { $regex: search, $options: "i" };
-    const p = Number(page);
-    const l = Number(limit);
+        query.title = { $regex: escapeRegex(search), $options: "i" };
+    const p = Math.max(1, Math.floor(Number(pageRaw)) || 1);
+    const l = Math.min(100, Math.max(1, Math.floor(Number(limitRaw)) || 20));
     const [jobs, total] = await Promise.all([
         Job_model_1.JobModel.find(query).sort({ createdAt: -1 }).skip((p - 1) * l).limit(l).lean(),
         Job_model_1.JobModel.countDocuments(query),

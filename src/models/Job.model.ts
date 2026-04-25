@@ -19,7 +19,7 @@ const JobSchema = new Schema({
   description: { type: String, required: true },
   requirements: { type: JobRequirementsSchema, required: true },
   recruiterId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  status: { type: String, enum: ["draft", "active", "closed"], default: "draft" },
+  status: { type: String, enum: ["draft", "active", "closed"], default: "active" },
 }, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 JobSchema.virtual("applicantCount", {

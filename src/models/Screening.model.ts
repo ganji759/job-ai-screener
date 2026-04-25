@@ -5,10 +5,21 @@ const ScreeningSchema = new Schema({
   recruiterId: { type: Schema.Types.ObjectId, ref: "User", required: true },
   status: { type: String, enum: ["queued", "running", "completed", "failed"], default: "queued" },
   shortlistSize: { type: Number, enum: [10, 20], required: true },
+  /** How this screening was produced (optional; legacy queued worker may omit). */
+  pipeline: {
+    type: String,
+    enum: ["bull_queue", "umurava_platform_ai", "external_upload_sync"],
+    required: false,
+  },
+  /** Denormalized from results for quick listing (optional). */
+  totalEvaluated: Number,
+  averageScore: Number,
   results: { type: Schema.Types.Mixed },
   errorMessage: String,
   queueJobId: String,
   durationMs: Number,
+  /** Per-applicant HR decisions: key = Applicant `._id` (string). */
+  recruiterDecisions: { type: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 
 ScreeningSchema.index({ jobId: 1, status: 1 });

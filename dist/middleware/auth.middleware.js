@@ -18,7 +18,7 @@ const authenticate = async (request, reply) => {
         request.user = decoded;
     }
     catch (_error) {
-        reply.code(403).send({ error: "Invalid or expired token" });
+        return void reply.code(403).send({ error: "Invalid or expired token" });
     }
 };
 exports.authenticate = authenticate;
