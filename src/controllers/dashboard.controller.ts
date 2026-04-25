@@ -129,6 +129,7 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
       topSkillGaps: [],
       recentActivity: [],
       jobsBreakdown: [],
+      aiVsHrAccuracy: { tp: 0, tn: 0, fp: 0, fn: 0, total: 0, precision: 0, recall: 0, accuracy: 0, agreementRate: 0, f1Score: 0, disagreements: [] },
     });
   }
 
@@ -321,7 +322,124 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
     };
   });
 
-  // 7. Recent activity (screenings + uploads, merged, newest first) ------------------------------
+  // 7. HR vs AI confusion matrix ----------------------------------------------------------------
+  const screeningsWithDecisions = await ScreeningModel.find({ recruiterId, status: "completed" })
+    .select("_id jobId results recruiterDecisions")
+    .lean();
+
+  // recruiterDecisions keys = Applicant MongoDB _id.
+  // results.shortlist[n].candidateId = profile.id (UmuravaProfile string).
+  // We need profile.id → MongoDB _id to join them.
+  const cmJobIds = [...new Set(screeningsWithDecisions.map((s) => String(s.jobId)))];
+  const cmApplicants = cmJobIds.length
+    ? await ApplicantModel.find({ jobId: { $in: cmJobIds } })
+        .select("_id profile.id profile.firstName profile.lastName")
+        .lean()
+    : [];
+  // Map profile.id → { mongoId, name } — per-job key is implicitly unique enough in practice
+  const profileIdToMongo = new Map<string, { mongoId: string; name: string }>();
+  for (const a of cmApplicants) {
+    const pid = String((a.profile as { id?: string }).id ?? "");
+    if (!pid) continue;
+    const p = a.profile as { firstName?: string; lastName?: string };
+    const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || "Unknown";
+    profileIdToMongo.set(pid, { mongoId: String(a._id), name });
+  }
+
+  type ConfusionEntry = {
+    candidateId: string;
+    candidateName: string;
+    jobTitle: string;
+    aiLabel: "positive" | "negative";
+    hrDecision: "approved" | "rejected";
+    category: "FP" | "FN";
+  };
+
+  let cmTp = 0;
+  let cmTn = 0;
+  let cmFp = 0;
+  let cmFn = 0;
+  const cmDisagreements: ConfusionEntry[] = [];
+
+  for (const s of screeningsWithDecisions) {
+    const rdRaw = s.recruiterDecisions;
+    if (!rdRaw || typeof rdRaw !== "object") continue;
+    const rd: Record<string, unknown> =
+      rdRaw instanceof Map ? Object.fromEntries(rdRaw.entries()) : { ...(rdRaw as Record<string, unknown>) };
+
+    // Skip screenings with no decisions recorded
+    if (Object.keys(rd).length === 0) continue;
+
+    const shortlistRaw = (s.results as { shortlist?: unknown[] }).shortlist;
+    const allResultsRaw = (s.results as { allResults?: unknown[] }).allResults;
+    const candidates = (Array.isArray(allResultsRaw) && allResultsRaw.length ? allResultsRaw : shortlistRaw) ?? [];
+
+    const jobTitle = jobById.get(String(s.jobId))?.title ?? "Unknown";
+
+    for (const candidate of candidates as Array<Record<string, unknown>>) {
+      // candidateId here is profile.id — resolve to MongoDB _id to match recruiterDecisions keys
+      const profileId = String(candidate.candidateId ?? "");
+      if (!profileId) continue;
+
+      const resolved = profileIdToMongo.get(profileId);
+      const mongoId = resolved?.mongoId ?? profileId; // fall back to profileId if join fails
+
+      const entry = rd[mongoId] as { decision?: string } | undefined;
+      if (!entry?.decision || entry.decision === "review") continue;
+
+      const candidateName = resolved?.name ?? String(candidate.name ?? candidate.candidateName ?? "Unknown");
+      const rec = String(candidate.recommendation ?? "").toLowerCase();
+      const aiPos = /yes|maybe/.test(rec);
+      const hrPos = entry.decision === "approved";
+
+      if (aiPos && hrPos) {
+        cmTp += 1;
+      } else if (aiPos && !hrPos) {
+        cmFp += 1;
+        cmDisagreements.push({
+          candidateId: mongoId,
+          candidateName,
+          jobTitle,
+          aiLabel: "positive",
+          hrDecision: "rejected",
+          category: "FP",
+        });
+      } else if (!aiPos && hrPos) {
+        cmFn += 1;
+        cmDisagreements.push({
+          candidateId: mongoId,
+          candidateName,
+          jobTitle,
+          aiLabel: "negative",
+          hrDecision: "approved",
+          category: "FN",
+        });
+      } else {
+        cmTn += 1;
+      }
+    }
+  }
+
+  const cmTotal = cmTp + cmTn + cmFp + cmFn;
+  const cmPrecision = cmTp + cmFp > 0 ? cmTp / (cmTp + cmFp) : 0;
+  const cmRecall = cmTp + cmFn > 0 ? cmTp / (cmTp + cmFn) : 0;
+  const cmAccuracy = cmTotal > 0 ? (cmTp + cmTn) / cmTotal : 0;
+  const cmF1 = cmPrecision + cmRecall > 0 ? (2 * cmPrecision * cmRecall) / (cmPrecision + cmRecall) : 0;
+  const aiVsHrAccuracy = {
+    tp: cmTp,
+    tn: cmTn,
+    fp: cmFp,
+    fn: cmFn,
+    total: cmTotal,
+    precision: round2(cmPrecision * 100),
+    recall: round2(cmRecall * 100),
+    accuracy: round2(cmAccuracy * 100),
+    agreementRate: round2(cmTotal > 0 ? ((cmTp + cmTn) / cmTotal) * 100 : 0),
+    f1Score: round2(cmF1 * 100),
+    disagreements: cmDisagreements.slice(0, 30),
+  };
+
+  // 8. Recent activity (screenings + uploads, merged, newest first) ------------------------------
   type Activity = {
     kind: "screening_completed" | "screening_failed" | "screening_running" | "applicant_uploaded";
     title: string;
@@ -371,7 +489,7 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
   activity.sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime());
   const recentActivity = activity.slice(0, 12);
 
-  // 8. Respond ------------------------------------------------------------------------------------
+  // 9. Respond ------------------------------------------------------------------------------------
   reply.send({
     totalJobs,
     activeJobs,
@@ -405,6 +523,7 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
     topSkillGaps,
     recentActivity,
     jobsBreakdown,
+    aiVsHrAccuracy,
   });
 };
 

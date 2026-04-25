@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  candidateAiChat,
   compareCandidates,
   deleteScreening,
   exportScreening,
@@ -36,4 +37,5 @@ export const screeningsRoutes: FastifyPluginAsync = async (app) => {
   app.post("/:id/export", exportScreening);
   app.delete("/:id", deleteScreening);
   app.post("/:id/compare", compareCandidates);
+  app.post("/:id/ai-chat", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, candidateAiChat);
 };
