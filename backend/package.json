@@ -28,17 +28,16 @@
     "ioredis": "latest",
     "jsonwebtoken": "latest",
     "mongoose": "latest",
-    "nodemailer": "latest",
     "pdf-parse": "1.1.1",
     "pdfkit": "latest",
     "pino": "latest",
+    "resend": "^6.12.2",
     "zod": "latest"
   },
   "devDependencies": {
     "@types/bcrypt": "latest",
     "@types/jsonwebtoken": "latest",
     "@types/node": "latest",
-    "@types/nodemailer": "latest",
     "@types/pdf-parse": "latest",
     "@types/pdfkit": "latest",
     "@typescript-eslint/eslint-plugin": "latest",

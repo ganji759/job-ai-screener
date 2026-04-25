@@ -57,13 +57,7 @@ const envSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().optional(),
   ),
-  SMTP_HOST: z.string().default("smtp.gmail.com"),
-  SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.preprocess(parseBooleanEnv, z.boolean()).default(false),
-  SMTP_TLS_REJECT_UNAUTHORIZED: z.preprocess(parseBooleanEnv, z.boolean()).default(true),
-  SMTP_USER: z.string().email(),
-  SMTP_PASS: z.string().min(8),
-  SMTP_FROM: z.string().email().default("no-reply@umurava.ai"),
+  RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   OTP_EXPIRES_MINUTES: z.coerce.number().int().positive().default(10),
 });
 
