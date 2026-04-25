@@ -8,6 +8,7 @@ import {
   Bell,
   Brain,
   Briefcase,
+  FileBarChart2,
   LayoutGrid,
   Settings,
   Sparkles,
@@ -27,6 +28,7 @@ const primaryLinks = [
   { href: "/applicants", label: "Applicants", icon: Users },
   { href: "/screenings", label: "Screenings", icon: Brain },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/reports", label: "Reports", icon: FileBarChart2 },
 ] as const;
 
 const secondaryLinks = [
@@ -63,9 +65,9 @@ function NavLinkRow({
         "group relative flex h-10 items-center rounded-[10px] transition-colors duration-150 ease-out",
         collapsed ? "mx-auto w-10 justify-center px-0" : "mx-2 mb-0.5 gap-[10px] px-3",
         active
-          ? "bg-[rgba(0,122,255,0.12)] font-semibold text-[#007AFF]"
-          : "font-medium text-[#3a3a3c] hover:bg-black/[0.04] hover:text-[#1d1d1f]",
-        !active && "text-[#3a3a3c]",
+          ? "bg-[rgba(0,122,255,0.12)] font-semibold text-[#007AFF] dark:bg-blue-500/20 dark:text-blue-300"
+          : "font-medium text-[#3a3a3c] hover:bg-black/[0.04] hover:text-[#1d1d1f] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
+        !active && "text-[#3a3a3c] dark:text-slate-300",
       )}
     >
       <span className="relative flex shrink-0 items-center justify-center">
@@ -73,6 +75,7 @@ function NavLinkRow({
           className={cn(
             "h-[18px] w-[18px] shrink-0 transition-colors duration-150 ease-out",
             active ? "text-[#007AFF]" : "text-[#8e8e93] group-hover:text-[#1d1d1f]",
+            !active && "dark:text-slate-400 dark:group-hover:text-white",
           )}
         />
         {showBadge && collapsed && badgeCount > 0 ? (
@@ -101,10 +104,10 @@ function NavLinkRow({
         <Tooltip.Content
           side="right"
           sideOffset={10}
-          className="z-[70] rounded-md bg-[#1d1d1f] px-1 py-1 text-xs font-medium leading-none text-white shadow-md"
+          className="z-[70] rounded-md bg-[#1d1d1f] px-1 py-1 text-xs font-medium leading-none text-white shadow-md dark:bg-slate-100 dark:text-slate-900"
         >
           {label}
-          <Tooltip.Arrow className="fill-[#1d1d1f]" width={10} height={5} />
+          <Tooltip.Arrow className="fill-[#1d1d1f] dark:fill-slate-100" width={10} height={5} />
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>
@@ -187,7 +190,7 @@ export const Sidebar = ({
       <aside
         style={{ fontFamily: appleSans }}
         className={cn(
-          "fixed top-0 z-50 flex h-screen flex-col overflow-hidden border-r border-black/[0.08] bg-white/[0.95] backdrop-blur-[20px]",
+          "fixed top-0 z-50 flex h-screen flex-col overflow-hidden border-r border-black/[0.08] bg-white/[0.95] backdrop-blur-[20px] dark:border-slate-700 dark:bg-slate-900/95",
           "transition-[transform,width] duration-300 ease-out md:duration-[250ms] md:ease-in-out",
           collapsed ? "w-16" : "w-[240px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
@@ -196,7 +199,7 @@ export const Sidebar = ({
         {/* Logo — 64px */}
         <div
           className={cn(
-            "flex h-16 shrink-0 items-center border-b border-black/[0.06]",
+            "flex h-16 shrink-0 items-center border-b border-black/[0.06] dark:border-slate-700",
             collapsed ? "justify-center px-0" : "justify-start pl-5 pr-3",
           )}
         >
@@ -206,8 +209,8 @@ export const Sidebar = ({
             </span>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="text-base font-semibold leading-tight text-[#1d1d1f]">Umurava</p>
-                <p className="text-[11px] font-medium leading-tight text-[#8e8e93]">AI HR</p>
+                <p className="text-base font-semibold leading-tight text-[#1d1d1f] dark:text-slate-100">Umurava</p>
+                <p className="text-[11px] font-medium leading-tight text-[#8e8e93] dark:text-slate-400">AI HR</p>
               </div>
             ) : null}
           </div>
@@ -217,7 +220,7 @@ export const Sidebar = ({
         <div className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-4">
           <p
             className={cn(
-              "mb-4 px-5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#8e8e93]",
+              "mb-4 px-5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#8e8e93] dark:text-slate-400",
               collapsed && "sr-only",
             )}
           >
@@ -239,7 +242,7 @@ export const Sidebar = ({
               />
             ))}
 
-            <div className="my-2 mx-2 h-px bg-black/[0.06]" aria-hidden />
+            <div className="my-2 mx-2 h-px bg-black/[0.06] dark:bg-slate-700" aria-hidden />
 
             {secondaryLinks.map((link) => (
               <NavLinkRow
@@ -258,7 +261,7 @@ export const Sidebar = ({
         </div>
 
         {/* User + beta */}
-        <div className="shrink-0 border-t border-black/[0.06]">
+        <div className="shrink-0 border-t border-black/[0.06] dark:border-slate-700">
           <UserAccountDropdown align="start" side="top">
             <button
               type="button"
@@ -282,8 +285,8 @@ export const Sidebar = ({
               )}
               {!collapsed ? (
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-[#1d1d1f]">{user?.name ?? "Recruiter"}</p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#8e8e93]">
+                  <p className="truncate text-[13px] font-semibold text-[#1d1d1f] dark:text-slate-100">{user?.name ?? "Recruiter"}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#8e8e93] dark:text-slate-400">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#34c759]" aria-hidden />
                     Online
                   </p>
@@ -293,9 +296,9 @@ export const Sidebar = ({
           </UserAccountDropdown>
 
           {!collapsed ? (
-            <p className="px-3 pb-3 text-center text-[10px] text-[#c7c7cc]">v1.0 Beta</p>
+            <p className="px-3 pb-3 text-center text-[10px] text-[#c7c7cc] dark:text-slate-500">v1.0 Beta</p>
           ) : (
-            <p className="px-1 pb-2 text-center text-[9px] leading-tight text-[#c7c7cc]">Beta</p>
+            <p className="px-1 pb-2 text-center text-[9px] leading-tight text-[#c7c7cc] dark:text-slate-500">Beta</p>
           )}
         </div>
       </aside>

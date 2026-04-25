@@ -6,8 +6,6 @@ import { useEffect, useState } from "react";
 import { LogOut, Settings, User } from "lucide-react";
 import { useMeQuery } from "../../store/api/authApi";
 import { clearToken } from "../../lib/auth";
-import { Modal } from "../ui/Modal";
-import { Button } from "../ui/Button";
 
 type Align = "start" | "center" | "end";
 type Side = "top" | "right" | "bottom" | "left";
@@ -23,7 +21,6 @@ export const UserAccountDropdown = ({
 }) => {
   const router = useRouter();
   const { data: user } = useMeQuery();
-  const [logoutOpen, setLogoutOpen] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   useEffect(() => {
@@ -37,10 +34,9 @@ export const UserAccountDropdown = ({
     .join("");
   const avatarUrl = user?.avatarUrl ?? null;
 
-  const confirmLogout = () => {
+  const handleLogout = () => {
     clearToken();
-    setLogoutOpen(false);
-    router.replace("/login");
+    router.push("/login");
   };
 
   return (
@@ -89,10 +85,7 @@ export const UserAccountDropdown = ({
             <DropdownMenu.Separator className="my-2 h-px bg-slate-200 dark:bg-slate-600" />
             <DropdownMenu.Item
               className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-red-600 outline-none transition-colors duration-200 hover:bg-red-50 dark:hover:bg-red-950/30"
-              onSelect={(e) => {
-                e.preventDefault();
-                setLogoutOpen(true);
-              }}
+              onSelect={handleLogout}
             >
               <LogOut className="h-4 w-4" />
               Logout
@@ -100,19 +93,6 @@ export const UserAccountDropdown = ({
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
-
-      <Modal open={logoutOpen} onClose={() => setLogoutOpen(false)}>
-        <h3 className="text-lg font-semibold text-[#1d1d1f] dark:text-slate-100">Are you sure you want to logout?</h3>
-        <p className="mt-2 text-sm text-[#8e8e93] dark:text-slate-400">You will need to sign in again to access your workspace.</p>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => setLogoutOpen(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={confirmLogout}>
-            Logout
-          </Button>
-        </div>
-      </Modal>
     </>
   );
 };

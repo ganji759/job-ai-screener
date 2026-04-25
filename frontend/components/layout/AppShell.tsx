@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { cn } from "../../lib/utils";
+import { DashboardSplashIntro } from "../dashboard/DashboardSplashIntro";
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(() => pathname === "/dashboard");
 
   useEffect(() => {
     const read = () => {
@@ -36,6 +41,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <AnimatePresence>{showIntro ? <DashboardSplashIntro onDone={() => setShowIntro(false)} /> : null}</AnimatePresence>
       <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div
         className={cn(

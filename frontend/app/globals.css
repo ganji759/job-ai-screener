@@ -30,10 +30,7 @@
   html[data-theme="midnight"] body,
   html.dark body {
     color: #e2e8f0;
-    background:
-      radial-gradient(900px 520px at 90% -10%, rgba(217, 70, 239, 0.18), transparent 55%),
-      radial-gradient(900px 520px at -10% 10%, rgba(99, 102, 241, 0.22), transparent 55%),
-      linear-gradient(135deg, #0b0720 0%, #120d2e 40%, #1e1347 75%, #112042 100%);
+    background: #111827;
     background-attachment: fixed;
   }
 
