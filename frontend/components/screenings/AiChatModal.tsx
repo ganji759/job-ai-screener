@@ -28,6 +28,18 @@ export function AiChatModal({ screeningId, candidateId, candidateName, aiRecomme
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [chat, { isLoading }] = useCandidateAiChatMutation();
 
+  const extractReply = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        const text = parsed.answer ?? parsed.text ?? parsed.reply ?? parsed.message ?? parsed.content;
+        if (typeof text === "string") return text;
+      } catch { /* not JSON */ }
+    }
+    return raw;
+  };
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -52,7 +64,7 @@ export function AiChatModal({ screeningId, candidateId, candidateName, aiRecomme
         message: text,
         history: history.map((m) => ({ role: m.role, content: m.content })),
       }).unwrap();
-      setMessages((prev) => [...prev, { role: "model", content: res.reply }]);
+      setMessages((prev) => [...prev, { role: "model", content: extractReply(res.reply) }]);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -74,7 +86,7 @@ export function AiChatModal({ screeningId, candidateId, candidateName, aiRecomme
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Chat window */}
-      <div className="relative flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 sm:h-[600px]">
+      <div className="relative flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 sm:h-[520px]">
         {/* Header */}
         <div className="flex items-center gap-3 rounded-t-2xl bg-gradient-to-r from-violet-600 to-purple-700 px-4 py-3 text-white">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20">
