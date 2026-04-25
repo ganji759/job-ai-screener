@@ -171,96 +171,245 @@ export default function ReportsPage() {
     setIsExportingPdf(true);
     try {
       const jsPDF = (await import("jspdf")).default;
-      const html2canvas = (await import("html2canvas")).default;
-
       const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = 210;
-      const margin = 14;
+      const W = 210;
+      const M = 14;
 
+      // PAGE 1 — COVER
       pdf.setFillColor(88, 28, 235);
-      pdf.rect(0, 0, 210, 80, "F");
+      pdf.rect(0, 0, W, 90, "F");
 
-      // Simple vector logo resembling Umurava brand mark
-      pdf.setDrawColor(255, 255, 255);
-      pdf.setLineWidth(2.2);
-      pdf.circle(margin + 6, 20, 5);
-      pdf.circle(margin + 16, 20, 5);
-      pdf.line(margin + 9.5, 17.5, margin + 12.5, 22.5);
-      pdf.line(margin + 9.5, 22.5, margin + 12.5, 17.5);
+      pdf.setFillColor(224, 216, 255);
+      pdf.circle(190, 10, 40, "F");
+      pdf.circle(200, 60, 25, "F");
 
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(28);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Umurava AI HR", margin + 26, 30);
-      pdf.setFontSize(13);
+      pdf.text("Umurava AI HR", M, 35);
+
+      pdf.setFontSize(11);
       pdf.setFont("helvetica", "normal");
-      pdf.text("AI-Powered Talent Screening Platform", margin + 26, 42);
-      pdf.setFontSize(18);
+      pdf.setTextColor(196, 181, 253);
+      pdf.text("AI-Powered Talent Screening Platform", M, 46);
+
+      pdf.setDrawColor(139, 92, 246);
+      pdf.setLineWidth(0.4);
+      pdf.line(M, 55, W - M, 55);
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
-      pdf.text("CANDIDATE SCREENING REPORT", margin, 60);
-      pdf.setFontSize(10);
+      pdf.text("CANDIDATE SCREENING REPORT", M, 67);
+
+      pdf.setFontSize(9);
       pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(196, 181, 253);
       pdf.text(
         `Generated: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`,
-        margin,
-        70,
+        M,
+        77,
       );
 
-      let y = 95;
-      pdf.setFillColor(245, 243, 255);
-      pdf.roundedRect(margin, y, pageWidth - 2 * margin, 35, 3, 3, "F");
-      pdf.setDrawColor(196, 181, 253);
+      let y = 100;
+      pdf.setFillColor(237, 233, 254);
+      pdf.roundedRect(M, y, W - 2 * M, 40, 4, 4, "F");
+      pdf.setDrawColor(167, 139, 250);
       pdf.setLineWidth(0.3);
-      pdf.roundedRect(margin, y, pageWidth - 2 * margin, 35, 3, 3, "S");
+      pdf.roundedRect(M, y, W - 2 * M, 40, 4, 4, "S");
       pdf.setTextColor(88, 28, 235);
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setFont("helvetica", "bold");
-      pdf.text("EXECUTIVE SUMMARY", margin + 5, y + 8);
+      pdf.text("EXECUTIVE SUMMARY", M + 6, y + 9);
 
+      const shortCount = candidates.filter((c) => c.status === "shortlisted").length;
+      const rejCount = candidates.filter((c) => c.status === "rejected").length;
+      const pendCount = candidates.filter((c) => c.status === "pending").length;
+      const avgScore = candidates.length > 0 ? Math.round(candidates.reduce((s, c) => s + c.score, 0) / candidates.length) : 0;
       const summaryStats = [
-        { label: "Total Candidates", value: String(filteredCandidates.length) },
-        { label: "Shortlisted", value: String(filteredCandidates.filter((c) => c.status === "shortlisted").length) },
-        { label: "Rejected", value: String(filteredCandidates.filter((c) => c.status === "rejected").length) },
-        { label: "Pending", value: String(filteredCandidates.filter((c) => c.status === "pending").length) },
-        {
-          label: "Avg Match Score",
-          value: filteredCandidates.length > 0
-            ? `${Math.round(filteredCandidates.reduce((s, c) => s + c.score, 0) / filteredCandidates.length)}/100`
-            : "N/A",
-        },
+        { label: "Total", value: String(candidates.length) },
+        { label: "Shortlisted", value: String(shortCount) },
+        { label: "Rejected", value: String(rejCount) },
+        { label: "Pending", value: String(pendCount) },
+        { label: "Avg Score", value: `${avgScore}/100` },
       ];
 
       summaryStats.forEach((s, i) => {
-        const x = margin + 5 + i * 36;
-        pdf.setFontSize(16);
+        const x = M + 6 + i * 36;
+        pdf.setFontSize(20);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(88, 28, 235);
-        pdf.text(s.value, x, y + 22);
+        pdf.text(s.value, x, y + 26);
         pdf.setFontSize(7);
         pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(107, 114, 128);
-        pdf.text(s.label, x, y + 29);
+        pdf.setTextColor(109, 40, 217);
+        pdf.text(s.label, x, y + 33);
       });
 
-      pdf.addPage();
-      const element = document.getElementById("report-content");
-      if (element) {
-        const canvas = await html2canvas(element, { scale: 1.2, backgroundColor: "#ffffff" });
-        const img = canvas.toDataURL("image/jpeg", 0.86);
-        pdf.addImage(img, "JPEG", margin, 12, 182, 260);
-      }
-
-      const total = pdf.getNumberOfPages();
-      for (let i = 1; i <= total; i += 1) {
-        pdf.setPage(i);
-        pdf.setFillColor(243, 244, 246);
-        pdf.rect(0, 285, 210, 12, "F");
-        pdf.setTextColor(107, 114, 128);
+      y = 155;
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Score Distribution", M, y);
+      y += 6;
+      const barData = [
+        { range: "0-20", count: candidates.filter((c) => c.score <= 20).length },
+        { range: "21-40", count: candidates.filter((c) => c.score > 20 && c.score <= 40).length },
+        { range: "41-60", count: candidates.filter((c) => c.score > 40 && c.score <= 60).length },
+        { range: "61-80", count: candidates.filter((c) => c.score > 60 && c.score <= 80).length },
+        { range: "81-100", count: candidates.filter((c) => c.score > 80).length },
+      ];
+      const maxCount = Math.max(...barData.map((d) => d.count), 1);
+      const chartH = 35;
+      const barW = 22;
+      const chartX = M + 10;
+      pdf.setFillColor(249, 250, 251);
+      pdf.roundedRect(M, y, W - 2 * M, chartH + 20, 3, 3, "F");
+      barData.forEach((d, i) => {
+        const bx = chartX + i * (barW + 8);
+        const bh = d.count > 0 ? (d.count / maxCount) * chartH : 2;
+        const by = y + 5 + chartH - bh;
+        if (i === 0) pdf.setFillColor(239, 68, 68);
+        else if (i === 1) pdf.setFillColor(249, 115, 22);
+        else if (i === 2) pdf.setFillColor(234, 179, 8);
+        else if (i === 3) pdf.setFillColor(34, 197, 94);
+        else pdf.setFillColor(22, 163, 74);
+        pdf.roundedRect(bx, by, barW, bh, 1, 1, "F");
+        pdf.setTextColor(31, 41, 55);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(String(d.count), bx + barW / 2 - 1.5, by - 2);
         pdf.setFontSize(7);
         pdf.setFont("helvetica", "normal");
-        pdf.text("Umurava AI HR — Confidential Screening Report", margin, 291);
-        pdf.text(`Page ${i} of ${total}`, 195, 291, { align: "right" });
-        pdf.text("ai-hr-pi.vercel.app", 105, 291, { align: "center" });
+        pdf.setTextColor(107, 114, 128);
+        pdf.text(d.range, bx + 2, y + chartH + 14);
+      });
+
+      y += chartH + 30;
+      pdf.setFillColor(240, 253, 244);
+      pdf.roundedRect(M, y, (W - 2 * M) / 2 - 3, 25, 3, 3, "F");
+      pdf.setDrawColor(134, 239, 172);
+      pdf.roundedRect(M, y, (W - 2 * M) / 2 - 3, 25, 3, 3, "S");
+      pdf.setTextColor(22, 163, 74);
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(String(shortCount), M + 5, y + 16);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(21, 128, 61);
+      pdf.text("candidates shortlisted", M + 5, y + 22);
+      const rx = M + (W - 2 * M) / 2 + 3;
+      pdf.setFillColor(254, 242, 242);
+      pdf.roundedRect(rx, y, (W - 2 * M) / 2 - 3, 25, 3, 3, "F");
+      pdf.setDrawColor(252, 165, 165);
+      pdf.roundedRect(rx, y, (W - 2 * M) / 2 - 3, 25, 3, 3, "S");
+      pdf.setTextColor(185, 28, 28);
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(String(rejCount), rx + 5, y + 16);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(153, 27, 27);
+      pdf.text("candidates rejected", rx + 5, y + 22);
+
+      // PAGE 2 — CANDIDATES
+      pdf.addPage();
+      pdf.setFillColor(88, 28, 235);
+      pdf.rect(0, 0, W, 18, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SHORTLISTED CANDIDATES", M, 12);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(196, 181, 253);
+      pdf.text("Umurava AI HR — Screening Report", W - M, 12, { align: "right" });
+      y = 28;
+      pdf.setFillColor(88, 28, 235);
+      pdf.roundedRect(M, y, W - 2 * M, 9, 1, 1, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(7.5);
+      pdf.setFont("helvetica", "bold");
+      [
+        { label: "RANK", x: M + 3 },
+        { label: "CANDIDATE NAME", x: M + 16 },
+        { label: "JOB APPLIED", x: M + 63 },
+        { label: "SCORE", x: M + 108 },
+        { label: "STATUS", x: M + 132 },
+        { label: "DATE", x: M + 162 },
+      ].forEach((c) => pdf.text(c.label, c.x, y + 6));
+      y += 9;
+      const shortlisted = candidates.filter((c) => c.status === "shortlisted");
+      shortlisted.forEach((c, i) => {
+        if (y > 272) { pdf.addPage(); y = 20; }
+        if (i % 2 === 0) { pdf.setFillColor(245, 243, 255); pdf.rect(M, y, W - 2 * M, 10, "F"); }
+        pdf.setFillColor(88, 28, 235); pdf.circle(M + 7, y + 5, 4, "F");
+        pdf.setTextColor(255, 255, 255); pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.text(String(i + 1), M + 5.5, y + 6.5);
+        pdf.setTextColor(17, 24, 39); pdf.setFontSize(8.5); pdf.setFont("helvetica", "bold"); pdf.text(c.name.substring(0, 22), M + 16, y + 6.5);
+        pdf.setFont("helvetica", "normal"); pdf.setTextColor(75, 85, 99); pdf.text((c.job || "N/A").substring(0, 20), M + 63, y + 6.5);
+        const score = c.score || 0;
+        let sr = 254, sg = 226, sb = 226, tr = 185, tg = 28, tb = 28;
+        if (score >= 80) { sr = 220; sg = 252; sb = 231; tr = 22; tg = 163; tb = 74; }
+        else if (score >= 60) { sr = 254; sg = 249; sb = 195; tr = 161; tg = 98; tb = 7; }
+        pdf.setFillColor(sr, sg, sb); pdf.roundedRect(M + 106, y + 1.5, 20, 7, 2, 2, "F");
+        pdf.setTextColor(tr, tg, tb); pdf.setFontSize(7.5); pdf.setFont("helvetica", "bold"); pdf.text(`${score}/100`, M + 108, y + 6.5);
+        pdf.setFillColor(220, 252, 231); pdf.roundedRect(M + 130, y + 1.5, 25, 7, 2, 2, "F");
+        pdf.setTextColor(22, 163, 74); pdf.setFontSize(7); pdf.text("SHORTLISTED", M + 132, y + 6.5);
+        pdf.setTextColor(107, 114, 128); pdf.setFontSize(7.5); pdf.setFont("helvetica", "normal"); pdf.text(c.date || "-", M + 162, y + 6.5);
+        pdf.setDrawColor(229, 231, 235); pdf.setLineWidth(0.2); pdf.line(M, y + 10, W - M, y + 10); y += 10;
+      });
+      if (y > 230) { pdf.addPage(); y = 20; } else y += 8;
+      pdf.setFillColor(185, 28, 28); pdf.roundedRect(M, y, W - 2 * M, 9, 1, 1, "F");
+      pdf.setTextColor(255, 255, 255); pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.text("REJECTED CANDIDATES", M + 3, y + 6.5); y += 9;
+      pdf.setFillColor(254, 226, 226); pdf.rect(M, y, W - 2 * M, 9, "F");
+      pdf.setTextColor(153, 27, 27); pdf.setFontSize(7.5); pdf.text("NAME", M + 3, y + 6); pdf.text("JOB APPLIED", M + 63, y + 6); pdf.text("SCORE", M + 108, y + 6); pdf.text("DATE", M + 162, y + 6); y += 9;
+      candidates.filter((c) => c.status === "rejected").forEach((c, i) => {
+        if (y > 272) { pdf.addPage(); y = 20; }
+        if (i % 2 === 0) { pdf.setFillColor(255, 249, 249); pdf.rect(M, y, W - 2 * M, 10, "F"); }
+        pdf.setTextColor(17, 24, 39); pdf.setFontSize(8.5); pdf.setFont("helvetica", "bold"); pdf.text(c.name.substring(0, 22), M + 3, y + 6.5);
+        pdf.setFont("helvetica", "normal"); pdf.setTextColor(75, 85, 99); pdf.text((c.job || "N/A").substring(0, 20), M + 63, y + 6.5);
+        pdf.setFillColor(254, 226, 226); pdf.roundedRect(M + 106, y + 1.5, 20, 7, 2, 2, "F");
+        pdf.setTextColor(185, 28, 28); pdf.setFont("helvetica", "bold"); pdf.text(`${c.score}/100`, M + 108, y + 6.5);
+        pdf.setTextColor(107, 114, 128); pdf.setFont("helvetica", "normal"); pdf.text(c.date || "-", M + 162, y + 6.5);
+        pdf.setDrawColor(254, 202, 202); pdf.setLineWidth(0.2); pdf.line(M, y + 10, W - M, y + 10); y += 10;
+      });
+
+      // PAGE 3 — JOB PERFORMANCE
+      pdf.addPage();
+      pdf.setFillColor(17, 24, 39); pdf.rect(0, 0, W, 18, "F");
+      pdf.setTextColor(255, 255, 255); pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.text("JOB PERFORMANCE REPORT", M, 12);
+      y = 28;
+      pdf.setFillColor(31, 41, 55); pdf.roundedRect(M, y, W - 2 * M, 9, 1, 1, "F");
+      pdf.setTextColor(255, 255, 255); pdf.setFontSize(7.5);
+      pdf.text("JOB TITLE", M + 3, y + 6); pdf.text("APPLICANTS", M + 75, y + 6); pdf.text("AVG SCORE", M + 103, y + 6); pdf.text("SHORTLIST RATE", M + 132, y + 6); pdf.text("TOP CANDIDATE", M + 165, y + 6);
+      y += 9;
+      mockJobs.forEach((j, i) => {
+        if (y > 272) { pdf.addPage(); y = 20; }
+        if (i % 2 === 0) { pdf.setFillColor(249, 250, 251); pdf.rect(M, y, W - 2 * M, 14, "F"); }
+        pdf.setTextColor(17, 24, 39); pdf.setFontSize(8.5); pdf.setFont("helvetica", "bold"); pdf.text(j.title.substring(0, 26), M + 3, y + 6);
+        pdf.setFont("helvetica", "normal"); pdf.setTextColor(75, 85, 99); pdf.text(String(j.applicants), M + 80, y + 6);
+        pdf.setTextColor(17, 24, 39); pdf.setFont("helvetica", "bold"); pdf.text(`${j.avgScore}/100`, M + 103, y + 6);
+        pdf.setFillColor(229, 231, 235); pdf.roundedRect(M + 103, y + 7, 25, 2.5, 1, 1, "F");
+        pdf.setFillColor(88, 28, 235); pdf.roundedRect(M + 103, y + 7, (25 * j.avgScore) / 100, 2.5, 1, 1, "F");
+        let fr = 254, fg = 226, fb = 226, tr = 185, tg = 28, tb = 28;
+        if (j.shortlistRate >= 70) { fr = 220; fg = 252; fb = 231; tr = 22; tg = 163; tb = 74; }
+        else if (j.shortlistRate >= 40) { fr = 254; fg = 249; fb = 195; tr = 161; tg = 98; tb = 7; }
+        pdf.setFillColor(fr, fg, fb); pdf.roundedRect(M + 132, y + 1, 22, 8, 2, 2, "F");
+        pdf.setTextColor(tr, tg, tb); pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.text(`${j.shortlistRate}%`, M + 137, y + 6.5);
+        pdf.setTextColor(75, 85, 99); pdf.setFontSize(7.5); pdf.setFont("helvetica", "normal"); pdf.text((j.topCandidate || "N/A").substring(0, 14), M + 165, y + 6);
+        pdf.setDrawColor(229, 231, 235); pdf.setLineWidth(0.2); pdf.line(M, y + 14, W - M, y + 14);
+        y += 14;
+      });
+
+      const totalPages = pdf.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p += 1) {
+        pdf.setPage(p);
+        pdf.setFillColor(243, 244, 246); pdf.rect(0, 285, W, 12, "F");
+        pdf.setDrawColor(229, 231, 235); pdf.setLineWidth(0.2); pdf.line(0, 285, W, 285);
+        pdf.setTextColor(107, 114, 128); pdf.setFontSize(7); pdf.setFont("helvetica", "normal");
+        pdf.text("Umurava AI HR — Confidential Screening Report", M, 291);
+        pdf.text(`Page ${p} of ${totalPages}`, W - M, 291, { align: "right" });
+        pdf.text("ai-hr-pi.vercel.app", W / 2, 291, { align: "center" });
       }
 
       pdf.save(`umurava-report-${new Date().toISOString().split("T")[0]}.pdf`);
@@ -272,7 +421,8 @@ export default function ReportsPage() {
   const exportToExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const XLSX = (await import("xlsx")).default;
+      const XLSXModule = await import("xlsx");
+      const XLSX = (XLSXModule.default ?? XLSXModule) as typeof import("xlsx");
       const wb = XLSX.utils.book_new();
 
       const candidateData = [
