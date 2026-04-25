@@ -1,10 +1,15 @@
 ﻿import nodemailer from "nodemailer";
 import { env } from "../config/env";
 
+const SMTP_TIMEOUT_MS = 10_000;
+
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
   secure: env.SMTP_SECURE,
+  connectionTimeout: SMTP_TIMEOUT_MS,
+  socketTimeout: SMTP_TIMEOUT_MS,
+  greetingTimeout: SMTP_TIMEOUT_MS,
   tls: {
     rejectUnauthorized: env.SMTP_TLS_REJECT_UNAUTHORIZED,
   },
@@ -33,6 +38,9 @@ export const sendMail = async (to: string, subject: string, html: string): Promi
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_SECURE,
+      connectionTimeout: SMTP_TIMEOUT_MS,
+      socketTimeout: SMTP_TIMEOUT_MS,
+      greetingTimeout: SMTP_TIMEOUT_MS,
       tls: {
         rejectUnauthorized: false,
       },
