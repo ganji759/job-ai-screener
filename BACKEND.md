@@ -1,341 +1,160 @@
-# Backend — apps/api
+# Backend — backend/
 
 ## Stack
 - Node.js 20 + TypeScript strict
-- Express 5 (async error handling built-in)
+- **Fastify** (not Express) — plugins: `@fastify/jwt`, `@fastify/multipart`, `@fastify/rate-limit`, `@fastify/cors`
 - BullMQ (job queue) + Upstash Redis
 - `axios` — calls the Python AI service over HTTP
-- `papaparse` for CSV ingestion (PDFs are sent to the Python service directly)
-- `multer` for file uploads (memory storage, 10MB limit)
+- `papaparse` for CSV ingestion (PDFs sent to Python service)
 - `pino` for structured logging
 - `zod` for all request validation
-
-## Init
-```bash
-cd apps/api
-pnpm init
-pnpm add express bullmq ioredis mongoose zod pino papaparse multer axios form-data
-pnpm add -D typescript @types/express @types/node @types/multer ts-node-dev
-```
+- `google-generativeai` — also called directly from Node for AI chat (plain-text mode)
 
 ## Directory layout
 ```
-apps/api/
-├── src/
-│   ├── index.ts              # Express app + server bootstrap
-│   ├── worker.ts             # BullMQ worker entry — separate process
-│   ├── routes/
-│   │   ├── jobs.ts
-│   │   ├── applicants.ts
-│   │   └── screenings.ts
-│   ├── services/
-│   │   ├── job.service.ts
-│   │   ├── applicant.service.ts
-│   │   ├── ingestion.service.ts   # CSV parsing (local) + PDF routing (→ Python)
-│   │   ├── screening.service.ts   # enqueue + status
-│   │   └── ai.client.ts           # HTTP client for Python AI service
-│   ├── queue/
-│   │   ├── screening.queue.ts     # BullMQ Queue definition
-│   │   └── screening.processor.ts # Worker — calls Python AI service
-│   ├── middleware/
-│   │   ├── validate.ts            # zod request validator middleware
-│   │   ├── error.ts               # global error handler
-│   │   └── upload.ts              # multer config
-│   └── lib/
-│       ├── logger.ts              # pino instance
-│       └── errors.ts              # AppError class
-├── tsconfig.json
-└── package.json
+backend/src/
+├── index.ts              # Fastify app + server bootstrap + connectWithRetry
+├── worker.ts             # BullMQ worker entry — separate process
+├── routes/
+│   ├── auth.routes.ts
+│   ├── jobs.routes.ts
+│   ├── applicants.routes.ts
+│   ├── screenings.routes.ts
+│   ├── dashboard.routes.ts
+│   └── notifications.routes.ts
+├── controllers/
+│   ├── auth.controller.ts
+│   ├── job.controller.ts
+│   ├── applicant.controller.ts
+│   ├── screening.controller.ts   # includes candidateAiChat handler
+│   └── dashboard.controller.ts   # includes HR vs AI confusion matrix
+├── services/
+│   ├── job.service.ts
+│   ├── applicant.service.ts
+│   ├── ingestion.service.ts      # CSV parsing (local) + PDF routing (→ Python)
+│   ├── screening.service.ts      # enqueue + status
+│   ├── ai.client.ts              # HTTP client for Python AI service
+│   └── gemini.service.ts         # In-process Gemini SDK; generatePlainText for AI chat
+├── middleware/
+│   ├── validate.ts               # zod request validator
+│   ├── error.ts                  # global error handler
+│   └── auth.ts                   # JWT auth middleware
+├── workers/
+│   └── screening.processor.ts    # BullMQ worker
+└── utils/
+    ├── promptBuilder.ts
+    └── jsonValidator.ts
 ```
 
-## API routes
+## API routes (all under `/api/v1/`)
+
+### Auth
+```
+POST   /auth/register
+POST   /auth/login
+GET    /auth/me
+POST   /auth/logout
+```
 
 ### Jobs
 ```
-POST   /api/jobs                     # create job
-GET    /api/jobs                     # list jobs (paginated)
-GET    /api/jobs/:jobId              # get job detail
-PATCH  /api/jobs/:jobId              # update job (not weights after run)
-DELETE /api/jobs/:jobId              # soft delete
-```
-
-### Applicants
-```
-POST   /api/jobs/:jobId/applicants           # ingest structured profiles (JSON array)
-POST   /api/jobs/:jobId/applicants/upload    # ingest CSV or PDF (multipart)
-GET    /api/jobs/:jobId/applicants           # list applicants for job
+POST   /jobs                     # create job
+GET    /jobs                     # list jobs (paginated)
+GET    /jobs/:jobId              # get job detail
+PATCH  /jobs/:jobId              # update job
+DELETE /jobs/:jobId              # soft delete
+GET    /jobs/:jobId/applicants   # list applicants for job
+POST   /jobs/:jobId/applicants   # ingest structured profiles
+POST   /jobs/:jobId/applicants/upload  # ingest CSV or PDF (multipart)
+POST   /jobs/:jobId/screenings   # trigger new screening run
 ```
 
 ### Screenings
 ```
-POST   /api/jobs/:jobId/screenings           # trigger new screening run
-GET    /api/screenings/:runId/status         # poll status + progress
-GET    /api/screenings/:runId/results        # ranked shortlist (when complete)
-GET    /api/screenings/:runId/results/:applicantId  # single candidate reasoning
+GET    /screenings                          # list all screening runs
+POST   /screenings/run                      # start screening (alternate)
+POST   /screenings/run-for-job              # one-click screening (all sources)
+POST   /screenings/platform                 # sync Umurava-platform applicants
+POST   /screenings/external                 # sync CSV/PDF-upload applicants
+GET    /screenings/job/:jobId               # screening history for a job
+GET    /screenings/:id                      # get screening document
+GET    /screenings/:id/status               # poll status + progress
+GET    /screenings/:id/results              # ranked shortlist (when complete)
+PUT    /screenings/:id/recruiter-decisions  # persist HR accept/reject + notes
+POST   /screenings/:id/send-acceptance-emails
+GET    /screenings/:id/explanations
+GET    /screenings/:id/explanations/export
+POST   /screenings/:id/export
+DELETE /screenings/:id
+POST   /screenings/:id/compare              # head-to-head candidate compare
+POST   /screenings/:id/ai-chat              # RAG chat about a shortlisted candidate
 ```
 
-## Request/response envelope
-```typescript
-interface ApiResponse<T> {
-  data: T | null;
-  error: { code: string; message: string } | null;
-  meta?: { total?: number; page?: number };
-}
+### Dashboard
+```
+GET    /dashboard/analytics      # KPIs, charts, HR vs AI confusion matrix
 ```
 
-## AI client — HTTP bridge to Python service
-```typescript
-// services/ai.client.ts
-import axios, { AxiosInstance } from "axios";
-import FormData from "form-data";
-import { logger } from "../lib/logger";
+## MongoDB connection
+`connectWithRetry` in `src/index.ts` retries up to 10 times with exponential backoff.
 
-const aiClient: AxiosInstance = axios.create({
-  baseURL: process.env.AI_SERVICE_URL,        // http://localhost:8000 or railway internal
-  timeout: 120_000,                            // AI batches can take up to 2 min
-  headers: { "Content-Type": "application/json" },
-});
+> **VPN caveat**: MongoDB SRV connection strings (`mongodb+srv://`) may fail behind corporate VPN. Use the direct multi-host form: `mongodb://user:pass@host1:27017,host2:27017,host3:27017/umurava?authSource=admin`.
 
-aiClient.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    logger.error({ err: err.response?.data ?? err.message }, "ai_service_error");
-    return Promise.reject(err);
-  }
-);
+## Gemini service — `src/services/gemini.service.ts`
+Two modes:
 
-export interface ScreeningRequest {
-  run_id: string;
-  job: object;               // full job document (lean)
-  applicants: object[];      // { _id, parsed_profile }[]
-}
-
-export interface RankedResult {
-  applicant_id: string;
-  rank: number;
-  composite_score: number;
-  dimension_scores: {
-    skills: number;
-    experience: number;
-    education: number;
-    cultural_fit: number;
-  };
-  strengths: string[];
-  gaps: string[];
-  recommendation: "Strong hire" | "Consider" | "Reject";
-}
-
-export async function runAiScreening(
-  req: ScreeningRequest
-): Promise<{ run_id: string; results: RankedResult[] }> {
-  const { data } = await aiClient.post("/screening/run", req);
-  return data;
-}
-
-export async function normalisePdf(buffer: Buffer, filename: string): Promise<object> {
-  const form = new FormData();
-  form.append("file", buffer, { filename, contentType: "application/pdf" });
-  const { data } = await aiClient.post("/normalise/pdf", form, {
-    headers: form.getHeaders(),
-  });
-  return data;   // ParsedProfile
-}
-
-export async function normaliseText(text: string): Promise<object> {
-  const { data } = await aiClient.post("/normalise/text", { text });
-  return data;   // ParsedProfile
-}
-```
-
-## Ingestion service — CSV locally, PDF → Python
-```typescript
-// services/ingestion.service.ts
-import Papa from "papaparse";
-import { normalisePdf } from "./ai.client";
-import { AppError } from "../lib/errors";
-
-export async function parsePDF(buffer: Buffer, filename: string): Promise<ParsedProfile> {
-  // Delegate to Python AI service — pdfplumber handles multi-column resumes
-  return (await normalisePdf(buffer, filename)) as ParsedProfile;
-}
-
-export function parseCSV(buffer: Buffer): ParsedProfile[] {
-  // CSV is deterministic — no AI needed
-  const text = buffer.toString("utf-8");
-  const { data, errors } = Papa.parse<Record<string, string>>(text, {
-    header: true,
-    skipEmptyLines: true,
-  });
-  if (errors.length) {
-    throw new AppError("CSV_PARSE_ERROR", errors[0].message);
-  }
-  return data.map(mapRowToProfile);
-}
-
-function mapRowToProfile(row: Record<string, string>): ParsedProfile {
-  return {
-    name: row["Full Name"] ?? row["name"] ?? "Unknown",
-    skills: (row["Skills"] ?? "").split(",").map(s => s.trim()).filter(Boolean),
-    experience_years: parseInt(row["Years of Experience"] ?? "0", 10),
-    education: row["Education"] ?? "",
-    summary: row["Summary"] ?? "",
-  };
-}
-
-interface ParsedProfile {
-  name: string;
-  skills: string[];
-  experience_years: number;
-  education: string;
-  summary: string;
-}
-```
-
-## Screening queue
-```typescript
-// queue/screening.queue.ts
-import { Queue } from "bullmq";
-import { redis } from "../lib/redis";
-
-export const screeningQueue = new Queue("screening", { connection: redis });
-```
+1. **JSON mode** (`callGeminiWithRetry` / `aiGenerate`): Routes to Python AI service if `AI_SERVICE_URL` is set, falls back to in-process SDK. Used for batch screening.
+2. **Plain-text mode** (`generatePlainText`): For conversational AI chat responses. Tries Python service first, falls back to in-process SDK. Retries up to 2 times.
 
 ```typescript
-// queue/screening.processor.ts  (runs in worker.ts)
-import { Worker } from "bullmq";
-import { redis } from "../lib/redis";
-import { runAiScreening } from "../services/ai.client";
-import { Job, Applicant, ScreeningRun, ScreeningResult } from "../../packages/db";
-import { logger } from "../lib/logger";
-
-new Worker("screening", async (queueJob) => {
-  const { runId, jobId } = queueJob.data as { runId: string; jobId: string };
-
-  try {
-    await ScreeningRun.findByIdAndUpdate(runId, { status: "running" });
-
-    // Gather payload for the Python AI service
-    const [job, applicants] = await Promise.all([
-      Job.findById(jobId).lean(),
-      Applicant.find({ job_id: jobId }).lean(),
-    ]);
-    if (!job) throw new Error("Job not found");
-
-    await queueJob.updateProgress(10);
-
-    // One HTTP call to Python — Python handles batching internally
-    const { results } = await runAiScreening({
-      run_id: runId,
-      job,
-      applicants: applicants.map(a => ({ _id: a._id, parsed_profile: a.parsed_profile })),
-    });
-
-    await queueJob.updateProgress(90);
-
-    // Persist ranked results
-    await ScreeningResult.insertMany(
-      results.map(r => ({
-        screening_run_id: runId,
-        job_id: jobId,
-        applicant_id: r.applicant_id,
-        rank: r.rank,
-        composite_score: r.composite_score,
-        dimension_scores: r.dimension_scores,
-        reasoning: {
-          strengths: r.strengths,
-          gaps: r.gaps,
-          recommendation: r.recommendation,
-        },
-        model_version: "gemini-1.5-flash",
-      })),
-      { ordered: false }
-    );
-
-    await ScreeningRun.findByIdAndUpdate(runId, {
-      status: "complete",
-      completed_at: new Date(),
-    });
-    await queueJob.updateProgress(100);
-
-    logger.info({ runId, count: results.length }, "screening_complete");
-  } catch (err) {
-    logger.error({ err, runId }, "screening_failed");
-    await ScreeningRun.findByIdAndUpdate(runId, {
-      status: "failed",
-      error_message: err instanceof Error ? err.message : String(err),
-    });
-    throw err;   // let BullMQ mark the job failed
-  }
-}, { connection: redis, concurrency: 2 });
+export const generatePlainText = async (prompt: string, timeoutMs = 20_000, retries = 2): Promise<string>
 ```
 
-## Validation middleware
+## AI chat endpoint — `POST /screenings/:id/ai-chat`
+Handler: `candidateAiChat` in `screening.controller.ts`
+
+Body schema:
 ```typescript
-// middleware/validate.ts
-import { ZodSchema } from "zod";
-import { Request, Response, NextFunction } from "express";
-
-export const validate = (schema: ZodSchema) =>
-  (req: Request, res: Response, next: NextFunction) => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        data: null,
-        error: { code: "VALIDATION_ERROR", message: result.error.message },
-      });
-    }
-    req.body = result.data;
-    next();
-  };
-```
-
-## Screening status endpoint
-```typescript
-// routes/screenings.ts
-router.get("/:runId/status", async (req, res) => {
-  const run = await ScreeningRun.findById(req.params.runId).lean();
-  if (!run) {
-    return res.status(404).json({ data: null, error: { code: "NOT_FOUND" } });
-  }
-
-  const queueJob = await screeningQueue.getJob(run.queue_job_id);
-  const progress = typeof queueJob?.progress === "number" ? queueJob.progress : 0;
-
-  res.json({ data: { status: run.status, progress, runId: run._id } });
-});
-```
-
-## Error class + handler
-```typescript
-// lib/errors.ts
-export class AppError extends Error {
-  constructor(public code: string, message: string, public statusCode = 400) {
-    super(message);
-  }
+{
+  candidateId: string;        // Applicant MongoDB _id
+  message: string;            // max 2000 chars
+  history?: Array<{ role: "user" | "model"; content: string }>;  // max 40 entries
 }
-
-// middleware/error.ts
-import { AppError } from "../lib/errors";
-
-export const errorHandler = (err: unknown, _req, res, _next) => {
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      data: null, error: { code: err.code, message: err.message }
-    });
-  }
-  logger.error(err);
-  res.status(500).json({
-    data: null,
-    error: { code: "INTERNAL", message: "Server error" }
-  });
-};
 ```
+
+Flow:
+1. Validates screening exists + is completed + belongs to recruiter
+2. Fetches applicant by `_id` to resolve `profile.id`
+3. Finds candidate in `allResults` or `shortlist` by matching `profile.id` to `candidateId`
+4. Fetches HR decision from `recruiterDecisions[candidateId]`
+5. Builds multi-section context prompt (job requirements, scores, strengths, gaps, HR decision, conversation history)
+6. Calls `generatePlainText(prompt, 20_000)`, returns `{ reply: string }`
+
+Rate-limited to 30 requests/minute.
+
+## HR vs AI confusion matrix — `dashboard.controller.ts`
+Classifies each candidate in completed screenings that have `recruiterDecisions`:
+- **TP**: AI recommended (yes/maybe) AND HR approved
+- **FP**: AI recommended AND HR rejected
+- **FN**: AI did NOT recommend AND HR approved
+- **TN**: AI did NOT recommend AND HR rejected
+
+**ID resolution**: `results.shortlist[n].candidateId` stores `profile.id` (Umurava platform string), while `recruiterDecisions` is keyed by Applicant MongoDB `_id`. The controller fetches all relevant applicants and builds a `Map<profileId, { mongoId, name }>` join to resolve this.
+
+## Request validation
+Fastify schema-based validation + Zod for body parsing. `z.parse()` throws typed errors caught by the global error handler.
+
+## Rate limits (via `@fastify/rate-limit`)
+- `POST /screenings/run` — 5/hour
+- `POST /screenings/run-for-job` — 10/hour
+- `POST /screenings/platform` — 10/hour
+- `POST /screenings/external` — 10/hour
+- `POST /screenings/:id/ai-chat` — 30/minute
 
 ## Do not
-- No business logic in route handlers — routes call services only
-- No `any` type — use `unknown` with narrowing or proper types
+- No business logic in route handlers — routes call controllers → services
+- No `any` type — use `unknown` with narrowing
 - Never loop with `await` when batch processing — use `Promise.all` with chunking
-- Never call Gemini directly from Node — always go through `ai.client.ts`
-- Never expose `AI_SERVICE_URL` to the frontend — it's an internal-only URL
-- File uploads go to memory storage, not disk — process buffer and discard
-- Never store `GEMINI_API_KEY` in this service's env vars — it lives only on Python
+- Never expose `AI_SERVICE_URL` to the frontend
+- File uploads go to memory storage, not disk
+- Never store `GEMINI_API_KEY` in frontend env vars

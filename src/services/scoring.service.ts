@@ -1,4 +1,4 @@
-import type { CandidateResult } from "../types";
+import type { CandidateResult, PlatformCandidateResult, PlatformScoringBreakdown } from "../types";
 
 export const AI_SCORING_WEIGHTS = {
   skillsMatch: 0.4,
@@ -20,6 +20,27 @@ export const computeWeightedScore = (candidate: CandidateResult): number => {
 };
 
 export const sortAndRankCandidates = (results: CandidateResult[]): CandidateResult[] => {
+  return results
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+};
+
+export const sumPlatformBreakdown = (b: PlatformScoringBreakdown): number => {
+  const raw =
+    b.skillsMatch + b.experience + b.education + b.roleRelevance + b.additionalAssets;
+  return Math.min(100, Number(raw.toFixed(2)));
+};
+
+/** Reconcile Gemini totalScore with breakdown caps. */
+export const normalizePlatformCandidateScores = (item: PlatformCandidateResult): PlatformCandidateResult => {
+  const sum = sumPlatformBreakdown(item.scoreBreakdown);
+  return {
+    ...item,
+    totalScore: sum,
+  };
+};
+
+export const sortAndRankPlatformCandidates = (results: PlatformCandidateResult[]): PlatformCandidateResult[] => {
   return results
     .sort((a, b) => b.totalScore - a.totalScore)
     .map((item, index) => ({ ...item, rank: index + 1 }));

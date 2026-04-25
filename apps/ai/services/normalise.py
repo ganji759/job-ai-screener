@@ -14,7 +14,11 @@ def _extract_json(text: str) -> str:
 
 
 async def gemini_normalise(raw_text: str) -> ParsedProfile:
-    prompt = build_normalise_prompt(raw_text[:8000])  # token budget
+    # Token budget: most resumes fit in 24k chars; anything longer is almost certainly noise.
+    # The earlier 8k cap was truncating real resumes mid-Work-Experience, which is why
+    # `experience[]` and `education[]` came back empty.
+    trimmed = raw_text[:24000]
+    prompt = build_normalise_prompt(trimmed)
     model = get_model()
     loop = asyncio.get_event_loop()
 
