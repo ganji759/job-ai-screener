@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Bot, Check, Crown, Download, Loader2, RefreshCw, TriangleAlert, UserRound } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronUp, Crown, Download, Loader2, RefreshCw, TriangleAlert, UserRound } from "lucide-react";
 import {
   useExportScreeningMutation,
   useGetScreeningResultsQuery,
@@ -172,6 +172,7 @@ export default function ScreeningDetailPage() {
   const [runScreening] = useRunScreeningMutation();
   const [saveRecruiterDecisions, { isLoading: savingDecision }] = useSaveRecruiterDecisionsMutation();
   const [shortlistSize, setShortlistSize] = useState<10 | 20>(10);
+  const [showExtended, setShowExtended] = useState(false);
   const [decisions, setDecisions] = useState<Record<string, SavedRecruiterDecision>>({});
   const [confirmModal, setConfirmModal] = useState<ConfirmModal>(null);
   const [hrNoteDraft, setHrNoteDraft] = useState("");
@@ -480,175 +481,264 @@ export default function ScreeningDetailPage() {
             <AcceptanceOutreachPanel screeningId={screeningId} jobTitle={job?.title} approved={approvedForOutreach} />
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {candidates.map(({ candidate, applicant, embedded }) => {
-              const id = candidate.candidateId;
-              const rankStyle = getRankStyle(candidate.rank);
-              const saved = decisions[id];
-              const decision = saved?.decision;
-              const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
-              const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
-              const fullName = `${first} ${last}`.trim();
-              const email = candidate.email || applicant?.profile.email || "—";
-              const pts = candidate.scoreBreakdownPoints;
-
-              return (
-                <Card key={id} className={`border-l-4 ${rankStyle.border} ${rankStyle.bg} p-5 shadow-sm`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-sm font-bold text-white`}>
+          {/* Compact shortlist pool table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[480px] text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200">
+                  <th className="px-4 py-3 w-16">Rank</th>
+                  <th className="px-4 py-3">Candidate</th>
+                  <th className="px-4 py-3 w-48">Score</th>
+                  <th className="px-4 py-3 w-32">AI verdict</th>
+                  <th className="px-4 py-3 w-28">HR status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {candidates.map(({ candidate, applicant, embedded }) => {
+                  const id = candidate.candidateId;
+                  const rankStyle = getRankStyle(candidate.rank);
+                  const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
+                  const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
+                  const fullName = `${first} ${last}`.trim();
+                  const email = candidate.email || applicant?.profile.email || "—";
+                  const saved = decisions[id];
+                  return (
+                    <tr key={id} className="transition-colors hover:bg-slate-50/70">
+                      <td className="px-4 py-3">
+                        <div className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-xs font-bold text-white`}>
                           #{candidate.rank}
                         </div>
-                        <div className="absolute -right-1 -top-1">{rankStyle.icon}</div>
-                      </div>
-                      <div>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <UserRound className="h-5 w-5 text-brand-600" />
-                          <h3 className="text-lg font-semibold text-slate-900">{fullName}</h3>
+                          <UserRound className="h-4 w-4 shrink-0 text-brand-500" />
+                          <div>
+                            <p className="font-semibold text-slate-900">{fullName}</p>
+                            <p className="text-xs text-slate-500">{email}</p>
+                          </div>
                         </div>
-                        <p className="mt-1 text-sm text-slate-600">{email}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <ScoreBar value={candidate.totalScore} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          String(candidate.recommendation).toLowerCase().includes("strong") || String(candidate.recommendation).toLowerCase().includes("yes")
+                            ? "bg-emerald-100 text-emerald-800"
+                            : String(candidate.recommendation).toLowerCase() === "maybe"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-red-100 text-red-800"
+                        }`}>
+                          {candidate.recommendation || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {saved ? (
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
+                            saved.decision === "approved" ? "bg-emerald-100 text-emerald-800" :
+                            saved.decision === "rejected" ? "bg-red-100 text-red-800" :
+                            "bg-slate-100 text-slate-700"
+                          }`}>
+                            {saved.decision}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Extend / collapse toggle */}
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setShowExtended((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-5 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-brand-100 hover:border-brand-300"
+            >
+              {showExtended ? (
+                <><ChevronUp className="h-4 w-4" /> Collapse results</>
+              ) : (
+                <><ChevronDown className="h-4 w-4" /> Extend results</>
+              )}
+            </button>
+          </div>
+
+          {/* Extended detailed cards */}
+          {showExtended && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {candidates.map(({ candidate, applicant, embedded }) => {
+                const id = candidate.candidateId;
+                const rankStyle = getRankStyle(candidate.rank);
+                const saved = decisions[id];
+                const decision = saved?.decision;
+                const first = embedded.firstName ?? applicant?.profile.firstName ?? "Unknown";
+                const last = embedded.lastName ?? applicant?.profile.lastName ?? "";
+                const fullName = `${first} ${last}`.trim();
+                const email = candidate.email || applicant?.profile.email || "—";
+                const pts = candidate.scoreBreakdownPoints;
+
+                return (
+                  <Card key={id} className={`border-l-4 ${rankStyle.border} ${rankStyle.bg} p-5 shadow-sm`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div className="flex items-start gap-3">
+                        <div className="relative">
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rankStyle.badge} text-sm font-bold text-white`}>
+                            #{candidate.rank}
+                          </div>
+                          <div className="absolute -right-1 -top-1">{rankStyle.icon}</div>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <UserRound className="h-5 w-5 text-brand-600" />
+                            <h3 className="text-lg font-semibold text-slate-900">{fullName}</h3>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-600">{email}</p>
+                        </div>
+                      </div>
+                      <div className="min-w-[140px]">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overall score</p>
+                        <ScoreBar value={candidate.totalScore} />
                       </div>
                     </div>
-                    <div className="min-w-[140px]">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overall score</p>
-                      <ScoreBar value={candidate.totalScore} />
-                    </div>
-                  </div>
 
-                  <div className="mt-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score breakdown</p>
-                    {pts ? (
-                      <>
-                        <PillarBar label="Skills match (max 35)" value={pts.skillsMatch} max={35} />
-                        <PillarBar label="Experience (max 25)" value={pts.experience} max={25} />
-                        <PillarBar label="Education (max 15)" value={pts.education} max={15} />
-                        <PillarBar label="Role relevance (max 15)" value={pts.roleRelevance} max={15} />
-                        <PillarBar label="Additional assets (max 10)" value={pts.additionalAssets} max={10} />
-                      </>
-                    ) : (
-                      <>
-                        <PercentBar label="Skills match" value={candidate.breakdown.skillsMatch} />
-                        <PercentBar label="Experience" value={candidate.breakdown.experienceMatch} />
-                        <PercentBar label="Education" value={candidate.breakdown.educationMatch} />
-                        <PercentBar label="Culture / relevance" value={candidate.breakdown.culturalFit} />
-                      </>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {(candidate.strengths ?? []).slice(0, 8).map((s) => (
-                      <span key={s} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-100">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(candidate.gaps ?? []).slice(0, 6).map((g) => (
-                      <span key={g} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-900 ring-1 ring-red-100">
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-
-                  {candidate.relevanceSummary ? (
-                    <p className="mt-4 text-sm leading-relaxed text-slate-700">{candidate.relevanceSummary}</p>
-                  ) : null}
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3 dark:border-violet-800/50 dark:bg-violet-950/30">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-violet-800 dark:text-violet-200">AI decision</p>
-                      <p className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {candidate.recommendation || "—"}
-                      </p>
-                      {candidate.hiringRisk ? (
-                        <p className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${hiringRiskBadgeClass(candidate.hiringRisk)}`}>
-                          Hiring risk: {candidate.hiringRisk}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-800/50">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Your HR decision</p>
-                      {saved ? (
-                        <div className="mt-1.5 space-y-1.5 text-sm text-slate-800 dark:text-slate-200">
-                          <p>
-                            <span className="font-semibold capitalize text-brand-800 dark:text-brand-200">{saved.decision}</span>
-                            {saved.decidedAt ? (
-                              <span className="ml-1.5 text-xs font-normal text-slate-500">
-                                · {new Date(saved.decidedAt).toLocaleString()}
-                              </span>
-                            ) : null}
-                          </p>
-                          {saved.hrNote ? (
-                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                              {saved.hrNote}
-                            </p>
-                          ) : saved.decision === "review" ? (
-                            <p className="text-xs italic text-slate-500">No note (review queue only)</p>
-                          ) : null}
-                          {saved.decision === "approved" && saved.congratsEmailSentAt ? (
-                            <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                              Congratulations email sent {new Date(saved.congratsEmailSentAt).toLocaleString()}.
-                            </p>
-                          ) : null}
-                          {saved.decision === "rejected" ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {saved.rejectionEmailSentAt
-                                ? `Standard rejection email sent ${new Date(saved.rejectionEmailSentAt).toLocaleString()}.`
-                                : "If an email address is on file, a standard rejection email is sent automatically when you save this decision."}
-                            </p>
-                          ) : null}
-                        </div>
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score breakdown</p>
+                      {pts ? (
+                        <>
+                          <PillarBar label="Skills match (max 35)" value={pts.skillsMatch} max={35} />
+                          <PillarBar label="Experience (max 25)" value={pts.experience} max={25} />
+                          <PillarBar label="Education (max 15)" value={pts.education} max={15} />
+                          <PillarBar label="Role relevance (max 15)" value={pts.roleRelevance} max={15} />
+                          <PillarBar label="Additional assets (max 10)" value={pts.additionalAssets} max={10} />
+                        </>
                       ) : (
-                        <p className="mt-1.5 text-sm text-slate-500">Select an action below and confirm with your note.</p>
+                        <>
+                          <PercentBar label="Skills match" value={candidate.breakdown.skillsMatch} />
+                          <PercentBar label="Experience" value={candidate.breakdown.experienceMatch} />
+                          <PercentBar label="Education" value={candidate.breakdown.educationMatch} />
+                          <PercentBar label="Culture / relevance" value={candidate.breakdown.culturalFit} />
+                        </>
                       )}
                     </div>
-                  </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-700">
-                    <Button
-                      variant={decision === "approved" ? "primary" : "secondary"}
-                      size="sm"
-                      type="button"
-                      onClick={() => openDecisionModal(id, fullName, "approved", String(candidate.recommendation ?? "—"))}
-                    >
-                      <Check className="mr-1 h-3.5 w-3.5" /> Accept
-                    </Button>
-                    <Button
-                      variant={decision === "rejected" ? "danger" : "secondary"}
-                      size="sm"
-                      type="button"
-                      onClick={() => openDecisionModal(id, fullName, "rejected", String(candidate.recommendation ?? "—"))}
-                    >
-                      <TriangleAlert className="mr-1 h-3.5 w-3.5" /> Reject
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => setAiChatTarget({
-                        candidateId: id,
-                        candidateName: fullName,
-                        aiRecommendation: String(candidate.recommendation ?? "—"),
-                        totalScore: candidate.totalScore,
-                      })}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 hover:border-violet-400"
-                    >
-                      <Bot className="h-3.5 w-3.5" /> Talk to AI
-                    </button>
-                    <span className="self-center text-[11px] text-slate-500">Status: {decision ?? "pending HR decision"}</span>
-                  </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {(candidate.strengths ?? []).slice(0, 8).map((s) => (
+                        <span key={s} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-100">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(candidate.gaps ?? []).slice(0, 6).map((g) => (
+                        <span key={g} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-900 ring-1 ring-red-100">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
 
-                  <details className="mt-4 text-sm text-slate-600">
-                    <summary className="cursor-pointer font-medium text-slate-700">Full AI rationale</summary>
-                    <p className="mt-2 italic text-slate-600">{candidate.aiRecommendationFull}</p>
-                  </details>
+                    {candidate.relevanceSummary ? (
+                      <p className="mt-4 text-sm leading-relaxed text-slate-700">{candidate.relevanceSummary}</p>
+                    ) : null}
 
-                  <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    AI screening supports your decision-making; final hiring choices remain with the recruiter.
-                  </p>
-                </Card>
-              );
-            })}
-          </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3 dark:border-violet-800/50 dark:bg-violet-950/30">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-violet-800 dark:text-violet-200">AI decision</p>
+                        <p className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {candidate.recommendation || "—"}
+                        </p>
+                        {candidate.hiringRisk ? (
+                          <p className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${hiringRiskBadgeClass(candidate.hiringRisk)}`}>
+                            Hiring risk: {candidate.hiringRisk}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-800/50">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Your HR decision</p>
+                        {saved ? (
+                          <div className="mt-1.5 space-y-1.5 text-sm text-slate-800 dark:text-slate-200">
+                            <p>
+                              <span className="font-semibold capitalize text-brand-800 dark:text-brand-200">{saved.decision}</span>
+                              {saved.decidedAt ? (
+                                <span className="ml-1.5 text-xs font-normal text-slate-500">
+                                  · {new Date(saved.decidedAt).toLocaleString()}
+                                </span>
+                              ) : null}
+                            </p>
+                            {saved.hrNote ? (
+                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                {saved.hrNote}
+                              </p>
+                            ) : saved.decision === "review" ? (
+                              <p className="text-xs italic text-slate-500">No note (review queue only)</p>
+                            ) : null}
+                            {saved.decision === "approved" && saved.congratsEmailSentAt ? (
+                              <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                                Congratulations email sent {new Date(saved.congratsEmailSentAt).toLocaleString()}.
+                              </p>
+                            ) : null}
+                            {saved.decision === "rejected" ? (
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {saved.rejectionEmailSentAt
+                                  ? `Standard rejection email sent ${new Date(saved.rejectionEmailSentAt).toLocaleString()}.`
+                                  : "If an email address is on file, a standard rejection email is sent automatically when you save this decision."}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-1.5 text-sm text-slate-500">Select an action below and confirm with your note.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-700">
+                      <Button
+                        variant={decision === "approved" ? "primary" : "secondary"}
+                        size="sm"
+                        type="button"
+                        onClick={() => openDecisionModal(id, fullName, "approved", String(candidate.recommendation ?? "—"))}
+                      >
+                        <Check className="mr-1 h-3.5 w-3.5" /> Accept
+                      </Button>
+                      <Button
+                        variant={decision === "rejected" ? "danger" : "secondary"}
+                        size="sm"
+                        type="button"
+                        onClick={() => openDecisionModal(id, fullName, "rejected", String(candidate.recommendation ?? "—"))}
+                      >
+                        <TriangleAlert className="mr-1 h-3.5 w-3.5" /> Reject
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setAiChatTarget({
+                          candidateId: id,
+                          candidateName: fullName,
+                          aiRecommendation: String(candidate.recommendation ?? "—"),
+                          totalScore: candidate.totalScore,
+                        })}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 hover:border-violet-400"
+                      >
+                        <Bot className="h-3.5 w-3.5" /> Talk to AI
+                      </button>
+                      <span className="self-center text-[11px] text-slate-500">Status: {decision ?? "pending HR decision"}</span>
+                    </div>
+
+                    <details className="mt-4 text-sm text-slate-600">
+                      <summary className="cursor-pointer font-medium text-slate-700">Full AI rationale</summary>
+                      <p className="mt-2 italic text-slate-600">{candidate.aiRecommendationFull}</p>
+                    </details>
+
+                    <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                      AI screening supports your decision-making; final hiring choices remain with the recruiter.
+                    </p>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </>
       ) : null}
 
