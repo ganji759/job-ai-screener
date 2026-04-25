@@ -50,6 +50,26 @@ const generateViaInProcessSdk = async (prompt: string, timeoutMs: number): Promi
 const generateText = (prompt: string, timeoutMs: number): Promise<string> =>
   env.AI_SERVICE_URL ? aiGenerate(prompt, timeoutMs) : generateViaInProcessSdk(prompt, timeoutMs);
 
+/**
+ * Plain-text Gemini call with retry — for conversational responses that should NOT be JSON.
+ * Falls back to in-process SDK if Python service is unreachable.
+ */
+export const generatePlainText = async (prompt: string, timeoutMs = 20_000, retries = 2): Promise<string> => {
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i += 1) {
+    try {
+      const text = env.AI_SERVICE_URL
+        ? await aiGenerate(prompt, timeoutMs).catch(() => generateViaInProcessSdk(prompt, timeoutMs))
+        : await generateViaInProcessSdk(prompt, timeoutMs);
+      return text.trim();
+    } catch (err) {
+      lastErr = err;
+      if (i < retries - 1) await wait(3000 * (i + 1));
+    }
+  }
+  throw lastErr;
+};
+
 export type GeminiRetryOptions = {
   /** HTTP timeout passed to `@google/generative-ai` generateContent */
   timeoutMs?: number;

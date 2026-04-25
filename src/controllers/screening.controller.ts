@@ -7,7 +7,7 @@ import { ScreeningModel } from "../models/Screening.model";
 import { ApplicantModel } from "../models/Applicant.model";
 import { addScreeningJob, getJobStatus } from "../services/queue.service";
 import { generateExplanationsPDF, generateShortlistPDF } from "../services/export.service";
-import { compareCandidatesWithGemini, generatePoolInsights, scoreAllCandidates } from "../services/gemini.service";
+import { compareCandidatesWithGemini, generatePlainText, generatePoolInsights, scoreAllCandidates } from "../services/gemini.service";
 import {
   leanJobToJobRequirements,
   screenFromUmuravaPlatformJob,
@@ -977,5 +977,124 @@ export const exportScreeningExplanations = async (request: FastifyRequest, reply
       return void reply.code(400).send({ success: false, error: message });
     }
     return void reply.code(500).send({ success: false, error: "Unable to export screening explanations." });
+  }
+};
+
+const AiChatBodySchema = z.object({
+  candidateId: z.string().min(1),
+  message: z.string().min(1).max(2000),
+  history: z
+    .array(z.object({ role: z.enum(["user", "model"]), content: z.string() }))
+    .max(40)
+    .optional()
+    .default([]),
+});
+
+/**
+ * POST /api/v1/screenings/:id/ai-chat
+ * RAG-style chat: Gemini is given the full candidate context (scores, rationale, job requirements,
+ * HR decision) so the recruiter can interrogate a specific shortlisted candidate.
+ */
+export const candidateAiChat = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const recruiterId = request.user?.userId;
+  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+
+  const { id } = request.params as { id: string };
+  if (!Types.ObjectId.isValid(id)) return void reply.code(400).send({ error: "Invalid screening id" });
+
+  const parsed = AiChatBodySchema.safeParse(request.body ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return void reply.code(400).send({ error: first?.message ?? "Invalid request" });
+  }
+  const { candidateId, message, history } = parsed.data;
+
+  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  if (!screening || screening.status !== "completed") {
+    return void reply.code(404).send({ error: "Screening not found or not completed" });
+  }
+
+  const job = await JobModel.findById(screening.jobId).lean();
+
+  // Find the candidate in shortlist (falls back to allResults)
+  const results = screening.results as {
+    shortlist?: Array<Record<string, unknown>>;
+    allResults?: Array<Record<string, unknown>>;
+  };
+  const pool = (Array.isArray(results?.allResults) && results.allResults.length
+    ? results.allResults
+    : results?.shortlist) ?? [];
+
+  // Match by MongoDB _id (the key used by recruiterDecisions / frontend) via applicant lookup
+  const applicant = await ApplicantModel.findById(candidateId)
+    .select("profile")
+    .lean();
+
+  const profileId = applicant
+    ? String((applicant.profile as { id?: string }).id ?? candidateId)
+    : candidateId;
+
+  const candidate = pool.find((c) => String(c.candidateId ?? "") === profileId) as Record<string, unknown> | undefined;
+
+  const rd = screening.recruiterDecisions as Record<string, unknown> | undefined;
+  const hrEntry = rd?.[candidateId] as { decision?: string; hrNote?: string } | undefined;
+
+  const name = applicant
+    ? `${String((applicant.profile as { firstName?: string }).firstName ?? "")} ${String((applicant.profile as { lastName?: string }).lastName ?? "")}`.trim()
+    : "the candidate";
+
+  const jobTitle = String(job?.title ?? "the role");
+  const jobReqs = job?.requirements as {
+    mustHaveSkills?: string[];
+    niceToHaveSkills?: string[];
+    minExperienceYears?: number;
+    educationLevel?: string;
+    description?: string;
+  } | undefined;
+
+  // Build system context
+  const ctx = [
+    `You are an expert HR advisor helping a recruiter evaluate a candidate for the role: **${jobTitle}**.`,
+    ``,
+    `## Job Requirements`,
+    jobReqs?.description ? `Description: ${jobReqs.description.slice(0, 600)}` : "",
+    `Must-have skills: ${(jobReqs?.mustHaveSkills ?? []).join(", ") || "not specified"}`,
+    `Nice-to-have: ${(jobReqs?.niceToHaveSkills ?? []).join(", ") || "none"}`,
+    `Min experience: ${jobReqs?.minExperienceYears ?? "not specified"} years`,
+    `Education: ${jobReqs?.educationLevel ?? "not specified"}`,
+    ``,
+    `## Candidate: ${name}`,
+    candidate
+      ? [
+          `Overall score: ${String(candidate.totalScore ?? candidate.composite_score ?? "N/A")}/100`,
+          `AI recommendation: ${String(candidate.recommendation ?? "N/A")}`,
+          `Strengths: ${(candidate.strengths as string[] | undefined ?? []).join("; ")}`,
+          `Gaps: ${(candidate.gaps as string[] | undefined ?? []).join("; ")}`,
+          candidate.relevanceSummary ? `AI rationale: ${String(candidate.relevanceSummary).slice(0, 500)}` : "",
+          candidate.hiringRisk ? `Hiring risk: ${String(candidate.hiringRisk)}` : "",
+        ].filter(Boolean).join("\n")
+      : "Candidate scoring data not found in this screening.",
+    ``,
+    hrEntry?.decision
+      ? `## HR Decision\nThe recruiter has marked this candidate as: **${hrEntry.decision}**${hrEntry.hrNote ? `\nHR note: "${hrEntry.hrNote}"` : ""}.`
+      : "## HR Decision\nNo HR decision recorded yet.",
+    ``,
+    `Answer the recruiter's questions concisely and honestly. If asked about the candidate's fit, reference the scores and AI rationale. You may give a direct opinion but always remind the recruiter that the final decision is theirs.`,
+  ].filter((l) => l !== undefined).join("\n");
+
+  // Build conversation turns for Gemini
+  const turns = [
+    ...(history ?? []).map((h) => `${h.role === "user" ? "Recruiter" : "AI"}: ${h.content}`),
+    `Recruiter: ${message}`,
+  ].join("\n\n");
+
+  const prompt = `${ctx}\n\n---\n\n${turns}\n\nAI:`;
+
+  try {
+    const replyText = await generatePlainText(prompt, 20_000);
+    reply.send({ reply: replyText });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    reply.code(500).send({ error: `AI chat failed: ${msg.slice(0, 200)}` });
   }
 };
