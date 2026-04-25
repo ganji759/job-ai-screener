@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Check, Crown, Download, Loader2, RefreshCw, Sparkles, TriangleAlert, UserRound } from "lucide-react";
+import { Bot, Check, Crown, Download, Loader2, RefreshCw, TriangleAlert, UserRound } from "lucide-react";
 import {
   useExportScreeningMutation,
   useGetScreeningResultsQuery,
@@ -21,6 +21,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import type { Applicant } from "../../../../types";
 import { AcceptanceOutreachPanel } from "../../../../components/screenings/AcceptanceOutreachPanel";
+import { AiChatModal } from "../../../../components/screenings/AiChatModal";
 
 type Decision = "approved" | "rejected" | "review";
 
@@ -174,6 +175,9 @@ export default function ScreeningDetailPage() {
   const [decisions, setDecisions] = useState<Record<string, SavedRecruiterDecision>>({});
   const [confirmModal, setConfirmModal] = useState<ConfirmModal>(null);
   const [hrNoteDraft, setHrNoteDraft] = useState("");
+  const [aiChatTarget, setAiChatTarget] = useState<{
+    candidateId: string; candidateName: string; aiRecommendation: string; totalScore: number;
+  } | null>(null);
 
   /** Server decisions win when any exist; else hydrate from local storage (pre-server saves). */
   useEffect(() => {
@@ -618,14 +622,18 @@ export default function ScreeningDetailPage() {
                     >
                       <TriangleAlert className="mr-1 h-3.5 w-3.5" /> Reject
                     </Button>
-                    <Button
-                      variant={decision === "review" ? "primary" : "secondary"}
-                      size="sm"
+                    <button
                       type="button"
-                      onClick={() => openDecisionModal(id, fullName, "review", String(candidate.recommendation ?? "—"))}
+                      onClick={() => setAiChatTarget({
+                        candidateId: id,
+                        candidateName: fullName,
+                        aiRecommendation: String(candidate.recommendation ?? "—"),
+                        totalScore: candidate.totalScore,
+                      })}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 hover:border-violet-400"
                     >
-                      <Sparkles className="mr-1 h-3.5 w-3.5" /> Review
-                    </Button>
+                      <Bot className="h-3.5 w-3.5" /> Talk to AI
+                    </button>
                     <span className="self-center text-[11px] text-slate-500">Status: {decision ?? "pending HR decision"}</span>
                   </div>
 
@@ -694,6 +702,18 @@ export default function ScreeningDetailPage() {
           </div>
         ) : null}
       </Modal>
+
+      {aiChatTarget && (
+        <AiChatModal
+          screeningId={screeningId}
+          candidateId={aiChatTarget.candidateId}
+          candidateName={aiChatTarget.candidateName}
+          aiRecommendation={aiChatTarget.aiRecommendation}
+          totalScore={aiChatTarget.totalScore}
+          jobTitle={job?.title ?? "this role"}
+          onClose={() => setAiChatTarget(null)}
+        />
+      )}
     </div>
   );
 }

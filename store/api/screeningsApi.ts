@@ -266,6 +266,23 @@ export const screeningsApi = baseApi.injectEndpoints({
       query: () => ({ url: "/dashboard/analytics", method: "get" }),
       providesTags: ["Dashboard"],
     }),
+
+    /** POST /api/v1/screenings/:id/ai-chat — RAG chat about a specific shortlisted candidate */
+    candidateAiChat: builder.mutation<
+      { reply: string },
+      {
+        screeningId: string;
+        candidateId: string;
+        message: string;
+        history?: Array<{ role: "user" | "model"; content: string }>;
+      }
+    >({
+      query: ({ screeningId, candidateId, message, history }) => ({
+        url: `/screenings/${screeningId}/ai-chat`,
+        method: "post",
+        data: { candidateId, message, history: history ?? [] },
+      }),
+    }),
   }),
 });
 
@@ -288,4 +305,5 @@ export const {
   useDeleteScreeningMutation,
   useSubmitFeedbackMutation,
   useGetDashboardAnalyticsQuery,
+  useCandidateAiChatMutation,
 } = screeningsApi;
