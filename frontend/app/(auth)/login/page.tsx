@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,31 @@ import { setToken } from "../../../lib/auth";
 const schema = z.object({ email: z.email(), password: z.string().min(1) });
 type FormValues = z.infer<typeof schema>;
 
+const LOGIN_LINE_1 = "Umurava AI HR";
+const LOGIN_LINE_2 = "Screen smarter, rank faster, and hire with confidence.";
+const LOGIN_LINE_3 = "Your recruiter workspace is ready.";
+const LOGIN_BULLET_1 = "Multi-candidate AI scoring with transparent insights";
+const LOGIN_BULLET_2 = "Secure recruiter access with OTP-ready architecture";
+
+function useTypewriter(text: string, delayMs: number) {
+  const [display, setDisplay] = useState("");
+
+  useEffect(() => {
+    let cursor = 0;
+    const starter = window.setTimeout(() => {
+      const timer = window.setInterval(() => {
+        cursor += 1;
+        setDisplay(text.slice(0, cursor));
+        if (cursor >= text.length) window.clearInterval(timer);
+      }, 18);
+    }, delayMs);
+
+    return () => window.clearTimeout(starter);
+  }, [text, delayMs]);
+
+  return display;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [login, { isLoading }] = useLoginMutation();
@@ -25,6 +50,11 @@ export default function LoginPage() {
   const [pendingEmail, setPendingEmail] = useState("");
   const [otpStep, setOtpStep] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const heroLine1 = useTypewriter(LOGIN_LINE_1, 80);
+  const heroLine2 = useTypewriter(LOGIN_LINE_2, 520);
+  const heroLine3 = useTypewriter(LOGIN_LINE_3, 980);
+  const heroBullet1 = useTypewriter(LOGIN_BULLET_1, 1400);
+  const heroBullet2 = useTypewriter(LOGIN_BULLET_2, 1780);
 
   const onSubmit = async (values: FormValues) => {
     setFeedback(null);
@@ -124,20 +154,20 @@ export default function LoginPage() {
             <Sparkles className="h-4 w-4 text-sky-200" />
             AI-Powered Talent Intelligence
           </div>
-          <h1 className="text-5xl font-bold leading-tight tracking-tight">
-            Umurava <span className="text-sky-100">AI HR</span>
-          </h1>
+          <h1 className="text-5xl font-bold leading-tight tracking-tight">{heroLine1}</h1>
           <p className="mt-4 max-w-lg text-base text-white/90">
-            Screen smarter, rank faster, and hire with confidence. Your recruiter workspace is ready.
+            {heroLine2}
+            <br />
+            {heroLine3}
           </p>
           <div className="mt-8 space-y-3">
             <div className="flex items-center gap-3 text-white/90">
               <BrainCircuit className="h-5 w-5 shrink-0 text-sky-200" />
-              Multi-candidate AI scoring with transparent insights
+              {heroBullet1}
             </div>
             <div className="flex items-center gap-3 text-white/90">
               <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-200" />
-              Secure recruiter access with OTP-ready architecture
+              {heroBullet2}
             </div>
           </div>
         </motion.div>

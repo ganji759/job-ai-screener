@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
-const PROTECTED_PREFIXES = ["/dashboard", "/jobs", "/applicants", "/screenings", "/analytics", "/profile", "/notifications", "/settings"];
+const PROTECTED_PREFIXES = ["/dashboard", "/reports", "/jobs", "/applicants", "/screenings", "/analytics", "/profile", "/notifications", "/settings"];
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;

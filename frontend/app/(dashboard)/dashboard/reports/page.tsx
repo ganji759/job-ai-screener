@@ -3,8 +3,6 @@
 import { useMemo, useState } from "react";
 import { Download, FileBarChart2, Search } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { useGetApplicantsQuery } from "../../../../store/api/applicantsApi";
 import { useGetJobsQuery } from "../../../../store/api/jobsApi";
 import { useGetDashboardAnalyticsQuery } from "../../../../store/api/screeningsApi";
@@ -107,22 +105,9 @@ export default function ReportsPage() {
       : "No completed screenings yet";
 
   const exportToPDF = async () => {
-    const element = document.getElementById("report-content");
-    if (!element) return;
+    setIsExporting(true);
     try {
-      setIsExporting(true);
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#111827" });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = 210;
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.setFontSize(20);
-      pdf.text("Umurava AI HR - Candidate Report", 20, 20);
-      pdf.setFontSize(10);
-      pdf.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 30);
-      pdf.addImage(imgData, "PNG", 0, 40, pdfWidth, imgHeight);
-      pdf.save(`umurava-report-${Date.now()}.pdf`);
+      window.print();
     } finally {
       setIsExporting(false);
     }
