@@ -14,8 +14,9 @@ export const registerErrorHandler = (fastify: FastifyInstance): void => {
   fastify.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     fastify.log.error({ route: request.url, method: request.method, userId: request.user?.userId, errorCode: error.code, message: error.message, stack: error.stack }, "Unhandled error");
 
-    if (error instanceof ZodError) {
-      reply.code(400).send({ error: "Validation failed", details: error.issues });
+    if (error instanceof ZodError || error?.name === "ZodError") {
+      const issues = (error as ZodError).issues ?? [];
+      reply.code(400).send({ error: "Validation failed", details: issues });
       return;
     }
     if (error instanceof JsonWebTokenError) {
