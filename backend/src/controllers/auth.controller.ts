@@ -41,7 +41,7 @@ export const register = async (request: FastifyRequest, reply: FastifyReply): Pr
     token,
     user: { id: user._id, name: user.name, email: user.email, role: user.role },
     otpSent,
-    warning: otpSent ? undefined : "Account created, but OTP email was not delivered. Check SMTP TLS settings.",
+    warning: otpSent ? undefined : "Account created, but OTP email was not delivered. Please try again later.",
   });
 };
 
@@ -57,7 +57,7 @@ export const login = async (request: FastifyRequest, reply: FastifyReply): Promi
     await issueOtp(String(user._id), user.email, "login_2fa");
   } catch {
     return void reply.code(503).send({
-      error: "OTP email could not be sent. Please verify SMTP configuration and try again.",
+      error: "OTP email could not be sent. Please try again later.",
     });
   }
   reply.send({ requiresOtp: true, message: "OTP sent to your email" });
@@ -91,7 +91,7 @@ export const sendOtp = async (request: FastifyRequest, reply: FastifyReply): Pro
     await issueOtp(String(user._id), user.email, body.purpose);
   } catch {
     return void reply.code(503).send({
-      error: "OTP email could not be sent. Please verify SMTP configuration and try again.",
+      error: "OTP email could not be sent. Please try again later.",
     });
   }
   reply.send({ sent: true });
