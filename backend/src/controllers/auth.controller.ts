@@ -5,6 +5,7 @@ import { env } from "../config/env";
 import { UserModel } from "../models/User.model";
 import { issueOtp, verifyOtp } from "../services/otp.service";
 import { notifyUser } from "../services/notification.service";
+import { logger } from "../utils/logger";
 
 const RegisterSchema = z.object({ name: z.string().min(2), email: z.string().email(), password: z.string().min(8) }).strip();
 const LoginSchema = z.object({ email: z.string().email(), password: z.string().min(1) }).strip();
@@ -53,14 +54,21 @@ export const login = async (request: FastifyRequest, reply: FastifyReply): Promi
   const ok = await user.comparePassword(body.password);
   if (!ok) return void reply.code(401).send({ error: "Invalid credentials" });
 
+  let otpSent = true;
   try {
     await issueOtp(String(user._id), user.email, "login_2fa");
-  } catch {
-    return void reply.code(503).send({
-      error: "OTP email could not be sent. Please try again later.",
-    });
+  } catch (err) {
+    logger.error({ err }, "login: OTP issue failed, returning JWT without 2FA");
+    otpSent = false;
   }
-  reply.send({ requiresOtp: true, message: "OTP sent to your email" });
+
+  const token = signToken(String(user._id), user.email, user.role);
+  reply.send({
+    token,
+    user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    otpSent,
+    ...(otpSent ? { requiresOtp: true } : { warning: "OTP email could not be sent. Login granted without 2FA." }),
+  });
 };
 
 export const verifyAuthOtp = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
