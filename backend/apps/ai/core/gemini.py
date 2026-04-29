@@ -11,6 +11,12 @@ import google.generativeai as genai
 
 _model: genai.GenerativeModel | None = None
 
+_GENERATION_CONFIG = genai.GenerationConfig(
+    response_mime_type="application/json",
+    temperature=0.1,
+    max_output_tokens=8192,
+)
+
 
 def init_gemini() -> None:
     global _model
@@ -23,11 +29,7 @@ def init_gemini() -> None:
     genai.configure(api_key=api_key)
     _model = genai.GenerativeModel(
         model_name=model_name,
-        generation_config=genai.GenerationConfig(
-            response_mime_type="application/json",
-            temperature=0.1,
-            max_output_tokens=8192,
-        ),
+        generation_config=_GENERATION_CONFIG,
     )
 
 
@@ -36,3 +38,10 @@ def get_model() -> genai.GenerativeModel:
         init_gemini()
     assert _model is not None
     return _model
+
+
+def make_model(model_name: str) -> genai.GenerativeModel:
+    """Create a model by name, ensuring the SDK is configured first."""
+    if _model is None:
+        init_gemini()
+    return genai.GenerativeModel(model_name=model_name, generation_config=_GENERATION_CONFIG)

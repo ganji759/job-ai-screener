@@ -8,12 +8,19 @@ from schemas import (
     Job,
     ApplicantIn,
 )
-from core.gemini import get_model
+from core.gemini import make_model
 from prompts.screen_prompt import build_screening_prompt
 from services.merger import merge_and_rank
 
 log = structlog.get_logger()
 BATCH_SIZE = 25
+
+MODELS = [
+    "gemini-2.5-flash-lite",  # primary — fast + cheap
+    "gemini-2.5-flash",        # fallback — more quota
+]
+
+_QUOTA_SIGNALS = ("429", "quota", "resource_exhausted", "rate_limit", "exhausted")
 
 
 async def run_screening(req: ScreeningRequest) -> list[RankedResult]:
@@ -51,17 +58,17 @@ async def run_screening(req: ScreeningRequest) -> list[RankedResult]:
     return ranked
 
 
-async def evaluate_batch(job: Job, batch: list[ApplicantIn]) -> list[CandidateEval]:
-    """Single Gemini call for one batch. One retry on validation failure."""
+async def _evaluate_with_model(
+    model: object, job: Job, batch: list[ApplicantIn]
+) -> list[CandidateEval]:
+    """Run one batch against a single model. One retry on validation failure."""
     profiles = [a.parsed_profile for a in batch]
     prompt = build_screening_prompt(job, profiles)
-    model = get_model()
     loop = asyncio.get_event_loop()
 
-    # Gemini SDK is sync — offload to thread pool
     for attempt in range(2):
         try:
-            response = await loop.run_in_executor(None, model.generate_content, prompt)
+            response = await loop.run_in_executor(None, model.generate_content, prompt)  # type: ignore[attr-defined]
             parsed = BatchEvalOutput.model_validate_json(response.text)
             return parsed.evaluations
         except Exception as e:
@@ -75,3 +82,20 @@ async def evaluate_batch(job: Job, batch: list[ApplicantIn]) -> list[CandidateEv
                 raise
 
     return []  # unreachable but satisfies type checker
+
+
+async def evaluate_batch(job: Job, batch: list[ApplicantIn]) -> list[CandidateEval]:
+    """Try each model in MODELS; cascade to the next on quota errors."""
+    last_error: BaseException | None = None
+    for model_name in MODELS:
+        try:
+            model = make_model(model_name)
+            return await _evaluate_with_model(model, job, batch)
+        except Exception as e:
+            if any(sig in str(e).lower() for sig in _QUOTA_SIGNALS):
+                log.warning("model_fallback", from_model=model_name, error=str(e))
+                last_error = e
+                continue
+            raise
+    assert last_error is not None
+    raise last_error
