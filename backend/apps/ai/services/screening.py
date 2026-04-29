@@ -1,4 +1,5 @@
 import asyncio
+import os
 import structlog
 from schemas import (
     ScreeningRequest,
@@ -16,8 +17,9 @@ log = structlog.get_logger()
 BATCH_SIZE = 25
 
 MODELS = [
-    "gemini-2.5-flash-lite",  # primary — fast + cheap
-    "gemini-2.5-flash",        # fallback — more quota
+    os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),  # primary from Railway
+    "gemini-2.5-flash-lite",   # fallback if primary quota exhausted
+    "gemini-2.0-flash",        # last resort
 ]
 
 _QUOTA_SIGNALS = ("429", "quota", "resource_exhausted", "rate_limit", "exhausted")
