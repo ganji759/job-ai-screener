@@ -38,10 +38,10 @@ Use this EXACT weighted rubric:
 - culturalFit (15%)
 
 Also compute:
-- mustHaveSkillsMet
-- mustHaveSkillsMissing
-- estimatedOnboardingTime
-- aiConfidenceScore
+- mustHaveSkillsMet: string[] — list the actual skill name strings from mustHaveSkills that the candidate has
+- mustHaveSkillsMissing: string[] — list the actual skill name strings from mustHaveSkills that the candidate lacks
+- estimatedOnboardingTime: string (e.g. "2 weeks", "1 month")
+- aiConfidenceScore: number 0–100
 
 Critical quality rules:
 - strengths must be exactly 3 bullet-style strings with concrete facts (skills, years, companies)
@@ -109,7 +109,11 @@ For each candidate output:
 - reasoning.recommendation: 2–3 recruiter-facing sentences (include candidate name)
 - reasoning.hiringRisk: exactly one of "Low", "Medium", "High"
 
-Also output mustHaveSkillsMet, mustHaveSkillsMissing, estimatedOnboardingTime, aiConfidenceScore (0–100).
+Also output:
+- mustHaveSkillsMet: string[] — list the actual skill name strings from mustHaveSkills that the candidate has
+- mustHaveSkillsMissing: string[] — list the actual skill name strings from mustHaveSkills that the candidate lacks
+- estimatedOnboardingTime: string (e.g. "2 weeks", "1 month")
+- aiConfidenceScore: number 0–100
 
 Return ONLY a valid JSON array (no markdown fences). Order candidates in this batch by totalScore descending.
 

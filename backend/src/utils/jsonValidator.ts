@@ -63,6 +63,13 @@ export const ZodScoringBreakdown = z.object({
   culturalFit: z.number().min(0).max(100),
 });
 
+// Gemini occasionally returns mustHaveSkills* as a count (number) instead of a string[].
+// Coerce defensively: arrays pass through, anything else becomes [].
+const zodSkillsArray = z.preprocess(
+  (v) => (Array.isArray(v) ? v : []),
+  z.array(z.string()),
+);
+
 export const ZodCandidateResult = z.object({
   candidateId: z.string(),
   rank: z.number().int().optional().default(0),
@@ -71,8 +78,8 @@ export const ZodCandidateResult = z.object({
   strengths: z.array(z.string()).min(3).max(3),
   gaps: z.array(z.string()).min(1).max(2),
   recommendation: z.string(),
-  mustHaveSkillsMet: z.array(z.string()),
-  mustHaveSkillsMissing: z.array(z.string()),
+  mustHaveSkillsMet: zodSkillsArray,
+  mustHaveSkillsMissing: zodSkillsArray,
   estimatedOnboardingTime: z.string(),
   aiConfidenceScore: z.number().min(0).max(100),
 });
@@ -243,8 +250,8 @@ export const ZodPlatformCandidateResult = z.object({
   totalScore: z.number().min(0).max(100),
   scoreBreakdown: ZodPlatformScoringBreakdown,
   reasoning: ZodPlatformReasoning,
-  mustHaveSkillsMet: z.array(z.string()),
-  mustHaveSkillsMissing: z.array(z.string()),
+  mustHaveSkillsMet: zodSkillsArray,
+  mustHaveSkillsMissing: zodSkillsArray,
   estimatedOnboardingTime: z.string(),
   aiConfidenceScore: z.number().min(0).max(100),
 });
