@@ -22,6 +22,7 @@ import Link from "next/link";
 import type { Applicant } from "../../../../types";
 import { AcceptanceOutreachPanel } from "../../../../components/screenings/AcceptanceOutreachPanel";
 import { AiChatModal } from "../../../../components/screenings/AiChatModal";
+import { AiAdvisoryModal } from "../../../../components/screenings/AiAdvisoryModal";
 
 type Decision = "approved" | "rejected" | "review";
 
@@ -179,6 +180,7 @@ export default function ScreeningDetailPage() {
   const [aiChatTarget, setAiChatTarget] = useState<{
     candidateId: string; candidateName: string; aiRecommendation: string; totalScore: number;
   } | null>(null);
+  const [aiAdvisoryOpen, setAiAdvisoryOpen] = useState(false);
 
   /** Server decisions win when any exist; else hydrate from local storage (pre-server saves). */
   useEffect(() => {
@@ -802,6 +804,37 @@ export default function ScreeningDetailPage() {
           totalScore={aiChatTarget.totalScore}
           jobTitle={job?.title ?? "this role"}
           onClose={() => setAiChatTarget(null)}
+        />
+      )}
+
+      {/* ── AI Advisory floating button ── */}
+      {isComplete && hasShortlist && !aiChatTarget ? (
+        <button
+          type="button"
+          onClick={() => setAiAdvisoryOpen((v) => !v)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-4 py-3 text-sm font-bold text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 hover:shadow-xl active:scale-95"
+          title="Open AI Advisory for the full candidate pool"
+        >
+          <Bot className="h-5 w-5" />
+          AI Advisory
+        </button>
+      ) : null}
+
+      {/* ── AI Advisory modal (cohort chat) ── */}
+      {aiAdvisoryOpen && (
+        <AiAdvisoryModal
+          screeningId={screeningId}
+          jobTitle={job?.title ?? "this role"}
+          candidates={candidates.map(({ candidate, embedded, applicant }) => ({
+            rank: candidate.rank,
+            name: `${embedded.firstName ?? applicant?.profile.firstName ?? "Unknown"} ${embedded.lastName ?? applicant?.profile.lastName ?? ""}`.trim(),
+            score: candidate.totalScore,
+            recommendation: String(candidate.recommendation ?? "—"),
+            strengths: candidate.strengths ?? [],
+            gaps: candidate.gaps ?? [],
+            hrDecision: decisions[candidate.candidateId]?.decision,
+          }))}
+          onClose={() => setAiAdvisoryOpen(false)}
         />
       )}
     </div>
