@@ -283,6 +283,22 @@ export const screeningsApi = baseApi.injectEndpoints({
         data: { candidateId, message, history: history ?? [] },
       }),
     }),
+
+    /** POST /api/v1/screenings/:id/advisory-chat — cohort-level AI advisory (all candidates) */
+    poolAdvisoryChat: builder.mutation<
+      { reply: string },
+      {
+        screeningId: string;
+        message: string;
+        history?: Array<{ role: "user" | "model"; content: string }>;
+      }
+    >({
+      query: ({ screeningId, message, history }) => ({
+        url: `/screenings/${screeningId}/advisory-chat`,
+        method: "post",
+        data: { message, history: history ?? [] },
+      }),
+    }),
   }),
 });
 
@@ -306,4 +322,5 @@ export const {
   useSubmitFeedbackMutation,
   useGetDashboardAnalyticsQuery,
   useCandidateAiChatMutation,
+  usePoolAdvisoryChatMutation,
 } = screeningsApi;

@@ -1098,3 +1098,120 @@ export const candidateAiChat = async (request: FastifyRequest, reply: FastifyRep
     reply.code(500).send({ error: `AI chat failed: ${msg.slice(0, 200)}` });
   }
 };
+
+const AdvisoryBodySchema = z.object({
+  message: z.string().min(1).max(2000),
+  history: z
+    .array(z.object({ role: z.enum(["user", "model"]), content: z.string() }))
+    .max(40)
+    .optional()
+    .default([]),
+});
+
+/**
+ * POST /api/v1/screenings/:id/advisory-chat
+ * Cohort-level AI advisory: Gemini receives context for ALL ranked candidates so the
+ * recruiter can ask comparative questions (who to hire, common gaps, red flags, etc.).
+ */
+export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const recruiterId = request.user?.userId;
+  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+
+  const { id } = request.params as { id: string };
+  if (!Types.ObjectId.isValid(id)) return void reply.code(400).send({ error: "Invalid screening id" });
+
+  const parsed = AdvisoryBodySchema.safeParse(request.body ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return void reply.code(400).send({ error: first?.message ?? "Invalid request" });
+  }
+  const { message, history } = parsed.data;
+
+  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  if (!screening || screening.status !== "completed") {
+    return void reply.code(404).send({ error: "Screening not found or not completed" });
+  }
+
+  const job = await JobModel.findById(screening.jobId).lean();
+  const jobTitle = String(job?.title ?? "the role");
+  const jobReqs = job?.requirements as {
+    mustHaveSkills?: string[];
+    niceToHaveSkills?: string[];
+    minExperienceYears?: number;
+    educationLevel?: string;
+    description?: string;
+  } | undefined;
+
+  const results = screening.results as {
+    shortlist?: Array<Record<string, unknown>>;
+    allResults?: Array<Record<string, unknown>>;
+  };
+  const pool = (Array.isArray(results?.allResults) && results.allResults.length
+    ? results.allResults
+    : results?.shortlist) ?? [];
+
+  const rd = screening.recruiterDecisions as Record<string, { decision?: string; hrNote?: string }> | undefined;
+
+  // Build per-candidate summary rows (sorted by rank, max 25)
+  const sorted = [...pool]
+    .sort((a, b) => Number(a.rank ?? 99) - Number(b.rank ?? 99))
+    .slice(0, 25);
+
+  const candidateRows = sorted.map((c) => {
+    const rank = Number(c.rank ?? "?");
+    const score = String(c.totalScore ?? c.composite_score ?? "N/A");
+    const rec = String(c.recommendation ?? "N/A");
+    const strengths = (c.strengths as string[] | undefined ?? []).slice(0, 4).join("; ") || "none listed";
+    const gaps = (c.gaps as string[] | undefined ?? []).slice(0, 4).join("; ") || "none listed";
+    const risk = c.hiringRisk ? ` | Risk: ${String(c.hiringRisk)}` : "";
+    return (
+      `Rank #${rank}: Score ${score}/100 | AI: ${rec}${risk}\n` +
+      `  Strengths: ${strengths}\n` +
+      `  Gaps: ${gaps}`
+    );
+  }).join("\n\n");
+
+  // HR decisions summary
+  const decisionEntries = Object.values(rd ?? {});
+  const approvedCount = decisionEntries.filter((v) => v?.decision === "approved").length;
+  const rejectedCount = decisionEntries.filter((v) => v?.decision === "rejected").length;
+  const pendingCount = sorted.length - decisionEntries.length;
+  const hrSummary =
+    decisionEntries.length > 0
+      ? `HR has reviewed ${decisionEntries.length} of ${sorted.length} candidates: ${approvedCount} approved, ${rejectedCount} rejected, ${pendingCount} pending.`
+      : `No HR decisions recorded yet for this screening.`;
+
+  const ctx = [
+    `You are an expert AI HR advisor helping a recruiter make hiring decisions for the role: **${jobTitle}**.`,
+    ``,
+    `## Job Requirements`,
+    jobReqs?.description ? `Description: ${jobReqs.description.slice(0, 500)}` : "",
+    `Must-have skills: ${(jobReqs?.mustHaveSkills ?? []).join(", ") || "not specified"}`,
+    `Nice-to-have: ${(jobReqs?.niceToHaveSkills ?? []).join(", ") || "none"}`,
+    `Min experience: ${jobReqs?.minExperienceYears ?? "not specified"} years`,
+    `Education required: ${jobReqs?.educationLevel ?? "not specified"}`,
+    ``,
+    `## Candidate Pool (${sorted.length} screened)`,
+    candidateRows,
+    ``,
+    `## Current HR Status`,
+    hrSummary,
+    ``,
+    `Give objective, concise advice based on the scoring data above. When comparing candidates always reference their rank and score. You may give a direct hiring recommendation but always remind the recruiter that the final decision is theirs.`,
+  ].filter((l) => l !== undefined).join("\n");
+
+  const turns = [
+    ...(history ?? []).map((h) => `${h.role === "user" ? "Recruiter" : "AI"}: ${h.content}`),
+    `Recruiter: ${message}`,
+  ].join("\n\n");
+
+  const prompt = `${ctx}\n\n---\n\n${turns}\n\nAI:`;
+
+  try {
+    const replyText = await generatePlainText(prompt, 20_000);
+    reply.send({ reply: replyText });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    reply.code(500).send({ error: `Advisory chat failed: ${msg.slice(0, 200)}` });
+  }
+};

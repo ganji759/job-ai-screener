@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bot, Send, Sparkles, User, X } from "lucide-react";
-import { useCandidateAiChatMutation } from "../../store/api/screeningsApi";
+import { usePoolAdvisoryChatMutation } from "../../store/api/screeningsApi";
 
 type Message = { role: "user" | "model"; content: string };
 
@@ -31,24 +31,6 @@ const SUGGESTED_QUESTIONS = [
   "Which candidates align best with the role?",
 ];
 
-function buildCandidateContext(candidates: AdvisoryCandidate[], jobTitle: string): string {
-  const rows = candidates
-    .map(
-      (c) =>
-        `#${c.rank} ${c.name} — Score: ${c.score}/100 | AI: ${c.recommendation} | HR: ${c.hrDecision ?? "pending"}\n` +
-        `  Strengths: ${c.strengths.slice(0, 3).join(" · ") || "none listed"}\n` +
-        `  Gaps: ${c.gaps.slice(0, 3).join(" · ") || "none listed"}`,
-    )
-    .join("\n\n");
-
-  return (
-    `[Advisory context — ${candidates.length} candidates screened for "${jobTitle}"]\n\n` +
-    `${rows}\n\n` +
-    `You are an expert AI HR advisor. Use this data to give objective, actionable advice. ` +
-    `When comparing candidates always reference their rank and score. ` +
-    `Remind the HR that final hiring decisions are theirs.`
-  );
-}
 
 function renderContent(text: string): string {
   return text
@@ -67,7 +49,7 @@ export function AiAdvisoryModal({ screeningId, jobTitle, candidates, onClose }: 
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [chat, { isLoading }] = useCandidateAiChatMutation();
+  const [chat, { isLoading }] = usePoolAdvisoryChatMutation();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -98,21 +80,11 @@ export function AiAdvisoryModal({ screeningId, jobTitle, candidates, onClose }: 
     const currentHistory = messages.filter((_, i) => i > 0); // skip hardcoded greeting
     setMessages((prev) => [...prev, userMsg]);
 
-    // Inject the full candidate context as the first history entry so the LLM always has it.
-    const contextEntry = { role: "user" as const, content: buildCandidateContext(candidates, jobTitle) };
-    const contextAck = { role: "model" as const, content: "Understood — I have the full candidate context." };
-    const historyWithContext = [
-      contextEntry,
-      contextAck,
-      ...currentHistory.map((m) => ({ role: m.role, content: m.content })),
-    ];
-
     try {
       const res = await chat({
         screeningId,
-        candidateId: "advisory",
         message: msg,
-        history: historyWithContext,
+        history: currentHistory.map((m) => ({ role: m.role, content: m.content })),
       }).unwrap();
       setMessages((prev) => [...prev, { role: "model", content: extractReply(res.reply) }]);
     } catch {
