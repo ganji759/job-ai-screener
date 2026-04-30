@@ -64,9 +64,14 @@ export function AiAdvisoryModal({ screeningId, jobTitle, candidates, onClose }: 
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       try {
         const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-        const text = parsed.answer ?? parsed.text ?? parsed.reply ?? parsed.message ?? parsed.content;
+        // Check known keys first, then fall back to the first string value found
+        const text =
+          parsed.answer ?? parsed.text ?? parsed.reply ??
+          parsed.message ?? parsed.content ?? parsed.advice;
         if (typeof text === "string") return text;
-      } catch { /* not JSON */ }
+        const firstStr = Object.values(parsed).find((v) => typeof v === "string");
+        if (typeof firstStr === "string") return firstStr;
+      } catch { /* not JSON — return as-is */ }
     }
     return raw;
   };

@@ -1198,6 +1198,7 @@ export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyRe
     hrSummary,
     ``,
     `Give objective, concise advice based on the scoring data above. When comparing candidates always reference their rank and score. You may give a direct hiring recommendation but always remind the recruiter that the final decision is theirs.`,
+    `IMPORTANT: Respond in plain conversational text only. Do NOT wrap your answer in JSON, XML, markdown code blocks, or any structured format.`,
   ].filter((l) => l !== undefined).join("\n");
 
   const turns = [
