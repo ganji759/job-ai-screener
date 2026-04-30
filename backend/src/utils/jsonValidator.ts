@@ -70,6 +70,15 @@ const zodSkillsArray = z.preprocess(
   z.array(z.string()),
 );
 
+// Normalize recommendation to one of the three valid labels regardless of what
+// Gemini returns (full sentences, "Yes"/"No", etc.).
+const zodRecommendation = z.string().transform((val): "Strong hire" | "Consider" | "Reject" => {
+  const lower = val.toLowerCase();
+  if (lower.includes("strong") || lower === "yes") return "Strong hire";
+  if (lower.includes("consider") || lower === "maybe") return "Consider";
+  return "Reject";
+});
+
 export const ZodCandidateResult = z.object({
   candidateId: z.string(),
   rank: z.number().int().optional().default(0),
@@ -77,7 +86,7 @@ export const ZodCandidateResult = z.object({
   breakdown: ZodScoringBreakdown,
   strengths: z.array(z.string()).min(1).transform((arr) => arr.slice(0, 5)),
   gaps: z.array(z.string()).min(1).transform((arr) => arr.slice(0, 3)),
-  recommendation: z.string(),
+  recommendation: zodRecommendation,
   mustHaveSkillsMet: zodSkillsArray,
   mustHaveSkillsMissing: zodSkillsArray,
   estimatedOnboardingTime: z.string(),

@@ -46,7 +46,7 @@ Also compute:
 Critical quality rules:
 - strengths must be exactly 3 bullet-style strings with concrete facts (skills, years, companies)
 - gaps must be 1-2 actionable risks (missing must-have skill, weak domain evidence, etc.)
-- recommendation must be 2-3 recruiter-friendly sentences and include candidate name
+- recommendation must be exactly one of: "Strong hire" | "Consider" | "Reject" — no other values, no sentences
 - scores must be in [0,100]
 - totalScore must reflect weighted average of breakdown
 
