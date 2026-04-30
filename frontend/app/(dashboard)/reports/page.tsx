@@ -8,6 +8,8 @@ import { PageHeader } from "../../../components/layout/PageHeader";
 import { useGetApplicantsQuery } from "../../../store/api/applicantsApi";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { useGetDashboardAnalyticsQuery, useGetScreeningsQuery } from "../../../store/api/screeningsApi";
+import { CandidateProfileModal } from "../../../components/reports/CandidateProfileModal";
+import type { Applicant } from "../../../types";
 
 type CandidateStatus = "shortlisted" | "rejected" | "pending";
 type ReportTab = "candidates" | "jobs" | "screenings" | "overview";
@@ -70,6 +72,7 @@ export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>("candidates");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [profileApplicantId, setProfileApplicantId] = useState<string | null>(null);
 
   const [searchDraft, setSearchDraft] = useState("");
   const [jobDraft, setJobDraft] = useState("all");
@@ -94,6 +97,11 @@ export default function ReportsPage() {
 
   const jobs = jobsData?.jobs ?? [];
   const jobById = useMemo(() => new Map(jobs.map((j) => [j._id, j.title])), [jobs]);
+
+  const profileApplicant: Applicant | null = useMemo(
+    () => (applicantsData?.applicants ?? []).find((a) => a._id === profileApplicantId) ?? null,
+    [applicantsData?.applicants, profileApplicantId],
+  );
 
   const apiCandidates = useMemo<Candidate[]>(() => {
     const rows = applicantsData?.applicants ?? [];
@@ -575,7 +583,15 @@ export default function ReportsPage() {
                         <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${scorePill(c.score)}`}>{c.score}/100</span></td>
                         <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusPill(c.status)}`}>{c.status}</span></td>
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{new Date(c.date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3"><Link href={`/applicants?highlightApplicant=${c.id}`} className="text-xs font-semibold text-brand-600 hover:underline">View Profile</Link></td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setProfileApplicantId(c.id)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                          >
+                            View Profile
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -653,6 +669,14 @@ export default function ReportsPage() {
           </section>
         ) : null}
       </div>
+
+      <CandidateProfileModal
+        open={profileApplicantId != null}
+        applicant={profileApplicant}
+        onClose={() => setProfileApplicantId(null)}
+        jobTitle={profileApplicant ? (jobById.get(profileApplicant.jobId) ?? undefined) : undefined}
+        rank={filteredCandidates.find((c) => c.id === profileApplicantId)?.rank}
+      />
     </div>
   );
 }
