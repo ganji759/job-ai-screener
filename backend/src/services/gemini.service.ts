@@ -37,35 +37,60 @@ import {
 } from "./pythonAdapter";
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL }, { apiVersion: env.GEMINI_API_VERSION });
+
+// Primary model first, then progressively lower-quota fallbacks. Deduped so
+// setting GEMINI_MODEL to a fallback value doesn't double-try it.
+const GEMINI_CASCADE_MODELS = [
+  env.GEMINI_MODEL,
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+].filter((m, i, arr) => arr.indexOf(m) === i);
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const generateViaInProcessSdk = async (prompt: string, timeoutMs: number): Promise<string> => {
-  const result = await model.generateContent(prompt, { timeout: timeoutMs });
+const isQuotaError = (err: unknown): boolean =>
+  /429|RESOURCE_EXHAUSTED|QUOTA_EXCEEDED|quota|exceeded your current quota|rate limit|too many requests/i.test(String(err));
+
+const generateViaInProcessSdk = async (prompt: string, timeoutMs: number, modelName = env.GEMINI_MODEL): Promise<string> => {
+  const m = genAI.getGenerativeModel({ model: modelName }, { apiVersion: env.GEMINI_API_VERSION });
+  const result = await m.generateContent(prompt, { timeout: timeoutMs });
   return result.response.text();
 };
-
-/** Returns the raw Gemini text output, routing through Python if AI_SERVICE_URL is set. */
-const generateText = (prompt: string, timeoutMs: number): Promise<string> =>
-  env.AI_SERVICE_URL ? aiGenerate(prompt, timeoutMs) : generateViaInProcessSdk(prompt, timeoutMs);
 
 /**
  * Plain-text Gemini call with retry — for conversational responses that should NOT be JSON.
  * Falls back to in-process SDK if Python service is unreachable.
+ * In-process path cascades through GEMINI_CASCADE_MODELS on quota errors.
  */
 export const generatePlainText = async (prompt: string, timeoutMs = 20_000, retries = 2): Promise<string> => {
-  let lastErr: unknown;
-  for (let i = 0; i < retries; i += 1) {
-    try {
-      const text = env.AI_SERVICE_URL
-        ? await aiGenerate(prompt, timeoutMs).catch(() => generateViaInProcessSdk(prompt, timeoutMs))
-        : await generateViaInProcessSdk(prompt, timeoutMs);
-      return text.trim();
-    } catch (err) {
-      lastErr = err;
-      if (i < retries - 1) await wait(3000 * (i + 1));
+  if (env.AI_SERVICE_URL) {
+    let lastErr: unknown;
+    for (let i = 0; i < retries; i += 1) {
+      try {
+        return (await aiGenerate(prompt, timeoutMs).catch(() => generateViaInProcessSdk(prompt, timeoutMs))).trim();
+      } catch (err) {
+        lastErr = err;
+        if (i < retries - 1) await wait(3000 * (i + 1));
+      }
     }
+    throw lastErr;
+  }
+
+  let lastErr: unknown;
+  for (const modelName of GEMINI_CASCADE_MODELS) {
+    let quotaHit = false;
+    for (let i = 0; i < retries; i += 1) {
+      try {
+        return (await generateViaInProcessSdk(prompt, timeoutMs, modelName)).trim();
+      } catch (err) {
+        lastErr = err;
+        if (isQuotaError(err)) { quotaHit = true; break; }
+        if (i < retries - 1) await wait(3000 * (i + 1));
+      }
+    }
+    if (!quotaHit) throw lastErr;
+    // eslint-disable-next-line no-console
+    console.warn(`[generatePlainText] Quota hit on ${modelName} — trying next model`);
   }
   throw lastErr;
 };
@@ -105,27 +130,63 @@ export const callGeminiWithRetry = async <T>(
   opts?: GeminiRetryOptions,
 ): Promise<T> => {
   const timeoutMs = opts?.timeoutMs ?? env.GEMINI_TIMEOUT_MS;
-  let lastRaw = "";
-  for (let i = 0; i < retries; i += 1) {
-    try {
-      const text = await generateText(prompt, timeoutMs);
-      lastRaw = text;
-      const cleaned = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned) as unknown;
-      return schema.parse(parsed);
-    } catch (error) {
-      if (i === retries - 1) {
-        const hint = formatGeminiUserError(error, timeoutMs);
-        throw new Error(
-          hint.startsWith("Gemini API quota")
-            ? hint
-            : `Gemini failed after ${retries} retries. ${hint}${lastRaw ? ` (last model output length: ${lastRaw.length})` : ""}`,
-        );
+
+  if (env.AI_SERVICE_URL) {
+    // Python service runs its own model cascade — just retry transient errors here.
+    let lastRaw = "";
+    let lastErr: unknown;
+    for (let i = 0; i < retries; i += 1) {
+      try {
+        const text = await aiGenerate(prompt, timeoutMs);
+        lastRaw = text;
+        const cleaned = text.replace(/```json|```/g, "").trim();
+        return schema.parse(JSON.parse(cleaned) as unknown);
+      } catch (err) {
+        lastErr = err;
+        if (i < retries - 1) await wait(5000 * (2 ** i));
       }
-      await wait(5000 * (2 ** i));
     }
+    const hint = formatGeminiUserError(lastErr, timeoutMs);
+    throw new Error(
+      hint.startsWith("Gemini API quota")
+        ? hint
+        : `Gemini failed after ${retries} retries. ${hint}${lastRaw ? ` (last model output length: ${lastRaw.length})` : ""}`,
+    );
   }
-  throw new Error("Unexpected Gemini retry state");
+
+  // In-process SDK: cascade through models on quota errors; retry within a model on other errors.
+  let lastErr: unknown;
+  for (const modelName of GEMINI_CASCADE_MODELS) {
+    let lastRaw = "";
+    let quotaHit = false;
+    for (let i = 0; i < retries; i += 1) {
+      try {
+        const text = await generateViaInProcessSdk(prompt, timeoutMs, modelName);
+        lastRaw = text;
+        const cleaned = text.replace(/```json|```/g, "").trim();
+        return schema.parse(JSON.parse(cleaned) as unknown);
+      } catch (err) {
+        lastErr = err;
+        if (isQuotaError(err)) {
+          quotaHit = true;
+          break; // retrying same model won't help — cascade immediately
+        }
+        if (i < retries - 1) await wait(5000 * (2 ** i));
+      }
+    }
+    if (!quotaHit) {
+      // Non-quota failure with retries exhausted — don't cascade, surface the error.
+      const hint = formatGeminiUserError(lastErr, timeoutMs);
+      throw new Error(
+        `Gemini failed after ${retries} retries on ${modelName}. ${hint}${lastRaw ? ` (last model output length: ${lastRaw.length})` : ""}`,
+      );
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`[callGeminiWithRetry] Quota hit on ${modelName} — cascading to next model`);
+  }
+
+  // Every model in the cascade hit quota.
+  throw new Error(formatGeminiUserError(lastErr, timeoutMs));
 };
 
 export const extractJobRequirements = async (rawDescription: string): Promise<JobRequirements> => {
