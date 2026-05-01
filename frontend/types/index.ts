@@ -341,6 +341,7 @@ export interface User {
 export interface Job {
   _id: string;
   title: string;
+  company?: string;
   description: string;
   requirements: JobRequirements;
   location: string;

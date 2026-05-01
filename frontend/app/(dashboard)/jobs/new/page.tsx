@@ -24,6 +24,7 @@ export default function NewJobPage() {
     }
     const payload: CreateJobPayload = {
       title: values.title.trim(),
+      company: values.company?.trim() || undefined,
       description: values.description.trim(),
       requirements: {
         title: values.requirementsTitle.trim(),

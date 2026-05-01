@@ -28,7 +28,10 @@ export const JobCard = ({ job }: { job: Job }) => {
       }}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">{job.title}</h3>
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">{job.title}</h3>
+          {job.company ? <p className="text-sm text-slate-500">{job.company}</p> : null}
+        </div>
         <Badge variant={job.status === "active" ? "success" : job.status === "draft" ? "warning" : "neutral"}>{job.status}</Badge>
       </div>
       <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">

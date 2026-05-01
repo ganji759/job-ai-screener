@@ -14,6 +14,7 @@ import type { ExperienceLevel, Job } from "../../types";
 
 type JobFormValues = {
   title: string;
+  company: string;
   description: string;
   requirementsTitle: string;
   requirementsDescription: string;
@@ -47,6 +48,7 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
     mode: "onBlur",
     defaultValues: {
       title: "",
+      company: "",
       description: "",
       requirementsTitle: "",
       requirementsDescription: "",
@@ -84,7 +86,7 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
 
   const next = async () => {
     if (step === 0) {
-      const ok = await trigger(["title", "description", "domain", "location", "employmentType"]);
+      const ok = await trigger(["title", "company", "description", "domain", "location", "employmentType"]);
       if (!ok) return;
       setStep(1);
       return;
@@ -145,6 +147,18 @@ export const JobForm = ({ onSubmit, loading }: { onSubmit: (values: JobSubmitVal
                 />
               </div>
               {errors.title?.message ? <p className="animate-fade-in-up text-xs text-red-500">{errors.title.message}</p> : null}
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium text-slate-700">Company <span className="text-slate-400 font-normal">(optional)</span></span>
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="e.g. Umurava"
+                  maxLength={100}
+                  {...register("company")}
+                />
+              </div>
             </label>
             <div>
               <Textarea

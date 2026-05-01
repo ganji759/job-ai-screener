@@ -14,6 +14,7 @@ interface GetJobsParams {
 /** POST /api/v1/jobs — body matches Mongoose Job + Zod (requirements is a nested object). */
 export type CreateJobPayload = {
   title: string;
+  company?: string;
   description: string;
   requirements: {
     title: string;

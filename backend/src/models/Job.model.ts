@@ -16,6 +16,7 @@ const JobRequirementsSchema = new Schema({
 
 const JobSchema = new Schema({
   title: { type: String, required: true, trim: true },
+  company: { type: String, trim: true },
   description: { type: String, required: true },
   requirements: { type: JobRequirementsSchema, required: true },
   recruiterId: { type: Schema.Types.ObjectId, ref: "User", required: true },

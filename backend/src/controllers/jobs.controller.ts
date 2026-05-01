@@ -6,7 +6,7 @@ import { JobModel } from "../models/Job.model";
 import { ScreeningModel } from "../models/Screening.model";
 import { notifyUser } from "../services/notification.service";
 
-const JobSchema = z.object({ title: z.string(), description: z.string(), requirements: z.record(z.string(), z.unknown()) }).strip();
+const JobSchema = z.object({ title: z.string(), company: z.string().optional(), description: z.string(), requirements: z.record(z.string(), z.unknown()) }).strip();
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
