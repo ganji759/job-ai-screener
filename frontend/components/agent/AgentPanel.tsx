@@ -68,11 +68,36 @@ const SUGGESTIONS = [
   "List upcoming interviews",
 ];
 
+const STORAGE_KEY = "umurava_agent_chat";
+const MAX_STORED_ENTRIES = 40;
+
+function loadFromStorage(): { history: AgentMessage[]; entries: ChatEntry[] } {
+  if (typeof window === "undefined") return { history: [], entries: [] };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { history: [], entries: [] };
+    return JSON.parse(raw) as { history: AgentMessage[]; entries: ChatEntry[] };
+  } catch {
+    return { history: [], entries: [] };
+  }
+}
+
+function saveToStorage(history: AgentMessage[], entries: ChatEntry[]) {
+  try {
+    // Keep only the last N entries to stay under localStorage limits
+    const trimmed = entries.filter((e) => e.type !== "thinking").slice(-MAX_STORED_ENTRIES);
+    const trimmedHistory = history.slice(-MAX_STORED_ENTRIES * 2);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ history: trimmedHistory, entries: trimmed }));
+  } catch {
+    // localStorage full — silently ignore
+  }
+}
+
 export const AgentPanel = ({ onClose }: { onClose: () => void }) => {
   const [minimized, setMinimized] = useState(false);
   const [input, setInput] = useState("");
-  const [history, setHistory] = useState<AgentMessage[]>([]);
-  const [entries, setEntries] = useState<ChatEntry[]>([]);
+  const [history, setHistory] = useState<AgentMessage[]>(() => loadFromStorage().history);
+  const [entries, setEntries] = useState<ChatEntry[]>(() => loadFromStorage().entries);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,6 +106,11 @@ export const AgentPanel = ({ onClose }: { onClose: () => void }) => {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries]);
+
+  // Persist to localStorage whenever history or entries change
+  useEffect(() => {
+    saveToStorage(history, entries);
+  }, [history, entries]);
 
   const send = useCallback(
     async (msg: string) => {
@@ -132,6 +162,7 @@ export const AgentPanel = ({ onClose }: { onClose: () => void }) => {
   const clearChat = () => {
     setEntries([]);
     setHistory([]);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
