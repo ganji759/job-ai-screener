@@ -10,6 +10,7 @@ import { registerErrorHandler } from "./middleware/errorHandler.middleware";
 import { registerRateLimit } from "./middleware/rateLimit.middleware";
 import { applicantsRoutes } from "./routes/applicants.routes";
 import { authRoutes } from "./routes/auth.routes";
+import { googleCallback } from "./controllers/googleOAuth.controller";
 import { dashboardRoutes } from "./routes/dashboard.routes";
 import { jobsRoutes } from "./routes/jobs.routes";
 import { notificationsRoutes } from "./routes/notifications.routes";
@@ -49,6 +50,10 @@ export const buildApp = async () => {
   app.decorate("authenticate", authenticate);
 
   app.get("/health", async () => ({ status: "ok", version: "1.1.0", uptime: process.uptime(), db: "connected" }));
+
+  // Google OAuth callback — must match the redirect URI registered in Google Cloud Console exactly.
+  // Auth routes are prefixed /api/v1/auth so this is registered at the top level instead.
+  app.get("/auth/google/callback", googleCallback);
 
   app.get("/ws/notifications", { websocket: true }, (connection, req) => {
     const token = String((req.query as Record<string, string> | undefined)?.token ?? "");
