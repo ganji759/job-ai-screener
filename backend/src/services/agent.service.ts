@@ -17,7 +17,7 @@ export type ToolCall = { name: string; args: Record<string, unknown>; result: un
 
 const SYSTEM_INSTRUCTION = `You are an AI hiring assistant for the Umurava HR platform. You help recruiters manage their entire hiring pipeline hands-free.
 
-You have tools to query jobs, applicants, screenings, and interviews in real time — and can schedule interviews directly.
+You have tools to create and manage jobs, query applicants and screenings, approve candidates, schedule interviews, and more.
 
 Critical rules — follow these strictly:
 - NEVER ask the recruiter for an ID. IDs are internal database keys. Always look them up yourself using tools before doing anything that needs an ID.
@@ -177,6 +177,42 @@ const functionDeclarations: any[] = [
     },
   },
 ];
+
+functionDeclarations.push({
+  name: "create_job",
+  description: "Create a new job posting. The agent fills in all required fields from the recruiter's description. If the recruiter says 'mock job' or 'fill the details', invent realistic placeholder values. Status defaults to 'active'; use 'draft' when the recruiter says so.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      title: { type: SchemaType.STRING, description: "Job title, e.g. 'AI Engineer'." },
+      company: { type: SchemaType.STRING, description: "Company name (optional)." },
+      description: { type: SchemaType.STRING, description: "Full job description." },
+      status: { type: SchemaType.STRING, description: "Job status: active, draft, or closed. Default: active.", enum: ["active", "draft", "closed"] },
+      domain: { type: SchemaType.STRING, description: "Job domain, e.g. 'engineering', 'product', 'design'." },
+      mustHaveSkills: { type: SchemaType.ARRAY, description: "List of required skills.", items: { type: SchemaType.STRING } },
+      niceToHaveSkills: { type: SchemaType.ARRAY, description: "List of nice-to-have skills.", items: { type: SchemaType.STRING } },
+      minYearsExperience: { type: SchemaType.NUMBER, description: "Minimum years of experience required." },
+      educationLevel: { type: SchemaType.STRING, description: "Minimum education level.", enum: ["none", "certificate", "bachelor", "master", "phd"] },
+      location: { type: SchemaType.STRING, description: "Job location (optional)." },
+      remoteAllowed: { type: SchemaType.STRING, description: "Whether remote work is allowed: yes or no.", enum: ["yes", "no"] },
+      softSkills: { type: SchemaType.ARRAY, description: "Desired soft skills.", items: { type: SchemaType.STRING } },
+    },
+    required: ["title", "description"],
+  },
+});
+
+functionDeclarations.push({
+  name: "update_job_status",
+  description: "Update the status of an existing job (active, draft, or closed).",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      jobId: { type: SchemaType.STRING, description: "The job's MongoDB _id." },
+      status: { type: SchemaType.STRING, description: "New status.", enum: ["active", "draft", "closed"] },
+    },
+    required: ["jobId", "status"],
+  },
+});
 
 // Add approve_candidate declaration after schedule_interview
 functionDeclarations.push({
@@ -447,6 +483,44 @@ async function executeTool(
         status: interview.status,
         message: `Interview scheduled for ${interview.candidateName}. Invite email sent to ${interview.candidateEmail}.`,
       };
+    }
+
+    case "create_job": {
+      const job = await JobModel.create({
+        title: String(args.title),
+        company: args.company ? String(args.company) : undefined,
+        description: String(args.description),
+        status: (args.status as string) ?? "active",
+        recruiterId,
+        requirements: {
+          title: String(args.title),
+          description: String(args.description),
+          mustHaveSkills: Array.isArray(args.mustHaveSkills) ? args.mustHaveSkills.map(String) : [],
+          niceToHaveSkills: Array.isArray(args.niceToHaveSkills) ? args.niceToHaveSkills.map(String) : [],
+          minYearsExperience: Number(args.minYearsExperience ?? 0),
+          educationLevel: (args.educationLevel as string) ?? "none",
+          domain: args.domain ? String(args.domain) : "general",
+          location: args.location ? String(args.location) : undefined,
+          remoteAllowed: args.remoteAllowed === "yes",
+          softSkills: Array.isArray(args.softSkills) ? args.softSkills.map(String) : [],
+        },
+      });
+      return {
+        jobId: String(job._id),
+        title: job.title,
+        status: job.status,
+        message: `Job "${job.title}" created with status "${job.status}".`,
+      };
+    }
+
+    case "update_job_status": {
+      const job = await JobModel.findOneAndUpdate(
+        { _id: String(args.jobId), recruiterId },
+        { $set: { status: args.status } },
+        { new: true },
+      ).lean();
+      if (!job) return { error: "Job not found or access denied." };
+      return { jobId: String(job._id), title: job.title, status: job.status, message: `Job "${job.title}" status updated to "${job.status}".` };
     }
 
     case "approve_candidate": {

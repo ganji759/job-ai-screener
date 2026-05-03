@@ -170,6 +170,40 @@ _FUNCTION_DECLARATIONS = [
         ),
     ),
     glm.FunctionDeclaration(
+        name="create_job",
+        description="Create a new job posting. Fill in all required fields from the recruiter's description. If told 'mock job' or 'fill the details', invent realistic placeholder values. Status defaults to active; use draft when the recruiter says so.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "title": glm.Schema(type=glm.Type.STRING, description="Job title."),
+                "company": glm.Schema(type=glm.Type.STRING, description="Company name (optional)."),
+                "description": glm.Schema(type=glm.Type.STRING, description="Full job description."),
+                "status": glm.Schema(type=glm.Type.STRING, description="active, draft, or closed. Default: active."),
+                "domain": glm.Schema(type=glm.Type.STRING, description="Job domain e.g. engineering, product."),
+                "mustHaveSkills": glm.Schema(type=glm.Type.ARRAY, items=glm.Schema(type=glm.Type.STRING), description="Required skills."),
+                "niceToHaveSkills": glm.Schema(type=glm.Type.ARRAY, items=glm.Schema(type=glm.Type.STRING), description="Nice-to-have skills."),
+                "minYearsExperience": glm.Schema(type=glm.Type.NUMBER, description="Minimum years of experience."),
+                "educationLevel": glm.Schema(type=glm.Type.STRING, description="none, certificate, bachelor, master, or phd."),
+                "location": glm.Schema(type=glm.Type.STRING, description="Job location (optional)."),
+                "remoteAllowed": glm.Schema(type=glm.Type.STRING, description="yes or no."),
+                "softSkills": glm.Schema(type=glm.Type.ARRAY, items=glm.Schema(type=glm.Type.STRING), description="Desired soft skills."),
+            },
+            required=["title", "description"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="update_job_status",
+        description="Update the status of an existing job (active, draft, or closed).",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "jobId": glm.Schema(type=glm.Type.STRING, description="The job's MongoDB _id."),
+                "status": glm.Schema(type=glm.Type.STRING, description="New status: active, draft, or closed."),
+            },
+            required=["jobId", "status"],
+        ),
+    ),
+    glm.FunctionDeclaration(
         name="approve_candidate",
         description="Set the HR decision for a candidate in a screening (approve, reject, or mark for review). Use this when the recruiter says 'accept', 'approve', 'reject', or 'mark for review'.",
         parameters=glm.Schema(
