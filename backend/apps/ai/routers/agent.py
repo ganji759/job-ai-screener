@@ -236,7 +236,7 @@ _FUNCTION_DECLARATIONS = [
             type=glm.Type.OBJECT,
             properties={
                 "jobId": glm.Schema(type=glm.Type.STRING, description="The job's MongoDB _id to run screening for."),
-                "shortlistSize": glm.Schema(type=glm.Type.NUMBER, description="Number of candidates to shortlist: 10 or 20. Defaults to 10."),
+                "shortlistSize": glm.Schema(type=glm.Type.NUMBER, description="Number of candidates to shortlist. Use 10 (default) or 20."),
             },
             required=["jobId"],
         ),

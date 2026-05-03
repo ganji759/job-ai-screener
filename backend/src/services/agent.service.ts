@@ -248,7 +248,6 @@ functionDeclarations.push({
       shortlistSize: {
         type: SchemaType.NUMBER,
         description: "Number of candidates to shortlist: 10 or 20. Defaults to 10.",
-        enum: [10, 20],
       },
     },
     required: ["jobId"],
