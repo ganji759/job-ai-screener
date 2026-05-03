@@ -374,7 +374,12 @@ export async function runAgentChat(
     const parts = await Promise.all(
       fns.map(async (fc) => {
         const args = (fc.args ?? {}) as Record<string, unknown>;
-        const result = await executeTool(fc.name, args, recruiterId);
+        let result: unknown;
+        try {
+          result = await executeTool(fc.name, args, recruiterId);
+        } catch (toolErr) {
+          result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
+        }
         toolCalls.push({ name: fc.name, args, result });
         return {
           functionResponse: {
@@ -388,5 +393,15 @@ export async function runAgentChat(
     response = await chat.sendMessage(parts);
   }
 
-  return { reply: response.response.text(), toolCalls };
+  let reply: string;
+  try {
+    reply = response.response.text();
+  } catch {
+    // Model returned function calls on the final iteration with no text summary
+    reply = toolCalls.length > 0
+      ? `I ran ${toolCalls.map((t) => t.name).join(", ")}. Check the tool results above for details.`
+      : "No response generated.";
+  }
+
+  return { reply, toolCalls };
 }

@@ -102,7 +102,17 @@ export const AgentPanel = ({ onClose }: { onClose: () => void }) => {
           { type: "agent", content: res.reply, toolCalls: res.toolCalls },
         ]);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+        const rtq = err as { data?: unknown; status?: unknown };
+        const msg =
+          err instanceof Error
+            ? err.message
+            : typeof rtq?.data === "string"
+              ? rtq.data
+              : rtq?.data && typeof rtq.data === "object" && "message" in (rtq.data as object)
+                ? String((rtq.data as { message: unknown }).message)
+                : JSON.stringify(err) !== "{}"
+                  ? JSON.stringify(err)
+                  : "Request failed — check the backend is running and GEMINI_API_KEY is set.";
         setEntries((prev) => [
           ...prev.filter((e) => e.type !== "thinking"),
           { type: "agent", content: `Error: ${msg}`, toolCalls: [] },
