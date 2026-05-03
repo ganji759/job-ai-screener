@@ -9,6 +9,12 @@ import { ScreeningModel } from "../models/Screening.model";
 import { InterviewModel } from "../models/Interview.model";
 import { UserModel } from "../models/User.model";
 import { createInterview } from "./interview.service";
+import { heuristicExtractResume } from "./parser.service";
+import { runScreeningForJobAgent } from "./screening.service";
+import { callGeminiWithRetry } from "./gemini.service";
+import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
+import { ZodResumeGeminiExtraction } from "../utils/jsonValidator";
+import { randomUUID } from "node:crypto";
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
@@ -17,7 +23,7 @@ export type ToolCall = { name: string; args: Record<string, unknown>; result: un
 
 const SYSTEM_INSTRUCTION = `You are an AI hiring assistant for the Umurava HR platform. You help recruiters manage their entire hiring pipeline hands-free.
 
-You have tools to create and manage jobs, query applicants and screenings, approve candidates, schedule interviews, and more.
+You have tools to create and manage jobs, ingest resumes, run AI screenings, query applicants and screenings, approve candidates, schedule interviews, and more.
 
 Critical rules — follow these strictly:
 - NEVER ask the recruiter for an ID. IDs are internal database keys. Always look them up yourself using tools before doing anything that needs an ID.
@@ -25,7 +31,12 @@ Critical rules — follow these strictly:
   - Need an applicant ID or email? → call search_applicants (by name) or get_applicants (by jobId).
   - Need a screening ID? → call list_screenings first.
 - NEVER say "I cannot search the database" — you have tools that can. Use them.
-- Chain tool calls automatically. For example: if the recruiter says "schedule an interview for John Smith", first call search_applicants to find John, then call schedule_interview with the data you found. If the recruiter says "accept/approve/reject a candidate", first call search_applicants to get their applicantId, then list_screenings to get the screeningId, then call approve_candidate.
+- Chain tool calls automatically. For example:
+  - "Schedule an interview for John Smith" → search_applicants → schedule_interview.
+  - "Accept/approve/reject a candidate" → search_applicants → list_screenings → approve_candidate.
+  - "Add this resume to [job] and screen it" → list_jobs → ingest_resume → run_screening.
+  - "Run a screening for [job]" → list_jobs → run_screening.
+- When the recruiter pastes resume text, call ingest_resume automatically with the job they mentioned (or ask which job if unclear), then offer to run_screening.
 - When scheduling interviews, default to "video" type if the recruiter doesn't specify. Default to a 1-hour slot if no duration is given.
 - Present results clearly. Use bullet points for lists. Be concise.
 - Never invent data. If a tool returns nothing, say so and suggest next steps.`;
@@ -211,6 +222,36 @@ functionDeclarations.push({
       status: { type: SchemaType.STRING, description: "New status.", enum: ["active", "draft", "closed"] },
     },
     required: ["jobId", "status"],
+  },
+});
+
+functionDeclarations.push({
+  name: "ingest_resume",
+  description: "Parse resume text pasted by the recruiter and add the candidate as an applicant for a job. Call this whenever the recruiter pastes a resume or CV. The resume text can be raw plain-text copied from a PDF or document.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      jobId: { type: SchemaType.STRING, description: "The job's MongoDB _id to attach this applicant to." },
+      resumeText: { type: SchemaType.STRING, description: "The raw resume / CV text pasted by the recruiter." },
+    },
+    required: ["jobId", "resumeText"],
+  },
+});
+
+functionDeclarations.push({
+  name: "run_screening",
+  description: "Run AI screening on all pending applicants for a job. Use this after ingest_resume or when the recruiter asks to screen/rank candidates for a job. Returns the screening ID and a summary of the top candidates.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      jobId: { type: SchemaType.STRING, description: "The job's MongoDB _id to run screening for." },
+      shortlistSize: {
+        type: SchemaType.NUMBER,
+        description: "Number of candidates to shortlist: 10 or 20. Defaults to 10.",
+        enum: [10, 20],
+      },
+    },
+    required: ["jobId"],
   },
 });
 
@@ -548,6 +589,78 @@ async function executeTool(
         decision,
         message: `Candidate marked as "${decision}" in screening ${String(args.screeningId)}.`,
       };
+    }
+
+    case "ingest_resume": {
+      const jobId = String(args.jobId ?? "").trim();
+      const resumeText = String(args.resumeText ?? "").trim();
+      if (!jobId) return { error: "jobId is required." };
+      if (resumeText.length < 20) return { error: "resumeText is too short to parse a resume." };
+
+      const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
+      if (!job) return { error: "Job not found or access denied." };
+
+      // Try Gemini-assisted extraction, fall back to heuristics
+      let profile: Record<string, unknown>;
+      try {
+        const prompt = buildResumeExtractionPrompt(resumeText);
+        const g = await callGeminiWithRetry(prompt, ZodResumeGeminiExtraction) as Record<string, unknown>;
+        const base = heuristicExtractResume(resumeText);
+        const fullName = typeof g.fullName === "string" ? g.fullName.trim() : "";
+        let first = typeof g.firstName === "string" ? g.firstName.trim() : "";
+        let last = typeof g.lastName === "string" ? g.lastName.trim() : "";
+        if (!first && fullName) {
+          const parts = fullName.split(/\s+/).filter(Boolean);
+          first = parts[0] ?? "";
+          last = parts.slice(1).join(" ");
+        }
+        profile = {
+          ...base,
+          id: randomUUID(),
+          firstName: first || base.firstName,
+          lastName: last || base.lastName,
+          email: typeof g.email === "string" && g.email.includes("@") ? g.email : base.email,
+          title: typeof g.title === "string" && g.title ? g.title : base.title,
+          summary: typeof g.summary === "string" ? g.summary : base.summary,
+          skills: Array.isArray(g.skills) && (g.skills as unknown[]).length ? g.skills : base.skills,
+          totalYearsExperience: typeof g.totalYearsExperience === "number" ? g.totalYearsExperience : base.totalYearsExperience,
+          location: typeof g.location === "string" ? g.location : base.location,
+        };
+      } catch {
+        profile = { ...heuristicExtractResume(resumeText), id: randomUUID() };
+      }
+
+      const applicant = await ApplicantModel.create({
+        jobId,
+        source: "pdf_upload",
+        profile,
+        rawText: resumeText.slice(0, 10000),
+        status: "pending",
+      });
+
+      return {
+        applicantId: String(applicant._id),
+        name: `${String(profile.firstName ?? "")} ${String(profile.lastName ?? "")}`.trim() || "Unknown",
+        email: profile.email ?? null,
+        title: profile.title ?? null,
+        skills: Array.isArray(profile.skills) ? (profile.skills as string[]).slice(0, 8) : [],
+        message: `Resume ingested and added as applicant for "${job.title}". You can now call run_screening to rank all candidates.`,
+      };
+    }
+
+    case "run_screening": {
+      const jobId = String(args.jobId ?? "").trim();
+      if (!jobId) return { error: "jobId is required." };
+      const shortlistSize = args.shortlistSize === 20 ? 20 : 10;
+      try {
+        const result = await runScreeningForJobAgent({ jobId, recruiterId, shortlistSize });
+        return {
+          ...result,
+          message: `Screening complete for "${result.jobTitle}": ${result.shortlistCount} candidates shortlisted out of ${result.totalEvaluated} evaluated. Average score: ${result.averageScore}/100. Use get_screening_results with screeningId "${result.screeningId}" to see the ranked shortlist.`,
+        };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "Screening failed." };
+      }
     }
 
     default:

@@ -100,6 +100,8 @@ const TOOL_META: Record<string, ToolMeta> = {
   create_job:            { label: "Created job posting",       icon: PlusCircle   },
   update_job_status:     { label: "Updated job status",        icon: RefreshCw    },
   approve_candidate:     { label: "Saved HR decision",         icon: CheckCircle2 },
+  ingest_resume:         { label: "Ingested resume",           icon: FileUp       },
+  run_screening:         { label: "Ran AI screening",          icon: Brain        },
 };
 
 // ── Thinking status messages ──────────────────────────────────────────────────
@@ -117,7 +119,7 @@ const THINKING_MSGS = [
 
 const SUGGESTIONS: { icon: ComponentType<{ className?: string }>; text: string }[] = [
   { icon: Zap,         text: "Give me a pipeline summary" },
-  { icon: Briefcase,   text: "List my active jobs" },
+  { icon: FileUp,      text: "I want to paste a resume and run a screening" },
   { icon: Brain,       text: "Show latest screening results" },
   { icon: Calendar,    text: "List upcoming interviews" },
   { icon: Users,       text: "Who are my top candidates?" },
@@ -527,11 +529,11 @@ const AttachMenu = ({
 // ── Welcome screen ────────────────────────────────────────────────────────────
 
 const CAPABILITIES = [
-  { icon: Users,        text: "Find & rank top candidates"       },
-  { icon: CalendarCheck,text: "Schedule & manage interviews"     },
-  { icon: Brain,        text: "Run AI-powered screenings"        },
-  { icon: Briefcase,    text: "Create & manage job postings"     },
-  { icon: Zap,          text: "Summarise your entire pipeline"   },
+  { icon: FileUp,       text: "Paste a resume → instant applicant"  },
+  { icon: Brain,        text: "Run AI screenings & rank candidates"  },
+  { icon: CalendarCheck,text: "Schedule & manage interviews"         },
+  { icon: Briefcase,    text: "Create & manage job postings"         },
+  { icon: Zap,          text: "Summarise your entire pipeline"       },
 ];
 
 const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; userName: string }) => {

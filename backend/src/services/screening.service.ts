@@ -215,3 +215,111 @@ export async function screenFromExternal(params: {
   const shortlist = allResults.slice(0, params.shortlistSize);
   return { jobRequirements, allResults, shortlist, insights };
 }
+
+/**
+ * Agent-callable screening: runs AI scoring on all pending applicants for a job,
+ * persists a Screening document, and returns a summary without requiring Fastify req/reply.
+ */
+export async function runScreeningForJobAgent(params: {
+  jobId: string;
+  recruiterId: string;
+  shortlistSize?: 10 | 20;
+}): Promise<{
+  screeningId: string;
+  status: string;
+  shortlistCount: number;
+  totalEvaluated: number;
+  averageScore: number;
+  jobTitle: string;
+}> {
+  const { ScreeningModel } = await import("../models/Screening.model");
+  const { redisSet } = await import("../config/redis");
+  const { notifyUser } = await import("./notification.service");
+
+  const shortlistSize = params.shortlistSize ?? 10;
+  const job = await JobModel.findOne({ _id: params.jobId, recruiterId: params.recruiterId }).lean();
+  if (!job) throw new Error("Job not found or access denied.");
+
+  const applicants = await ApplicantModel.find({
+    jobId: params.jobId,
+    status: { $in: ["pending", "rejected"] },
+  }).lean();
+
+  if (!applicants.length) {
+    throw new Error("No applicants eligible for screening. Ingest at least one resume first.");
+  }
+
+  const jobRequirements = leanJobToJobRequirements(job as Parameters<typeof leanJobToJobRequirements>[0]);
+  const candidates = applicants.map((a) => normalizeProfile(a.profile));
+  const started = Date.now();
+  const results = await scoreAllCandidates(jobRequirements, candidates);
+  if (!results.length) throw new Error("AI scoring returned no results. Check your Gemini API key.");
+
+  const shortlist = results.slice(0, shortlistSize);
+  const insights = await generatePoolInsights(jobRequirements, results);
+
+  const screeningDoc = await ScreeningModel.create({
+    jobId: params.jobId,
+    recruiterId: params.recruiterId,
+    status: "running",
+    shortlistSize,
+    pipeline: "agent_ingest_sync",
+  });
+  const screeningId = String(screeningDoc._id);
+  const durationMs = Date.now() - started;
+
+  const payload = {
+    screeningKind: "agent_ingest_sync",
+    screeningId,
+    jobId: params.jobId,
+    status: "completed" as const,
+    shortlistSize,
+    allResults: results,
+    shortlist,
+    totalAnalyzed: results.length,
+    averageScore: insights.averageScore,
+    scoreDistribution: insights.scoreDistribution,
+    topSkillsFound: insights.topSkillsFound,
+    skillGapsInPool: insights.skillGapsInPool,
+    durationMs,
+    createdAt: new Date(),
+  };
+
+  await ScreeningModel.findByIdAndUpdate(screeningId, {
+    status: "completed",
+    results: payload,
+    totalEvaluated: results.length,
+    averageScore: insights.averageScore,
+    durationMs,
+  });
+
+  const poolIds = applicants.map((a) => a._id);
+  const shortlistIds = new Set(shortlist.map((s) => s.candidateId));
+  await ApplicantModel.updateMany(
+    { _id: { $in: poolIds }, "profile.id": { $in: [...shortlistIds] } },
+    { status: "shortlisted", screeningId },
+  );
+  await ApplicantModel.updateMany(
+    { _id: { $in: poolIds }, "profile.id": { $nin: [...shortlistIds] } },
+    { status: "rejected", screeningId },
+  );
+
+  await redisSet(`screening:${screeningId}`, JSON.stringify(payload), 3600).catch(() => null);
+
+  await notifyUser({
+    userId: params.recruiterId,
+    title: "Screening completed",
+    message: `AI screening for "${job.title}" completed — ${shortlist.length} candidates shortlisted.`,
+    type: "success",
+    sendEmail: false,
+  }).catch(() => null);
+
+  return {
+    screeningId,
+    status: "completed",
+    shortlistCount: shortlist.length,
+    totalEvaluated: results.length,
+    averageScore: Math.round(insights.averageScore),
+    jobTitle: job.title,
+  };
+}
