@@ -6,6 +6,7 @@ import {
   deleteScreening,
   exportScreening,
   exportScreeningExplanations,
+  getAcceptedCandidates,
   getScreening,
   getScreeningResults,
   listScreenings,
@@ -19,6 +20,7 @@ import {
   syncExternalScreening,
   syncPlatformScreening,
 } from "../controllers/screening.controller";
+import { listInterviewsHandler } from "../controllers/interview.controller";
 
 export const screeningsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -40,4 +42,6 @@ export const screeningsRoutes: FastifyPluginAsync = async (app) => {
   app.post("/:id/compare", compareCandidates);
   app.post("/:id/ai-chat", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, candidateAiChat);
   app.post("/:id/advisory-chat", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, poolAdvisoryChat);
+  app.get("/:id/accepted", getAcceptedCandidates);
+  app.get("/:id/interviews", listInterviewsHandler);
 };

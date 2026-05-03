@@ -23,6 +23,10 @@ import type { Applicant } from "../../../../types";
 import { AcceptanceOutreachPanel } from "../../../../components/screenings/AcceptanceOutreachPanel";
 import { AiChatModal } from "../../../../components/screenings/AiChatModal";
 import { AiAdvisoryModal } from "../../../../components/screenings/AiAdvisoryModal";
+import { ScheduleInterviewModal, type ScheduleInterviewTarget } from "../../../../components/interviews/ScheduleInterviewModal";
+import { InterviewStatusBadge } from "../../../../components/interviews/InterviewStatusBadge";
+import { useGetScreeningInterviewsQuery } from "../../../../store/api/interviewsApi";
+import type { InterviewStatus } from "../../../../store/api/interviewsApi";
 
 type Decision = "approved" | "rejected" | "review";
 
@@ -181,6 +185,15 @@ export default function ScreeningDetailPage() {
     candidateId: string; candidateName: string; aiRecommendation: string; totalScore: number;
   } | null>(null);
   const [aiAdvisoryOpen, setAiAdvisoryOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"shortlist" | "accepted">("shortlist");
+  const [scheduleTarget, setScheduleTarget] = useState<ScheduleInterviewTarget | null>(null);
+
+  const { data: interviewsData, refetch: refetchInterviews } = useGetScreeningInterviewsQuery(screeningId, {
+    skip: !screeningId || !isComplete,
+  });
+  const interviewsByApplicant = new Map<string, { status: InterviewStatus }>(
+    (interviewsData ?? []).map((iv) => [iv.applicantId, { status: iv.status }]),
+  );
 
   /** Server decisions win when any exist; else hydrate from local storage (pre-server saves). */
   useEffect(() => {
@@ -460,6 +473,34 @@ export default function ScreeningDetailPage() {
             </Card>
           </div>
 
+          {/* Tab switcher */}
+          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setActiveTab("shortlist")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTab === "shortlist" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Shortlist
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("accepted")}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTab === "accepted" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Accepted
+              {approvedCount > 0 ? (
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
+                  {approvedCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
+
+          {activeTab === "shortlist" ? (
           <div className="flex items-center gap-2">
             {[10, 20].map((size) => (
               <button
@@ -478,12 +519,94 @@ export default function ScreeningDetailPage() {
               {approvedCount > 0 ? ` · ${approvedCount} approved` : ""}
             </span>
           </div>
+          ) : null}
 
-          {approvedForOutreach.length > 0 ? (
+          {/* ── Accepted candidates tab ── */}
+          {activeTab === "accepted" ? (
+            <div className="space-y-4">
+              {approvedForOutreach.length === 0 ? (
+                <div className="flex min-h-[20vh] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
+                  <p className="font-medium">No accepted candidates yet</p>
+                  <p className="text-sm text-slate-400">Use the Shortlist tab to approve candidates first.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <table className="w-full min-w-[500px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        <th className="px-4 py-3">Candidate</th>
+                        <th className="px-4 py-3 w-32">Email sent</th>
+                        <th className="px-4 py-3 w-36">Interview</th>
+                        <th className="px-4 py-3 w-40">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {approvedForOutreach.map(({ id, name, email, congratsEmailSentAt }) => {
+                        const iv = interviewsByApplicant.get(id);
+                        return (
+                          <tr key={id} className="hover:bg-slate-50/70">
+                            <td className="px-4 py-3">
+                              <p className="font-semibold text-slate-900">{name}</p>
+                              <p className="text-xs text-slate-500">{email || "—"}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              {congratsEmailSentAt ? (
+                                <span className="text-xs text-emerald-700">Sent</span>
+                              ) : (
+                                <span className="text-xs text-slate-400">Not sent</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {iv ? (
+                                <InterviewStatusBadge status={iv.status} />
+                              ) : (
+                                <span className="text-xs text-slate-400">Not scheduled</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {!iv ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setScheduleTarget({
+                                      candidateId:    id,
+                                      applicantId:    id,
+                                      jobId:          String(jobId ?? ""),
+                                      screeningId,
+                                      candidateName:  name,
+                                      candidateEmail: email,
+                                      jobTitle:       job?.title ?? "this role",
+                                    })
+                                  }
+                                  className="rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+                                >
+                                  Schedule interview
+                                </button>
+                              ) : (
+                                <a
+                                  href="/interviews"
+                                  className="text-xs font-semibold text-brand-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {activeTab === "shortlist" && approvedForOutreach.length > 0 ? (
             <AcceptanceOutreachPanel screeningId={screeningId} jobTitle={job?.title} approved={approvedForOutreach} />
           ) : null}
 
-          {/* Compact shortlist pool table */}
+          {/* Compact shortlist pool table + extended cards */}
+          {activeTab === "shortlist" ? (<>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full min-w-[480px] text-sm">
               <thead>
@@ -569,7 +692,7 @@ export default function ScreeningDetailPage() {
             </button>
           </div>
 
-          {/* Extended detailed cards */}
+          {/* Extended detailed cards — shortlist tab only */}
           {showExtended && (
             <div className="grid gap-4 lg:grid-cols-2">
               {candidates.map(({ candidate, applicant, embedded }) => {
@@ -741,6 +864,7 @@ export default function ScreeningDetailPage() {
               })}
             </div>
           )}
+          </>) : null}
         </>
       ) : null}
 
@@ -806,6 +930,13 @@ export default function ScreeningDetailPage() {
           onClose={() => setAiChatTarget(null)}
         />
       )}
+
+      <ScheduleInterviewModal
+        open={!!scheduleTarget}
+        target={scheduleTarget}
+        onClose={() => setScheduleTarget(null)}
+        onScheduled={() => void refetchInterviews()}
+      />
 
       {/* ── AI Advisory floating button ── */}
       {isComplete && hasShortlist && !aiChatTarget ? (

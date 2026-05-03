@@ -49,6 +49,46 @@ export const renderScreeningRejectionEmail = (params: { firstName: string; jobTi
     accent: "#64748b",
   });
 
+export const renderInterviewInviteEmail = (params: {
+  candidateName: string;
+  jobTitle: string;
+  interviewType: "video" | "phone" | "in-person";
+  proposedSlots: Array<{ start: string; end: string }>;
+  meetingLink?: string;
+  notes?: string;
+}): string => {
+  const typeLabel = params.interviewType === "video"
+    ? "Video call"
+    : params.interviewType === "phone"
+      ? "Phone call"
+      : "In-person";
+
+  const slotsHtml = params.proposedSlots
+    .map((s, i) => `<li style="margin:4px 0;">Option ${i + 1}: <b>${escapeHtml(s.start)}</b> – ${escapeHtml(s.end)} UTC</li>`)
+    .join("");
+
+  const meetingBlock = params.meetingLink
+    ? `<p style="margin:12px 0;">Meeting link: <a href="${escapeHtml(params.meetingLink)}" style="color:${brandBlue};">${escapeHtml(params.meetingLink)}</a></p>`
+    : "";
+
+  const notesBlock = params.notes
+    ? `<p style="margin:12px 0;padding:10px 14px;background:#f1f5f9;border-radius:10px;border-left:4px solid ${brandBlue};">${nl2br(params.notes)}</p>`
+    : "";
+
+  return renderBaseEmailTemplate({
+    title: `Interview invitation — ${params.jobTitle}`,
+    greeting: `Hello ${escapeHtml(params.candidateName)},`,
+    message: `We would like to invite you to an interview for the <b>${escapeHtml(params.jobTitle)}</b> role.<br/><br/>
+Format: <b>${typeLabel}</b><br/><br/>
+Please review the proposed time slots below and confirm the one that works best for you:<br/>
+<ul style="margin:8px 0 12px;padding-left:20px;">${slotsHtml}</ul>
+${meetingBlock}${notesBlock}
+A calendar invite (.ics) is attached — you can import it directly into Google Calendar, Outlook, or Apple Calendar.<br/><br/>
+Reply to this email to confirm your preferred slot or to suggest a different time.`,
+    accent: brandBlue,
+  });
+};
+
 export const renderScreeningAcceptanceEmail = (params: {
   firstName: string;
   jobTitle: string;

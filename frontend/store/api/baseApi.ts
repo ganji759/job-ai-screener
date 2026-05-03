@@ -32,7 +32,7 @@ const axiosBaseQuery = (): BaseQueryFn<AxiosBaseQueryArgs, unknown, unknown> =>
 export const baseApi = createApi({
   reducerPath: "baseApi",
   baseQuery: axiosBaseQuery(),
-  tagTypes: ["Jobs", "Applicants", "Screenings", "Dashboard", "Notifications"],
+  tagTypes: ["Jobs", "Applicants", "Screenings", "Dashboard", "Notifications", "Interviews"],
   refetchOnFocus: true,
   endpoints: () => ({}),
 });

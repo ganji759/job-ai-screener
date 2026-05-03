@@ -14,6 +14,7 @@ import { dashboardRoutes } from "./routes/dashboard.routes";
 import { jobsRoutes } from "./routes/jobs.routes";
 import { notificationsRoutes } from "./routes/notifications.routes";
 import { screeningsRoutes } from "./routes/screenings.routes";
+import { interviewsRoutes } from "./routes/interviews.routes";
 import { registerConnection } from "./services/realtime.service";
 
 /** Browsers send different Origin values (localhost vs 127.0.0.1). Mismatch breaks credentialed PUT/POST after preflight. */
@@ -65,6 +66,7 @@ export const buildApp = async () => {
   await app.register(applicantsRoutes, { prefix: "/api/v1/applicants" });
   await app.register(screeningsRoutes, { prefix: "/api/v1/screenings" });
   await app.register(notificationsRoutes, { prefix: "/api/v1/notifications" });
+  await app.register(interviewsRoutes, { prefix: "/api/v1/interviews" });
   await app.register(dashboardRoutes, { prefix: "/api/v1" });
 
   registerErrorHandler(app);

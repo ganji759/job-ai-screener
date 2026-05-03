@@ -284,6 +284,35 @@ export const screeningsApi = baseApi.injectEndpoints({
       }),
     }),
 
+    /** GET /api/v1/screenings/:id/accepted — approved candidates enriched with interview status */
+    getAcceptedCandidates: builder.query<
+      {
+        accepted: Array<{
+          applicantId: string;
+          decision: { decision: string; hrNote: string; decidedAt: string; aiLabel: string; congratsEmailSentAt?: string };
+          applicant: { profile: Record<string, unknown>; source: string };
+          shortlistEntry: Record<string, unknown> | null;
+          interview: Record<string, unknown> | null;
+        }>;
+      },
+      string
+    >({
+      query: (id) => ({ url: `/screenings/${id}/accepted`, method: "get" }),
+      transformResponse: (raw: unknown) => {
+        const r = raw as { data?: { accepted?: unknown[] } };
+        return { accepted: (r?.data?.accepted ?? []) } as {
+          accepted: Array<{
+            applicantId: string;
+            decision: { decision: string; hrNote: string; decidedAt: string; aiLabel: string; congratsEmailSentAt?: string };
+            applicant: { profile: Record<string, unknown>; source: string };
+            shortlistEntry: Record<string, unknown> | null;
+            interview: Record<string, unknown> | null;
+          }>;
+        };
+      },
+      providesTags: ["Screenings", "Interviews"],
+    }),
+
     /** POST /api/v1/screenings/:id/advisory-chat — cohort-level AI advisory (all candidates) */
     poolAdvisoryChat: builder.mutation<
       { reply: string },
@@ -303,6 +332,7 @@ export const screeningsApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetAcceptedCandidatesQuery,
   useGetScreeningsQuery,
   useRunScreeningMutation,
   useRunScreeningForJobMutation,

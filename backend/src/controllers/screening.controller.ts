@@ -5,6 +5,7 @@ import { redisDel, redisGet, redisSet } from "../config/redis";
 import { JobModel } from "../models/Job.model";
 import { ScreeningModel } from "../models/Screening.model";
 import { ApplicantModel } from "../models/Applicant.model";
+import { InterviewModel } from "../models/Interview.model";
 import { addScreeningJob, getJobStatus } from "../services/queue.service";
 import { generateExplanationsPDF, generateShortlistPDF } from "../services/export.service";
 import { compareCandidatesWithGemini, generatePlainText, generatePoolInsights, scoreAllCandidates } from "../services/gemini.service";
@@ -1215,4 +1216,68 @@ export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyRe
     const msg = err instanceof Error ? err.message : String(err);
     reply.code(500).send({ error: `Advisory chat failed: ${msg.slice(0, 200)}` });
   }
+};
+
+export const getAcceptedCandidates = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const { id } = req.params as { id: string };
+  const recruiterId = (req.user as { userId: string }).userId;
+
+  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  if (!screening) {
+    void reply.code(404).send({ data: null, error: { code: "NOT_FOUND", message: "Screening not found" } });
+    return;
+  }
+
+  const rdRaw = screening.recruiterDecisions;
+  const decisions: Record<string, unknown> =
+    rdRaw instanceof Map
+      ? Object.fromEntries(rdRaw.entries())
+      : rdRaw && typeof rdRaw === "object"
+        ? { ...(rdRaw as Record<string, unknown>) }
+        : {};
+
+  const approvedIds = Object.entries(decisions)
+    .filter(([, v]) => (v as Record<string, unknown>)?.decision === "approved")
+    .map(([k]) => k);
+
+  if (approvedIds.length === 0) {
+    void reply.send({ data: { accepted: [] }, error: null });
+    return;
+  }
+
+  const [applicants, interviews] = await Promise.all([
+    ApplicantModel.find({ _id: { $in: approvedIds } }).lean(),
+    InterviewModel.find({
+      screeningId: new Types.ObjectId(id),
+      applicantId: { $in: approvedIds.map((aid) => new Types.ObjectId(aid)) },
+    }).lean(),
+  ]);
+
+  const interviewByApplicant = new Map<string, unknown>();
+  for (const iv of interviews) {
+    interviewByApplicant.set(String(iv.applicantId), iv);
+  }
+
+  const shortlist = ((screening.results as { shortlist?: unknown[] } | undefined)?.shortlist ?? []) as Array<Record<string, unknown>>;
+
+  const accepted = applicants.map((applicant) => {
+    const applicantId = String(applicant._id);
+    const profile = (applicant.profile ?? {}) as Record<string, unknown>;
+    const shortlistEntry =
+      shortlist.find(
+        (s) =>
+          String(s.candidateId) === applicantId ||
+          String(s.candidateId) === String(profile.id ?? ""),
+      ) ?? null;
+
+    return {
+      applicantId,
+      decision: decisions[applicantId],
+      applicant: { profile, source: applicant.source },
+      shortlistEntry,
+      interview: interviewByApplicant.get(applicantId) ?? null,
+    };
+  });
+
+  void reply.send({ data: { accepted }, error: null });
 };

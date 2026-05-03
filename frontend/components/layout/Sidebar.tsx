@@ -8,6 +8,7 @@ import {
   Bell,
   Brain,
   Briefcase,
+  CalendarCheck,
   FileBarChart2,
   LayoutGrid,
   Settings,
@@ -28,6 +29,7 @@ const primaryLinks = [
   { href: "/applicants", label: "Applicants", icon: Users },
   { href: "/screenings", label: "Screenings", icon: Brain },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/interviews", label: "Interviews", icon: CalendarCheck },
   { href: "/dashboard/reports", label: "Reports", icon: FileBarChart2 },
 ] as const;
 
