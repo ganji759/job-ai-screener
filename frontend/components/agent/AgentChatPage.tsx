@@ -799,7 +799,7 @@ export const AgentChatPage = () => {
         );
       }
     },
-    [activeId, activeConv, agentChat, history, isLoading],
+    [activeId, activeConv, agentChat, history, isLoading, attachments],
   );
 
   const deleteConversation = useCallback(
