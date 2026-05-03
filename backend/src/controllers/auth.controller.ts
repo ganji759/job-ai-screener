@@ -11,6 +11,7 @@ const RegisterSchema = z.object({ name: z.string().min(2), email: z.string().ema
 const LoginSchema = z.object({ email: z.string().email(), password: z.string().min(1) }).strip();
 const VerifyOtpSchema = z.object({ email: z.string().email(), code: z.string().length(6), purpose: z.enum(["verify_email", "login_2fa", "password_reset"]).default("verify_email") }).strip();
 const SendOtpSchema = z.object({ email: z.string().email(), purpose: z.enum(["verify_email", "login_2fa", "password_reset"]).default("verify_email") }).strip();
+const ResetPasswordSchema = z.object({ email: z.string().email(), code: z.string().length(6), newPassword: z.string().min(8) }).strip();
 
 const signToken = (userId: string, email: string, role: string): string =>
   jwt.sign({ userId, email, role }, env.JWT_SECRET, {
@@ -88,6 +89,21 @@ export const verifyAuthOtp = async (request: FastifyRequest, reply: FastifyReply
     sendEmail: true,
   });
 
+  reply.send({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+};
+
+export const resetPassword = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const body = ResetPasswordSchema.parse(request.body);
+  const user = await UserModel.findOne({ email: body.email });
+  if (!user) return void reply.code(404).send({ error: "User not found" });
+
+  const valid = await verifyOtp(String(user._id), body.code, "password_reset");
+  if (!valid) return void reply.code(400).send({ error: "Invalid or expired OTP" });
+
+  user.password = body.newPassword;
+  await user.save();
+
+  const token = signToken(String(user._id), user.email, user.role);
   reply.send({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
 };
 

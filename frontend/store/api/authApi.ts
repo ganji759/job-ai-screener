@@ -107,6 +107,12 @@ export const authApi = baseApi.injectEndpoints({
         };
       },
     }),
+    resetPassword: builder.mutation<
+      { token: string; user: User },
+      { email: string; code: string; newPassword: string }
+    >({
+      query: (body) => ({ url: "/auth/password-reset", method: "post", data: body }),
+    }),
     /**
      * Account deletion is not yet exposed by the backend. Surface a clear error.
      */
@@ -130,6 +136,7 @@ export const {
   useVerifyOtpMutation,
   useSendOtpMutation,
   useRegisterMutation,
+  useResetPasswordMutation,
   useMeQuery,
   useUpdateMeMutation,
   useChangePasswordMutation,
