@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import type { AgentMessage, ToolCall } from "../../store/api/agentApi";
 import { useAgentChatMutation } from "../../store/api/agentApi";
 import { useMeQuery } from "../../store/api/authApi";
@@ -688,8 +689,10 @@ export const AgentChatPage = () => {
 
       // Upload resume/pdf files to extract text before sending to agent
       const parts: string[] = [];
+      let extractionFailed = false;
       for (const a of currentAttachments) {
         if (a.kind === "pdf" || a.kind === "resume") {
+          const toastId = toast.loading(`Extracting text from ${a.name}…`);
           try {
             const form = new FormData();
             form.append("file", a.file, a.name);
@@ -698,20 +701,24 @@ export const AgentChatPage = () => {
               headers: { Authorization: `Bearer ${getToken()}` },
               body: form,
             });
-            if (res.ok) {
-              const data = await res.json() as { rawText?: string; name?: string | null; email?: string | null };
+            const data = await res.json() as { rawText?: string; name?: string | null; error?: string };
+            if (res.ok && data.rawText && data.rawText.trim().length > 20) {
+              toast.success(`Extracted resume: ${data.name ?? a.name}`, { id: toastId });
               const header = `[Resume: ${a.name}${data.name ? ` — ${data.name}` : ""}]`;
-              parts.push(`${header}\n${(data.rawText ?? "").slice(0, 12000)}`);
+              parts.push(`${header}\n${data.rawText.slice(0, 12000)}`);
             } else {
-              parts.push(`[Attached RESUME: ${a.name} — could not extract text]`);
+              toast.error(`Could not extract text from ${a.name}. ${data.error ?? "Please paste the resume text directly in the chat."}`, { id: toastId, duration: 6000 });
+              extractionFailed = true;
             }
           } catch {
-            parts.push(`[Attached RESUME: ${a.name} — could not extract text]`);
+            toast.error(`Could not read ${a.name} — check your connection and try again, or paste the resume text directly.`, { id: toastId, duration: 6000 });
+            extractionFailed = true;
           }
         } else {
           parts.push(`[Attached ${a.kind.toUpperCase()}: ${a.name}]`);
         }
       }
+      if (extractionFailed && parts.length === 0) return;
 
       const filePrefix = parts.join("\n\n");
       const fullMsg = filePrefix ? `${filePrefix}\n\n${trimmed}` : trimmed;

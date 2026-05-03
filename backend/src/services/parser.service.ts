@@ -260,7 +260,7 @@ const legacyParsePdf = async (buffer: Buffer): Promise<Partial<UmuravaProfile> &
   }
 };
 
-const extractRawTextFromPdf = async (buffer: Buffer): Promise<string> => {
+export const extractRawTextFromPdf = async (buffer: Buffer): Promise<string> => {
   try {
     const data = await pdfParse(buffer);
     return typeof data?.text === "string" ? data.text : "";

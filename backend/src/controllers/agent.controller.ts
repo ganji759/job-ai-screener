@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { runAgentChat } from "../services/agent.service";
 import type { AgentMessage } from "../services/agent.service";
-import { parsePDF, heuristicExtractResume } from "../services/parser.service";
+import { parsePDF, heuristicExtractResume, extractRawTextFromPdf } from "../services/parser.service";
 
 const AgentChatBodySchema = z.object({
   message: z.string().min(1).max(15000),
@@ -51,16 +51,24 @@ export async function extractTextHandler(req: FastifyRequest, reply: FastifyRepl
 
     let rawText = "";
     if (mime === "application/pdf" || filename.toLowerCase().endsWith(".pdf")) {
-      const result = await parsePDF(buf, filename);
-      rawText = result.rawText ?? "";
-      if (!rawText) {
-        // Build text from profile fields as fallback
-        const p = result as Record<string, unknown>;
-        rawText = [p.firstName, p.lastName, p.email, p.title, p.summary].filter(Boolean).join(" ");
+      try {
+        const result = await parsePDF(buf, filename);
+        rawText = result.rawText ?? "";
+        if (!rawText) {
+          const p = result as Record<string, unknown>;
+          rawText = [p.firstName, p.lastName, p.email, p.title, p.summary].filter(Boolean).join(" ");
+        }
+      } catch {
+        // parsePDF failed entirely — fall back to raw text extraction only
+        rawText = await extractRawTextFromPdf(buf).catch(() => "");
       }
     } else {
       // Plain text / docx / csv — read as UTF-8
       rawText = buf.toString("utf-8");
+    }
+
+    if (!rawText || rawText.trim().length < 20) {
+      return reply.status(422).send({ error: "Could not extract readable text from this file. Try a text-based PDF or paste the resume text directly." });
     }
 
     // Extract minimal profile info for a preview
