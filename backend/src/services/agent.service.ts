@@ -490,7 +490,7 @@ async function executeTool(
         title: String(args.title),
         company: args.company ? String(args.company) : undefined,
         description: String(args.description),
-        status: (args.status as string) ?? "active",
+        status: (args.status as "draft" | "active" | "closed" | undefined) ?? "active",
         recruiterId,
         requirements: {
           title: String(args.title),
@@ -516,7 +516,7 @@ async function executeTool(
     case "update_job_status": {
       const job = await JobModel.findOneAndUpdate(
         { _id: String(args.jobId), recruiterId },
-        { $set: { status: args.status } },
+        { $set: { status: args.status as "draft" | "active" | "closed" } },
         { new: true },
       ).lean();
       if (!job) return { error: "Job not found or access denied." };
