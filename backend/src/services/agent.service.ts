@@ -498,7 +498,7 @@ async function executeTool(
           mustHaveSkills: Array.isArray(args.mustHaveSkills) ? args.mustHaveSkills.map(String) : [],
           niceToHaveSkills: Array.isArray(args.niceToHaveSkills) ? args.niceToHaveSkills.map(String) : [],
           minYearsExperience: Number(args.minYearsExperience ?? 0),
-          educationLevel: (args.educationLevel as string) ?? "none",
+          educationLevel: (args.educationLevel as "none" | "certificate" | "bachelor" | "master" | "phd" | undefined) ?? "none",
           domain: args.domain ? String(args.domain) : "general",
           location: args.location ? String(args.location) : undefined,
           remoteAllowed: args.remoteAllowed === "yes",
