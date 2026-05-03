@@ -56,6 +56,7 @@ export const renderInterviewInviteEmail = (params: {
   proposedSlots: Array<{ start: string; end: string }>;
   meetingLink?: string;
   notes?: string;
+  googleCalendarInviteSent?: boolean;
 }): string => {
   const typeLabel = params.interviewType === "video"
     ? "Video call"
@@ -67,13 +68,18 @@ export const renderInterviewInviteEmail = (params: {
     .map((s, i) => `<li style="margin:4px 0;">Option ${i + 1}: <b>${escapeHtml(s.start)}</b> – ${escapeHtml(s.end)} UTC</li>`)
     .join("");
 
+  const isGoogleMeet = !!params.meetingLink?.includes("meet.google.com");
   const meetingBlock = params.meetingLink
-    ? `<p style="margin:12px 0;">Meeting link: <a href="${escapeHtml(params.meetingLink)}" style="color:${brandBlue};">${escapeHtml(params.meetingLink)}</a></p>`
+    ? `<p style="margin:12px 0;">${isGoogleMeet ? "Google Meet link" : "Meeting link"}: <a href="${escapeHtml(params.meetingLink)}" style="color:${brandBlue};">${escapeHtml(params.meetingLink)}</a></p>`
     : "";
 
   const notesBlock = params.notes
     ? `<p style="margin:12px 0;padding:10px 14px;background:#f1f5f9;border-radius:10px;border-left:4px solid ${brandBlue};">${nl2br(params.notes)}</p>`
     : "";
+
+  const calendarNote = params.googleCalendarInviteSent
+    ? `A <b>Google Calendar invite</b> has been sent directly to your calendar — accept it to add this interview automatically and join via Google Meet.<br/><br/>`
+    : `A calendar invite (.ics) is attached — you can import it directly into Google Calendar, Outlook, or Apple Calendar.<br/><br/>`;
 
   return renderBaseEmailTemplate({
     title: `Interview invitation — ${params.jobTitle}`,
@@ -83,8 +89,7 @@ Format: <b>${typeLabel}</b><br/><br/>
 Please review the proposed time slots below and confirm the one that works best for you:<br/>
 <ul style="margin:8px 0 12px;padding-left:20px;">${slotsHtml}</ul>
 ${meetingBlock}${notesBlock}
-A calendar invite (.ics) is attached — you can import it directly into Google Calendar, Outlook, or Apple Calendar.<br/><br/>
-Reply to this email to confirm your preferred slot or to suggest a different time.`,
+${calendarNote}Reply to this email to confirm your preferred slot or to suggest a different time.`,
     accent: brandBlue,
   });
 };

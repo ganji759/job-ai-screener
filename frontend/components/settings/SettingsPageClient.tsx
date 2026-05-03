@@ -1,24 +1,26 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Bot, DoorOpen, Palette, Shield, User } from "lucide-react";
+import { Bell, Bot, DoorOpen, Palette, PlugZap, Shield, User } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AccountSettingsSection } from "./AccountSettingsSection";
 import { AiSettingsSection } from "./AiSettingsSection";
 import { AppearanceSettingsSection } from "./AppearanceSettingsSection";
+import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { NotificationSettingsSection } from "./NotificationSettingsSection";
 import { ProfileSettingsSection } from "./ProfileSettingsSection";
 import { SecuritySettingsSection } from "./SecuritySettingsSection";
 import { cn } from "../../lib/utils";
 
 const NAV = [
-  { id: "profile", label: "Profile", icon: User },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "notifications", label: "Notification Preferences", icon: Bell },
-  { id: "ai", label: "AI Preferences", icon: Bot },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "account", label: "Account", icon: DoorOpen },
+  { id: "profile",      label: "Profile",                   icon: User     },
+  { id: "security",     label: "Security",                  icon: Shield   },
+  { id: "notifications",label: "Notification Preferences",  icon: Bell     },
+  { id: "ai",           label: "AI Preferences",            icon: Bot      },
+  { id: "appearance",   label: "Appearance",                icon: Palette  },
+  { id: "integrations", label: "Integrations",              icon: PlugZap  },
+  { id: "account",      label: "Account",                   icon: DoorOpen },
 ] as const;
 
 type SectionId = (typeof NAV)[number]["id"];
@@ -48,6 +50,8 @@ export const SettingsPageClient = () => {
         return <AiSettingsSection />;
       case "appearance":
         return <AppearanceSettingsSection />;
+      case "integrations":
+        return <GoogleCalendarSection />;
       case "account":
         return <AccountSettingsSection />;
       default:

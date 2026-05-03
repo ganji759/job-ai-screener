@@ -20,8 +20,9 @@ const InterviewSchema = new Schema(
     status:         { type: String, enum: ["pending", "confirmed", "cancelled", "completed"], default: "pending" },
     proposedSlots:  { type: [SlotSchema], default: [] },
     confirmedSlot:  { type: SlotSchema },
-    meetingLink:    { type: String },
-    notes:          { type: String },
+    meetingLink:          { type: String },
+    notes:                { type: String },
+    googleCalendarEventId:{ type: String },
   },
   { timestamps: true },
 );

@@ -60,6 +60,17 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   RESEND_FROM: z.string().min(1).default("onboarding@resend.dev"),
   OTP_EXPIRES_MINUTES: z.coerce.number().int().positive().default(10),
+  /** Google OAuth 2.0 — all three must be set to enable Google Calendar integration. */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /** Full backend callback URL, e.g. http://localhost:3001/auth/google/callback */
+  GOOGLE_REDIRECT_URI: z.string().url().optional().or(z.literal("").transform(() => undefined)),
+  /**
+   * AES-256 key as 64 hex chars. Generate with:
+   *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   * Required when GOOGLE_CLIENT_ID is set.
+   */
+  ENCRYPTION_KEY: z.string().length(64).optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

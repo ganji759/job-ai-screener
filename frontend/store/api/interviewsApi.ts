@@ -25,6 +25,7 @@ export interface Interview {
   confirmedSlot?: InterviewSlot;
   meetingLink?: string;
   notes?: string;
+  googleCalendarEventId?: string;
   createdAt: string;
   updatedAt: string;
 }

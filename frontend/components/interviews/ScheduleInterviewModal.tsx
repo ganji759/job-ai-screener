@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Calendar, CheckCircle2, ExternalLink, Plus, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
+import Link from "next/link";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import type { InterviewType } from "../../store/api/interviewsApi";
 import { useCreateInterviewMutation } from "../../store/api/interviewsApi";
+import { useGetCalendarStatusQuery } from "../../store/api/calendarApi";
 
 export type ScheduleInterviewTarget = {
   candidateId: string;
@@ -36,11 +38,14 @@ export const ScheduleInterviewModal = ({
   onScheduled?: () => void;
 }) => {
   const [createInterview, { isLoading }] = useCreateInterviewMutation();
+  const { data: calendarStatus } = useGetCalendarStatusQuery();
 
   const [interviewType, setInterviewType] = useState<InterviewType>("video");
   const [slots, setSlots] = useState<Slot[]>([emptySlot()]);
   const [meetingLink, setMeetingLink] = useState("");
   const [notes, setNotes] = useState("");
+
+  const isCalendarConnected = calendarStatus?.connected ?? false;
 
   const reset = () => {
     setInterviewType("video");
@@ -96,7 +101,10 @@ export const ScheduleInterviewModal = ({
         notes:       notes.trim() || undefined,
       }).unwrap();
 
-      toast.success("Interview scheduled and invite sent.");
+      const successMsg = isCalendarConnected
+        ? "Interview scheduled — Google Calendar event created & invite sent."
+        : "Interview scheduled and invite sent.";
+      toast.success(successMsg);
       reset();
       onScheduled?.();
       onClose();
@@ -119,6 +127,33 @@ export const ScheduleInterviewModal = ({
             <X className="h-4 w-4 text-slate-500" />
           </button>
         </div>
+
+        {/* Google Calendar status banner */}
+        {calendarStatus?.configured ? (
+          isCalendarConnected ? (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+              <Calendar className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-emerald-800 dark:text-emerald-300">
+                <span className="font-semibold">Google Calendar connected</span> — a calendar event
+                with Google Meet will be created automatically.
+              </span>
+              <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800/40">
+              <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+              <span className="text-slate-600 dark:text-slate-400">
+                Google Calendar not connected. Only a Resend email + .ics will be sent.
+              </span>
+              <Link
+                href="/settings?section=integrations"
+                className="ml-auto flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                Connect <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+          )
+        ) : null}
 
         {/* Interview type */}
         <div>
@@ -208,13 +243,16 @@ export const ScheduleInterviewModal = ({
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Meeting link <span className="font-normal text-slate-500">(optional)</span>
+              Meeting link{" "}
+              <span className="font-normal text-slate-500">
+                {isCalendarConnected ? "(auto-generated via Google Meet — or override here)" : "(optional)"}
+              </span>
             </label>
             <input
               type="url"
               value={meetingLink}
               onChange={(e) => setMeetingLink(e.target.value)}
-              placeholder="https://meet.google.com/..."
+              placeholder={isCalendarConnected ? "Leave blank to use auto-generated Google Meet link" : "https://meet.google.com/..."}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
           </div>
@@ -233,8 +271,10 @@ export const ScheduleInterviewModal = ({
         </div>
 
         <p className="text-xs text-slate-500">
-          An invite email + .ics calendar file will be sent to{" "}
-          <span className="font-medium">{target.candidateEmail || "the candidate"}</span> immediately.
+          {isCalendarConnected
+            ? <>A Google Calendar event + Google Meet link will be created, and an invite email + .ics will be sent to <span className="font-medium">{target.candidateEmail || "the candidate"}</span>.</>
+            : <>An invite email + .ics calendar file will be sent to <span className="font-medium">{target.candidateEmail || "the candidate"}</span> immediately.</>
+          }
         </p>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -242,7 +282,7 @@ export const ScheduleInterviewModal = ({
             Cancel
           </Button>
           <Button type="submit" loading={isLoading}>
-            Schedule &amp; send invite
+            {isCalendarConnected ? "Schedule with Google Calendar" : "Schedule & send invite"}
           </Button>
         </div>
       </form>

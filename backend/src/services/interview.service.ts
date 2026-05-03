@@ -2,6 +2,13 @@ import { Types } from "mongoose";
 import { InterviewModel } from "../models/Interview.model";
 import { sendMailSafe } from "./email.service";
 import { renderInterviewInviteEmail } from "./emailTemplates.service";
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  isCalendarConnected,
+  isGoogleConfigured,
+} from "./googleCalendar.service";
+import { logger } from "../utils/logger";
 
 const fmtIcs = (d: Date): string =>
   d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
@@ -93,40 +100,77 @@ export const createInterview = async (input: CreateInterviewInput) => {
   });
 
   const firstSlot = slots[0];
-  if (firstSlot) {
-    const ics = generateIcs({
-      uid:            String(interview._id),
-      title:          input.title,
-      description:    `Interview for ${input.jobTitle}\nCandidate: ${input.candidateName}${input.notes ? `\n\nNotes: ${input.notes}` : ""}`,
-      start:          firstSlot.start,
-      end:            firstSlot.end,
-      location:       input.meetingLink,
-      organizerEmail: input.recruiterEmail,
-      organizerName:  input.recruiterName,
-      attendeeEmail:  input.candidateEmail,
-      attendeeName:   input.candidateName,
-    });
+  if (!firstSlot) return interview;
 
-    const html = renderInterviewInviteEmail({
-      candidateName: input.candidateName,
-      jobTitle:      input.jobTitle,
-      interviewType: input.type,
-      proposedSlots: slots.map((s) => ({
-        start: s.start.toLocaleString("en-US", UTC_LOCALE_OPTS),
-        end:   s.end.toLocaleString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
-      })),
-      meetingLink: input.meetingLink,
-      notes:       input.notes,
-    });
+  // ── Google Calendar (optional) ────────────────────────────────────────────
+  let effectiveMeetLink = input.meetingLink;
+  let googleCalendarEventId: string | undefined;
+  let googleCalendarInviteSent = false;
 
-    await sendMailSafe(input.candidateEmail, input.title, html, [
-      {
-        filename:    "interview.ics",
-        content:     Buffer.from(ics).toString("base64"),
-        contentType: "text/calendar",
-      },
-    ]);
+  if (isGoogleConfigured()) {
+    try {
+      const connected = await isCalendarConnected(input.recruiterId);
+      if (connected) {
+        const { eventId, meetLink } = await createCalendarEvent({
+          recruiterId:    input.recruiterId,
+          title:          input.title,
+          description:    `Interview for ${input.jobTitle}\nCandidate: ${input.candidateName}${input.notes ? `\n\nNotes: ${input.notes}` : ""}`,
+          start:          firstSlot.start,
+          end:            firstSlot.end,
+          candidateEmail: input.candidateEmail,
+          candidateName:  input.candidateName,
+          recruiterEmail: input.recruiterEmail,
+          recruiterName:  input.recruiterName,
+        });
+        googleCalendarEventId = eventId;
+        googleCalendarInviteSent = true;
+        // Prefer the auto-generated Google Meet link if no manual one was provided
+        if (meetLink && !effectiveMeetLink) effectiveMeetLink = meetLink;
+
+        await InterviewModel.findByIdAndUpdate(interview._id, {
+          googleCalendarEventId,
+          ...(meetLink && !input.meetingLink ? { meetingLink: meetLink } : {}),
+        });
+      }
+    } catch (err) {
+      logger.warn({ err }, "interview.createInterview: Google Calendar event creation failed (non-fatal)");
+    }
   }
+
+  // ── Resend email + .ics attachment ────────────────────────────────────────
+  const ics = generateIcs({
+    uid:            String(interview._id),
+    title:          input.title,
+    description:    `Interview for ${input.jobTitle}\nCandidate: ${input.candidateName}${input.notes ? `\n\nNotes: ${input.notes}` : ""}`,
+    start:          firstSlot.start,
+    end:            firstSlot.end,
+    location:       effectiveMeetLink,
+    organizerEmail: input.recruiterEmail,
+    organizerName:  input.recruiterName,
+    attendeeEmail:  input.candidateEmail,
+    attendeeName:   input.candidateName,
+  });
+
+  const html = renderInterviewInviteEmail({
+    candidateName:           input.candidateName,
+    jobTitle:                input.jobTitle,
+    interviewType:           input.type,
+    proposedSlots: slots.map((s) => ({
+      start: s.start.toLocaleString("en-US", UTC_LOCALE_OPTS),
+      end:   s.end.toLocaleString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
+    })),
+    meetingLink:             effectiveMeetLink,
+    notes:                   input.notes,
+    googleCalendarInviteSent,
+  });
+
+  await sendMailSafe(input.candidateEmail, input.title, html, [
+    {
+      filename:    "interview.ics",
+      content:     Buffer.from(ics).toString("base64"),
+      contentType: "text/calendar",
+    },
+  ]);
 
   return interview;
 };
@@ -187,6 +231,16 @@ export const updateInterview = async (
 };
 
 export const deleteInterview = async (id: string, recruiterId: string) => {
+  // Remove the Google Calendar event first (non-fatal)
+  const interview = await InterviewModel.findOne({
+    _id: id,
+    recruiterId: new Types.ObjectId(recruiterId),
+  }).lean() as { googleCalendarEventId?: string } | null;
+
+  if (interview?.googleCalendarEventId && isGoogleConfigured()) {
+    await deleteCalendarEvent(recruiterId, interview.googleCalendarEventId);
+  }
+
   const res = await InterviewModel.deleteOne({ _id: id, recruiterId: new Types.ObjectId(recruiterId) });
   return res.deletedCount > 0;
 };
