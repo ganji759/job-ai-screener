@@ -775,7 +775,17 @@ async function runAgentChatInProcess(
       }),
     );
 
-    response = await chat.sendMessage(parts);
+    try {
+      response = await chat.sendMessage(parts);
+    } catch (sendErr) {
+      const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+      console.error(`[runAgentChatInProcess] sendMessage after tool execution failed: ${errMsg}`);
+      const completedNames = toolCalls.map((t) => t.name).join(", ");
+      return {
+        reply: `I completed the action (${completedNames}) but couldn't generate a summary due to a Gemini API error: ${errMsg}`,
+        toolCalls,
+      };
+    }
   }
 
   let reply: string;
@@ -805,5 +815,11 @@ export async function runAgentChat(
       console.warn(`[runAgentChat] Python service failed — falling back to in-process SDK. Reason: ${reason}`);
     }
   }
-  return runAgentChatInProcess(message, history, recruiterId);
+  try {
+    return await runAgentChatInProcess(message, history, recruiterId);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[runAgentChat] In-process SDK also failed: ${reason}`);
+    throw new Error(`Gemini API error: ${reason}`);
+  }
 }

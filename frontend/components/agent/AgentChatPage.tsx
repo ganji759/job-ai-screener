@@ -147,10 +147,13 @@ function groupConversations(convs: Conversation[]) {
 
 function extractError(err: unknown): string {
   if (err instanceof Error) return err.message;
-  const r = err as { data?: unknown };
+  const r = err as { data?: unknown; error?: unknown };
   if (typeof r?.data === "string") return r.data;
-  if (r?.data && typeof r.data === "object" && "message" in (r.data as object))
-    return String((r.data as { message: unknown }).message);
+  if (r?.data && typeof r.data === "object") {
+    const d = r.data as Record<string, unknown>;
+    if (typeof d.message === "string") return d.message;
+    if (typeof d.error   === "string") return d.error;
+  }
   return "Request failed — is the backend running and GEMINI_API_KEY set?";
 }
 
