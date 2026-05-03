@@ -69,6 +69,7 @@ npm run dev                   # http://localhost:3000
 - **"Talk to AI"** — RAG chat (Gemini) about any shortlisted candidate (30 req/min)
 - **Analytics** — HR vs AI confusion matrix (precision / recall / accuracy / agreement)
 - **Acceptance emails** — Resend integration to notify approved candidates
+- **Interview scheduling** — propose up to 3 time slots per accepted candidate; invite email + `.ics` calendar file sent automatically via Resend
 
 ## Deployment
 

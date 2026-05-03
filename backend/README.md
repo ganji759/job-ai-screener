@@ -71,6 +71,17 @@ POST   /screenings/:id/export
 DELETE /screenings/:id
 ```
 
+### Interviews
+```
+GET    /interviews                    # list all (filters: ?status=&screeningId=&page=&limit=)
+POST   /interviews                    # schedule interview — sends invite email + .ics attachment
+GET    /interviews/:id
+PATCH  /interviews/:id                # update status, confirm slot, meeting link, notes
+DELETE /interviews/:id
+GET    /screenings/:id/accepted       # approved candidates enriched with applicant + interview data
+GET    /screenings/:id/interviews     # interviews scoped to a screening
+```
+
 ### Dashboard
 ```
 GET /dashboard/analytics    # KPIs + HR vs AI confusion matrix
@@ -87,6 +98,7 @@ GET /dashboard/analytics    # KPIs + HR vs AI confusion matrix
 7. Frontend polls `GET /screenings/:id/status` every 3 s until `status: complete`
 8. Recruiter reviews the shortlist, marks each candidate `approved` / `rejected` / `review`
 9. Recruiter can open "Talk to AI" chat per candidate; email approved candidates via Resend
+10. Recruiter schedules interviews for accepted candidates → invite email + `.ics` file sent; status tracked (pending → confirmed → completed)
 
 ## Prompt Engineering & Scoring
 
@@ -137,6 +149,7 @@ FRONTEND_URL=http://localhost:3000
 
 # Email
 RESEND_API_KEY=
+RESEND_FROM=                  # Sender address — defaults to onboarding@resend.dev
 
 # File uploads
 MAX_FILE_SIZE_MB=10
@@ -149,3 +162,4 @@ MAX_FILE_SIZE_MB=10
 - **ID mismatch** — `results.shortlist[n].candidateId` stores Umurava `profile.id` (string); `recruiterDecisions` is keyed by Applicant MongoDB `_id` (ObjectId); the analytics endpoint joins the two
 - **Python fallback** — set `AI_SERVICE_URL=` (empty) to run Gemini entirely in-process via `@google/generativeai`; no code change needed
 - **Connection resilience** — `connectWithRetry` handles transient MongoDB failures at startup (10 retries, exponential backoff)
+- **ICS generation** — calendar invites generated in-process (no external package); `.ics` attached to invite email via Resend `attachments`; works with Google Calendar, Outlook, Apple Calendar

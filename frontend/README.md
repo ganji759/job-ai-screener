@@ -45,7 +45,7 @@ NEXT_PUBLIC_WS_BASE_URL=ws://localhost:3001/ws/notifications
 | `/jobs/[id]/applicants` | Applicant ingestion for a job |
 | `/jobs/[id]/screenings` | Screening history for a job |
 | `/screenings` | All screenings list |
-| `/screenings/[id]` | Shortlist + HR decisions + "Talk to AI" |
+| `/screenings/[id]` | Shortlist tab + Accepted tab (with interview scheduling) + HR decisions + "Talk to AI" |
 | `/screenings/[id]/compare` | Head-to-head candidate comparison |
 | `/analytics` | KPIs + HR vs AI confusion matrix |
 | `/applicants` | Applicant management |
@@ -53,6 +53,7 @@ NEXT_PUBLIC_WS_BASE_URL=ws://localhost:3001/ws/notifications
 | `/reports` | Reports dashboard |
 | `/notifications` | Notification centre |
 | `/profile` | User profile |
+| `/interviews` | All scheduled interviews — filterable by status |
 | `/settings` | User settings |
 
 ## RTK Query Hooks (key)
@@ -79,6 +80,14 @@ useSaveRecruiterDecisionsMutation()
 useCandidateAiChatMutation()       // "Talk to AI" — 30 req/min
 useGetScreeningComparisonMutation()
 useSendAcceptanceEmailsMutation()
+useGetAcceptedCandidatesQuery(screeningId)  // approved candidates + interview status
+
+// Interviews
+useGetInterviewsQuery(filters?)
+useGetScreeningInterviewsQuery(screeningId)
+useCreateInterviewMutation()        // sends invite email + .ics
+useUpdateInterviewMutation()
+useDeleteInterviewMutation()
 
 // Analytics
 useGetDashboardAnalyticsQuery()
@@ -97,6 +106,11 @@ useGetDashboardAnalyticsQuery()
 - `AcceptanceOutreachPanel` — compose and send acceptance emails to approved candidates
 - `PoolInsightsPanel` — aggregate statistics for the candidate pool
 - `RunScreeningModal` — trigger a new screening run
+
+### Interviews
+- `ScheduleInterviewModal` — pick format (video / phone / in-person), up to 3 proposed UTC slots, optional meeting link and notes; sends invite email + `.ics` on submit
+- `InterviewCard` — displays slot, status badge, quick actions (confirm / complete / cancel / delete)
+- `InterviewStatusBadge` — color-coded pill: pending / confirmed / cancelled / completed
 
 ### Jobs
 - `JobForm` — create / edit job with scoring weight sliders
@@ -137,6 +151,7 @@ useGetDashboardAnalyticsQuery()
 - **Analytics** — confusion matrix (TP / FP / FN / TN), precision, recall, accuracy, agreement rate, and disagreement table
 - **Exports** — PDF export + judge-ready explanations export
 - **Acceptance emails** — send Resend-powered emails to approved candidates from within the app
+- **Interview scheduling** — Accepted tab on `screenings/[id]` shows all approved candidates with interview status; "Schedule Interview" opens a modal to propose up to 3 time slots; invite email + `.ics` calendar file sent automatically; interview lifecycle tracked (pending → confirmed → completed) on the `/interviews` page
 
 ## "Talk to AI" Detail
 
