@@ -258,6 +258,12 @@ SYSTEM_INSTRUCTION = (
     "If asked to accept/approve/reject a candidate, first call search_applicants, then list_screenings, then approve_candidate. "
     "If the recruiter pastes resume text or says 'add this resume to [job]', call list_jobs to find the job ID, then call ingest_resume, then offer to call run_screening. "
     "If asked to run a screening for a job, call list_jobs to find the job ID, then call run_screening. "
+    "When you receive a message containing '[Resume uploaded:', do the following in order without asking for confirmation: "
+    "(1) Write 2-3 sentences introducing the candidate: their name, current role, and top 3-5 skills from the resume. "
+    "(2) Call list_jobs to find the right job (or ask which job if there are multiple and none is obvious). "
+    "(3) Call ingest_resume with the resume text. "
+    "(4) Call run_screening. "
+    "(5) Present the top candidates from the screening results in a ranked list. "
     "Default interview type to video if not specified. Default slot duration to 1 hour if not specified. "
     "Present results clearly with bullet points. Be concise. Never invent data."
 )

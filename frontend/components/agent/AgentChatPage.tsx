@@ -48,7 +48,7 @@ import { cn } from "../../lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type EntryUser  = { type: "user";     id: string; content: string };
+type EntryUser  = { type: "user";     id: string; content: string; displayContent?: string };
 type EntryAgent = { type: "agent";    id: string; content: string; toolCalls: ToolCall[] };
 type EntryThink = { type: "thinking"; id: string };
 type Entry = EntryUser | EntryAgent | EntryThink;
@@ -334,7 +334,7 @@ const UserBubble = ({ entry }: { entry: EntryUser }) => (
     className="flex justify-end"
   >
     <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 px-5 py-3.5 text-sm leading-relaxed text-white shadow-indigo-md">
-      {entry.content}
+      {entry.displayContent ?? entry.content}
     </div>
   </motion.div>
 );
@@ -682,13 +682,14 @@ export const AgentChatPage = () => {
   const send = useCallback(
     async (msg: string) => {
       const trimmed = msg.trim();
-      if (!trimmed || isLoading) return;
+      if ((!trimmed && attachments.length === 0) || isLoading) return;
       setInput("");
       const currentAttachments = attachments;
       setAttachments([]);
 
       // Upload resume/pdf files to extract text before sending to agent
       const parts: string[] = [];
+      const displayParts: string[] = [];
       let extractionFailed = false;
       for (const a of currentAttachments) {
         if (a.kind === "pdf" || a.kind === "resume") {
@@ -701,11 +702,20 @@ export const AgentChatPage = () => {
               headers: { Authorization: `Bearer ${getToken()}` },
               body: form,
             });
-            const data = await res.json() as { rawText?: string; name?: string | null; error?: string };
+            const data = await res.json() as { rawText?: string; name?: string | null; email?: string | null; title?: string | null; error?: string };
             if (res.ok && data.rawText && data.rawText.trim().length > 20) {
-              toast.success(`Extracted resume: ${data.name ?? a.name}`, { id: toastId });
-              const header = `[Resume: ${a.name}${data.name ? ` — ${data.name}` : ""}]`;
-              parts.push(`${header}\n${data.rawText.slice(0, 12000)}`);
+              toast.dismiss(toastId);
+              const meta = [
+                data.name  && `Name: ${data.name}`,
+                data.email && `Email: ${data.email}`,
+                data.title && `Title: ${data.title}`,
+              ].filter(Boolean).join(" | ");
+              const header = `[Resume uploaded: ${a.name}${meta ? `\nExtracted: ${meta}` : ""}]`;
+              const instruction = `\n\nPlease do the following automatically:\n1. Briefly introduce this candidate (name, current role, top 3–5 skills) in 2–3 sentences.\n2. Call list_jobs to find the right job, then call ingest_resume to add them as an applicant.\n3. Call run_screening to rank all candidates for that job.\n4. Present the top candidates from the screening results.`;
+              parts.push(`${header}\n${data.rawText.slice(0, 12000)}${instruction}`);
+              // Compact display shown in the user bubble
+              const displayLabel = data.name ? `${a.name} — ${data.name}` : a.name;
+              displayParts.push(`📎 Uploaded resume: ${displayLabel}${data.title ? ` (${data.title})` : ""}`);
             } else {
               toast.error(`Could not extract text from ${a.name}. ${data.error ?? "Please paste the resume text directly in the chat."}`, { id: toastId, duration: 6000 });
               extractionFailed = true;
@@ -716,19 +726,23 @@ export const AgentChatPage = () => {
           }
         } else {
           parts.push(`[Attached ${a.kind.toUpperCase()}: ${a.name}]`);
+          displayParts.push(`📎 Attached: ${a.name}`);
         }
       }
       if (extractionFailed && parts.length === 0) return;
 
       const filePrefix = parts.join("\n\n");
-      const fullMsg = filePrefix ? `${filePrefix}\n\n${trimmed}` : trimmed;
+      const fullMsg = filePrefix && trimmed ? `${filePrefix}\n\n${trimmed}` : filePrefix || trimmed;
+      const displayPrefix = displayParts.join("\n");
+      const displayMsg = displayPrefix && trimmed ? `${displayPrefix}\n${trimmed}` : displayPrefix || trimmed;
 
       let convId = activeId;
       let currentHistory = history;
 
       if (!convId || !activeConv) {
         convId = newId();
-        const title = trimmed.length > 58 ? `${trimmed.slice(0, 55)}…` : trimmed;
+        const titleBase = trimmed || displayParts[0] || "Resume upload";
+        const title = titleBase.length > 58 ? `${titleBase.slice(0, 55)}…` : titleBase;
         const fresh: Conversation = {
           id: convId,
           title,
@@ -754,7 +768,7 @@ export const AgentChatPage = () => {
                 updatedAt: new Date().toISOString(),
                 entries: [
                   ...c.entries.filter((e) => e.type !== "thinking"),
-                  { type: "user" as const, id: uid, content: fullMsg },
+                  { type: "user" as const, id: uid, content: fullMsg, displayContent: displayMsg !== fullMsg ? displayMsg : undefined },
                   { type: "thinking" as const, id: tid },
                 ],
               },
