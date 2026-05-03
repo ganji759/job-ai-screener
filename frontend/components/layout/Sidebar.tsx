@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
-  Bot,
   Brain,
   Briefcase,
   CalendarCheck,
@@ -22,8 +21,6 @@ import { useEffect, useMemo, useState } from "react";
 import { getLocalReadIds, getLocalUnreadIds, subscribeLocalReadUpdates } from "../../lib/notificationReadState";
 import { cn } from "../../lib/utils";
 import { useGetNotificationsQuery } from "../../store/api/notificationsApi";
-import { useMeQuery } from "../../store/api/authApi";
-import { UserAccountDropdown } from "./UserAccountDropdown";
 
 const primaryLinks = [
   { href: "/dashboard",        label: "Dashboard",      icon: LayoutGrid  },
@@ -133,11 +130,9 @@ export const Sidebar = ({
   onCloseMobile?: () => void;
 }) => {
   const pathname = usePathname();
-  const { data: user } = useMeQuery();
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
   const [localUnreadIds, setLocalUnreadIds] = useState<Set<string>>(new Set());
   const { data: notificationsData } = useGetNotificationsQuery({ page: 1, limit: 50 });
-  const [avatarErr, setAvatarErr] = useState(false);
 
   useEffect(() => {
     setLocalReadIds(getLocalReadIds());
@@ -147,10 +142,6 @@ export const Sidebar = ({
       setLocalUnreadIds(getLocalUnreadIds());
     });
   }, []);
-
-  useEffect(() => {
-    setAvatarErr(false);
-  }, [user?.avatarUrl]);
 
   const unreadCount = useMemo(() => {
     return (notificationsData?.notifications ?? []).filter((n) => {
@@ -171,13 +162,6 @@ export const Sidebar = ({
     if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
   };
-
-  const initials = (user?.name ?? "RC")
-    .split(" ")
-    .slice(0, 2)
-    .map((s) => s.charAt(0).toUpperCase())
-    .join("");
-  const avatarUrl = user?.avatarUrl ?? null;
 
   const closeMobile = () => onCloseMobile?.();
 
@@ -269,45 +253,11 @@ export const Sidebar = ({
           </nav>
         </div>
 
-        {/* User + beta */}
-        <div className="shrink-0 border-t border-black/[0.06] dark:border-slate-700">
-          <UserAccountDropdown align="start" side="top">
-            <button
-              type="button"
-              className={cn(
-                "flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition-colors duration-150 ease-out",
-                "hover:cursor-pointer hover:bg-black/[0.04]",
-                collapsed && "justify-center p-2",
-              )}
-            >
-              {avatarUrl && !avatarErr ? (
-                <img
-                  src={avatarUrl}
-                  alt=""
-                  className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-black/[0.06]"
-                  onError={() => setAvatarErr(true)}
-                />
-              ) : (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">
-                  {initials}
-                </span>
-              )}
-              {!collapsed ? (
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-[#1d1d1f] dark:text-slate-100">{user?.name ?? "Recruiter"}</p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#8e8e93] dark:text-slate-400">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#34c759]" aria-hidden />
-                    Online
-                  </p>
-                </div>
-              ) : null}
-            </button>
-          </UserAccountDropdown>
-
+        <div className="shrink-0 border-t border-black/[0.06] py-2 dark:border-slate-700">
           {!collapsed ? (
-            <p className="px-3 pb-3 text-center text-[10px] text-[#c7c7cc] dark:text-slate-500">v1.0 Beta</p>
+            <p className="text-center text-[10px] text-[#c7c7cc] dark:text-slate-500">v1.0 Beta</p>
           ) : (
-            <p className="px-1 pb-2 text-center text-[9px] leading-tight text-[#c7c7cc] dark:text-slate-500">Beta</p>
+            <p className="text-center text-[9px] leading-tight text-[#c7c7cc] dark:text-slate-500">Beta</p>
           )}
         </div>
       </aside>
