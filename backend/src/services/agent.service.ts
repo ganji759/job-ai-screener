@@ -560,7 +560,7 @@ async function runAgentChatInProcess(
       tools: agentTools,
       toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
     },
-    { apiVersion: env.GEMINI_API_VERSION },
+    { apiVersion: "v1beta" }, // tools/toolConfig/systemInstruction require v1beta — not available in v1
   );
 
   const chat = chatModel.startChat({
