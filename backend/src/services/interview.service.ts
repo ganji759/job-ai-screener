@@ -56,7 +56,7 @@ export type CreateInterviewInput = {
   candidateId: string;
   applicantId: string;
   jobId: string;
-  screeningId: string;
+  screeningId?: string;
   recruiterId: string;
   candidateName: string;
   candidateEmail: string;
@@ -80,7 +80,7 @@ export const createInterview = async (input: CreateInterviewInput) => {
     candidateId:    input.candidateId,
     applicantId:    new Types.ObjectId(input.applicantId),
     jobId:          new Types.ObjectId(input.jobId),
-    screeningId:    new Types.ObjectId(input.screeningId),
+    ...(input.screeningId ? { screeningId: new Types.ObjectId(input.screeningId) } : {}),
     recruiterId:    new Types.ObjectId(input.recruiterId),
     candidateName:  input.candidateName,
     candidateEmail: input.candidateEmail,

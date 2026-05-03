@@ -10,7 +10,7 @@ const InterviewSchema = new Schema(
     candidateId:    { type: String, required: true },
     applicantId:    { type: Schema.Types.ObjectId, ref: "Applicant", required: true },
     jobId:          { type: Schema.Types.ObjectId, ref: "Job", required: true },
-    screeningId:    { type: Schema.Types.ObjectId, ref: "Screening", required: true },
+    screeningId:    { type: Schema.Types.ObjectId, ref: "Screening", required: false },
     recruiterId:    { type: Schema.Types.ObjectId, ref: "User", required: true },
     candidateName:  { type: String, required: true },
     candidateEmail: { type: String, required: true },

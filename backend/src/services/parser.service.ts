@@ -156,7 +156,7 @@ export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile>
     location: "Unknown",
     remotePreference: "flexible",
   };
-};
+}; 
 
 const mergeGeminiResume = (
   rawText: string,

@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bot } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { AgentPanel } from "../agent/AgentPanel";
 import { cn } from "../../lib/utils";
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     const read = () => {
@@ -46,6 +49,23 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         <Header onToggleSidebar={toggleSidebar} />
         <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">{children}</main>
       </div>
+
+      {/* Floating AI Agent button */}
+      <button
+        type="button"
+        onClick={() => setAgentOpen((v) => !v)}
+        className={cn(
+          "fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200",
+          agentOpen
+            ? "bg-slate-700 text-white hover:bg-slate-600"
+            : "bg-indigo-600 text-white hover:bg-indigo-700",
+        )}
+        title="AI Hiring Assistant"
+      >
+        <Bot className="h-6 w-6" />
+      </button>
+
+      {agentOpen && <AgentPanel onClose={() => setAgentOpen(false)} />}
     </div>
   );
 };
