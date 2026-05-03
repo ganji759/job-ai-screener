@@ -217,6 +217,30 @@ _FUNCTION_DECLARATIONS = [
             required=["screeningId", "applicantId", "decision"],
         ),
     ),
+    glm.FunctionDeclaration(
+        name="ingest_resume",
+        description="Parse resume text pasted by the recruiter and add the candidate as an applicant for a job. Call this whenever the recruiter pastes a resume or CV. The resume text can be raw plain-text copied from a PDF or document.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "jobId": glm.Schema(type=glm.Type.STRING, description="The job's MongoDB _id to attach this applicant to."),
+                "resumeText": glm.Schema(type=glm.Type.STRING, description="The raw resume / CV text pasted by the recruiter."),
+            },
+            required=["jobId", "resumeText"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="run_screening",
+        description="Run AI screening on all pending applicants for a job. Use this after ingest_resume or when the recruiter asks to screen or rank candidates for a job. Returns the screening ID and a summary of the top candidates.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "jobId": glm.Schema(type=glm.Type.STRING, description="The job's MongoDB _id to run screening for."),
+                "shortlistSize": glm.Schema(type=glm.Type.NUMBER, description="Number of candidates to shortlist: 10 or 20. Defaults to 10."),
+            },
+            required=["jobId"],
+        ),
+    ),
 ]
 
 _TOOLS = [genai.protos.Tool(function_declarations=_FUNCTION_DECLARATIONS)]
@@ -229,8 +253,11 @@ SYSTEM_INSTRUCTION = (
     "Need a job ID? Call list_jobs. Need an applicant ID? Call search_applicants (by name) or get_applicants (by jobId). "
     "Need a screening ID? Call list_screenings. "
     "NEVER say you cannot search the database — you have tools that can. "
-    "Chain tool calls automatically: if asked to schedule an interview for John Smith, first call search_applicants, then schedule_interview. "
-    "If asked to accept/approve/reject a candidate, first call search_applicants to get their applicantId, then list_screenings to get the screeningId, then call approve_candidate. "
+    "Chain tool calls automatically: "
+    "If asked to schedule an interview for John Smith, first call search_applicants, then schedule_interview. "
+    "If asked to accept/approve/reject a candidate, first call search_applicants, then list_screenings, then approve_candidate. "
+    "If the recruiter pastes resume text or says 'add this resume to [job]', call list_jobs to find the job ID, then call ingest_resume, then offer to call run_screening. "
+    "If asked to run a screening for a job, call list_jobs to find the job ID, then call run_screening. "
     "Default interview type to video if not specified. Default slot duration to 1 hour if not specified. "
     "Present results clearly with bullet points. Be concise. Never invent data."
 )
