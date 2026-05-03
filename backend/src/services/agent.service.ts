@@ -25,7 +25,7 @@ Critical rules — follow these strictly:
   - Need an applicant ID or email? → call search_applicants (by name) or get_applicants (by jobId).
   - Need a screening ID? → call list_screenings first.
 - NEVER say "I cannot search the database" — you have tools that can. Use them.
-- Chain tool calls automatically. For example: if the recruiter says "schedule an interview for John Smith", first call search_applicants to find John, then call schedule_interview with the data you found.
+- Chain tool calls automatically. For example: if the recruiter says "schedule an interview for John Smith", first call search_applicants to find John, then call schedule_interview with the data you found. If the recruiter says "accept/approve/reject a candidate", first call search_applicants to get their applicantId, then list_screenings to get the screeningId, then call approve_candidate.
 - When scheduling interviews, default to "video" type if the recruiter doesn't specify. Default to a 1-hour slot if no duration is given.
 - Present results clearly. Use bullet points for lists. Be concise.
 - Never invent data. If a tool returns nothing, say so and suggest next steps.`;
@@ -178,12 +178,32 @@ const functionDeclarations: any[] = [
   },
 ];
 
+// Add approve_candidate declaration after schedule_interview
+functionDeclarations.push({
+  name: "approve_candidate",
+  description: "Set the HR decision for a candidate in a screening (approve, reject, or mark for review). Use this when the recruiter says 'accept', 'approve', 'reject', or 'mark for review'.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      screeningId: { type: SchemaType.STRING, description: "The screening's MongoDB _id." },
+      applicantId: { type: SchemaType.STRING, description: "The Applicant document's MongoDB _id." },
+      decision: { type: SchemaType.STRING, description: "The HR decision.", enum: ["approved", "rejected", "review"] },
+      hrNote: { type: SchemaType.STRING, description: "Optional note from the HR/recruiter." },
+    },
+    required: ["screeningId", "applicantId", "decision"],
+  },
+});
+
 const agentTools: Tool[] = [{ functionDeclarations }];
 
-/** Models that support function calling with the in-process SDK + v1 API. */
-const AGENT_CAPABLE_MODELS = [env.GEMINI_MODEL, "gemini-2.0-flash"].filter(
-  (m, i, arr) => arr.indexOf(m) === i,
-);
+/**
+ * Models confirmed to support function calling with tools/systemInstruction in the v1 API.
+ * gemini-2.5-flash-lite does NOT — excluded unconditionally regardless of env.GEMINI_MODEL.
+ */
+const FUNCTION_CALLING_UNSUPPORTED = new Set(["gemini-2.5-flash-lite"]);
+const AGENT_CAPABLE_MODELS = [env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]
+  .filter((m) => !FUNCTION_CALLING_UNSUPPORTED.has(m))
+  .filter((m, i, arr) => arr.indexOf(m) === i);
 
 /** Extract a display name from the Mixed profile field regardless of source shape. */
 function extractApplicantName(profile: unknown): string {
@@ -426,6 +446,33 @@ async function executeTool(
         candidateName: interview.candidateName,
         status: interview.status,
         message: `Interview scheduled for ${interview.candidateName}. Invite email sent to ${interview.candidateEmail}.`,
+      };
+    }
+
+    case "approve_candidate": {
+      const screening = await ScreeningModel.findOne({ _id: String(args.screeningId), recruiterId }).lean();
+      if (!screening) return { error: "Screening not found or access denied." };
+
+      const applicantId = String(args.applicantId);
+      const decision = String(args.decision) as "approved" | "rejected" | "review";
+      const hrNote = args.hrNote ? String(args.hrNote) : "";
+
+      const existing = (screening.recruiterDecisions as Record<string, unknown> | null) ?? {};
+      const updated = {
+        ...(existing instanceof Map ? Object.fromEntries(existing) : existing),
+        [applicantId]: { decision, hrNote, decidedAt: new Date().toISOString() },
+      };
+
+      await ScreeningModel.updateOne(
+        { _id: String(args.screeningId) },
+        { $set: { recruiterDecisions: updated } },
+      );
+
+      return {
+        success: true,
+        applicantId,
+        decision,
+        message: `Candidate marked as "${decision}" in screening ${String(args.screeningId)}.`,
       };
     }
 

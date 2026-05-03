@@ -32,14 +32,17 @@ def _is_quota_error(err: Exception) -> bool:
     return any(sig in str(err).lower() for sig in _QUOTA_SIGNALS)
 
 
+_FUNCTION_CALLING_UNSUPPORTED = {"gemini-2.5-flash-lite"}
+
+
 def _cascade_models() -> list[str]:
     primary = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    # gemini-2.5-flash-lite does not support tools/systemInstruction — exclude from agent cascade
-    candidates = [primary, "gemini-2.0-flash"]
+    # gemini-2.5-flash-lite does not support tools/systemInstruction in v1 — exclude always
+    candidates = [primary, "gemini-2.5-flash", "gemini-2.0-flash"]
     seen: set[str] = set()
     result: list[str] = []
     for m in candidates:
-        if m not in seen:
+        if m not in seen and m not in _FUNCTION_CALLING_UNSUPPORTED:
             seen.add(m)
             result.append(m)
     return result
@@ -166,6 +169,20 @@ _FUNCTION_DECLARATIONS = [
             required=["applicantId", "candidateName", "candidateEmail", "jobId", "jobTitle", "interviewType", "proposedSlots"],
         ),
     ),
+    glm.FunctionDeclaration(
+        name="approve_candidate",
+        description="Set the HR decision for a candidate in a screening (approve, reject, or mark for review). Use this when the recruiter says 'accept', 'approve', 'reject', or 'mark for review'.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "screeningId": glm.Schema(type=glm.Type.STRING, description="The screening's MongoDB _id."),
+                "applicantId": glm.Schema(type=glm.Type.STRING, description="The Applicant document's MongoDB _id."),
+                "decision": glm.Schema(type=glm.Type.STRING, description="The HR decision: approved, rejected, or review."),
+                "hrNote": glm.Schema(type=glm.Type.STRING, description="Optional note from the recruiter."),
+            },
+            required=["screeningId", "applicantId", "decision"],
+        ),
+    ),
 ]
 
 _TOOLS = [genai.protos.Tool(function_declarations=_FUNCTION_DECLARATIONS)]
@@ -179,6 +196,7 @@ SYSTEM_INSTRUCTION = (
     "Need a screening ID? Call list_screenings. "
     "NEVER say you cannot search the database — you have tools that can. "
     "Chain tool calls automatically: if asked to schedule an interview for John Smith, first call search_applicants, then schedule_interview. "
+    "If asked to accept/approve/reject a candidate, first call search_applicants to get their applicantId, then list_screenings to get the screeningId, then call approve_candidate. "
     "Default interview type to video if not specified. Default slot duration to 1 hour if not specified. "
     "Present results clearly with bullet points. Be concise. Never invent data."
 )
