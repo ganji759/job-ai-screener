@@ -15,7 +15,7 @@ from fastapi import FastAPI  # noqa: E402
 from core.gemini import init_gemini  # noqa: E402
 from core.logging import configure_logging  # noqa: E402
 from core.mongo import close_mongo, init_mongo  # noqa: E402
-from routers import ai, normalise, screening  # noqa: E402
+from routers import ai, agent, normalise, screening  # noqa: E402
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Umurava AI Service", version="1.1.0", lifespan=lifespan)
 
 app.include_router(ai.router, prefix="/ai", tags=["ai"])
+app.include_router(agent.router, prefix="/agent", tags=["agent"])
 app.include_router(screening.router, prefix="/screening", tags=["screening"])
 app.include_router(normalise.router, prefix="/normalise", tags=["normalise"])
 

@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI, FunctionCallingMode, SchemaType } from "@google/generative-ai";
 import type { FunctionDeclaration, Tool } from "@google/generative-ai";
 import { env } from "../config/env";
+import { agentTurn, AiServiceError } from "./aiClient";
+import type { AgentContent } from "./aiClient";
 import { JobModel } from "../models/Job.model";
 import { ApplicantModel } from "../models/Applicant.model";
 import { ScreeningModel } from "../models/Screening.model";
@@ -342,7 +344,72 @@ async function executeTool(
   }
 }
 
-export async function runAgentChat(
+/**
+ * Run the agent chat loop via the Python AI service (preferred path).
+ * Python owns the Gemini call; Node executes tools and manages the contents array.
+ */
+async function runAgentChatViaPython(
+  message: string,
+  history: AgentMessage[],
+  recruiterId: string,
+): Promise<{ reply: string; toolCalls: ToolCall[] }> {
+  // Build Gemini-format contents from conversation history
+  const contents: AgentContent[] = history.map((m) => ({
+    role: m.role,
+    parts: [{ text: m.content }],
+  }));
+
+  // Append the new user message
+  contents.push({ role: "user", parts: [{ text: message }] });
+
+  const toolCalls: ToolCall[] = [];
+
+  for (let iteration = 0; iteration < 5; iteration++) {
+    const turn = await agentTurn({ contents });
+
+    if (turn.type === "text") {
+      return { reply: turn.reply, toolCalls };
+    }
+
+    // Model wants to call tools — append model's function-call parts to contents
+    contents.push({
+      role: "model",
+      parts: turn.calls.map((c) => ({ function_call: { name: c.name, args: c.args } })),
+    });
+
+    // Execute each tool in Node, collect responses
+    const responseParts = await Promise.all(
+      turn.calls.map(async (fc) => {
+        let result: unknown;
+        try {
+          result = await executeTool(fc.name, fc.args, recruiterId);
+        } catch (toolErr) {
+          result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
+        }
+        toolCalls.push({ name: fc.name, args: fc.args, result });
+        return { function_response: { name: fc.name, response: { result } } };
+      }),
+    );
+
+    // Append function responses as a user turn (Gemini protocol)
+    contents.push({ role: "user", parts: responseParts });
+  }
+
+  // Exhausted iterations without a text reply — ask for a summary
+  const finalTurn = await agentTurn({ contents });
+  return {
+    reply: finalTurn.type === "text"
+      ? finalTurn.reply
+      : `Completed ${toolCalls.map((t) => t.name).join(", ")}.`,
+    toolCalls,
+  };
+}
+
+/**
+ * Fallback: run the agent loop in-process using the @google/generative-ai SDK.
+ * Used when AI_SERVICE_URL is not configured.
+ */
+async function runAgentChatInProcess(
   message: string,
   history: AgentMessage[],
   recruiterId: string,
@@ -358,10 +425,7 @@ export async function runAgentChat(
   );
 
   const chat = model.startChat({
-    history: history.map((m) => ({
-      role: m.role,
-      parts: [{ text: m.content }],
-    })),
+    history: history.map((m) => ({ role: m.role, parts: [{ text: m.content }] })),
   });
 
   const toolCalls: ToolCall[] = [];
@@ -381,12 +445,7 @@ export async function runAgentChat(
           result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
         }
         toolCalls.push({ name: fc.name, args, result });
-        return {
-          functionResponse: {
-            name: fc.name,
-            response: { result },
-          },
-        };
+        return { functionResponse: { name: fc.name, response: { result } } };
       }),
     );
 
@@ -397,11 +456,28 @@ export async function runAgentChat(
   try {
     reply = response.response.text();
   } catch {
-    // Model returned function calls on the final iteration with no text summary
     reply = toolCalls.length > 0
-      ? `I ran ${toolCalls.map((t) => t.name).join(", ")}. Check the tool results above for details.`
+      ? `Completed: ${toolCalls.map((t) => t.name).join(", ")}.`
       : "No response generated.";
   }
 
   return { reply, toolCalls };
+}
+
+export async function runAgentChat(
+  message: string,
+  history: AgentMessage[],
+  recruiterId: string,
+): Promise<{ reply: string; toolCalls: ToolCall[] }> {
+  if (env.AI_SERVICE_URL) {
+    try {
+      return await runAgentChatViaPython(message, history, recruiterId);
+    } catch (err) {
+      // If the Python service is down, fall back to in-process SDK
+      if (err instanceof AiServiceError && err.code === "AI_SERVICE_UNCONFIGURED") throw err;
+      const reason = err instanceof AiServiceError ? `${err.code}: ${err.message}` : String(err);
+      console.warn(`[runAgentChat] Python service failed — falling back to in-process SDK. Reason: ${reason}`);
+    }
+  }
+  return runAgentChatInProcess(message, history, recruiterId);
 }

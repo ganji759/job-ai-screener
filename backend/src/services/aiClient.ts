@@ -232,6 +232,38 @@ export async function runScreening(
   return (await response.json()) as PythonScreeningResponse;
 }
 
+// -------------------------------------------------------------------------------------------------
+// /agent/turn  (one Gemini function-calling turn — orchestration loop stays in Node)
+// -------------------------------------------------------------------------------------------------
+export type AgentContentPart =
+  | { text: string }
+  | { function_call: { name: string; args: Record<string, unknown> } }
+  | { function_response: { name: string; response: Record<string, unknown> } };
+
+export type AgentContent = { role: string; parts: AgentContentPart[] };
+
+export type AgentTurnRequest = { contents: AgentContent[]; timeout_ms?: number };
+
+export type AgentTurnResponse =
+  | { type: "tool_calls"; calls: { name: string; args: Record<string, unknown> }[]; model: string }
+  | { type: "text"; reply: string; model: string };
+
+export async function agentTurn(req: AgentTurnRequest, timeoutMs = 35_000): Promise<AgentTurnResponse> {
+  const base = ensureConfigured();
+  const response = await timedFetch(`${base}/agent/turn`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ contents: req.contents, timeout_ms: req.timeout_ms ?? timeoutMs }),
+    timeoutMs: timeoutMs + env.AI_SERVICE_TIMEOUT_BUFFER_MS,
+  });
+
+  if (!response.ok) {
+    const { code, message } = await readErrorDetail(response);
+    throw new AiServiceError(response.status, code, message);
+  }
+  return (await response.json()) as AgentTurnResponse;
+}
+
 export async function aiHealth(): Promise<boolean> {
   if (!env.AI_SERVICE_URL) return false;
   try {
