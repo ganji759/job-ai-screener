@@ -41,6 +41,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentMessage, ToolCall } from "../../store/api/agentApi";
 import { useAgentChatMutation } from "../../store/api/agentApi";
 import { useMeQuery } from "../../store/api/authApi";
+import { getToken } from "../../lib/auth";
+import { resolveApiBaseUrl } from "../../lib/resolveApiBaseUrl";
 import { cn } from "../../lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -681,9 +683,38 @@ export const AgentChatPage = () => {
       const trimmed = msg.trim();
       if (!trimmed || isLoading) return;
       setInput("");
-      const filePrefix = attachments.map((a) => `[Attached ${a.kind.toUpperCase()}: ${a.name}]`).join("\n");
-      const fullMsg = filePrefix ? `${filePrefix}\n\n${trimmed}` : trimmed;
+      const currentAttachments = attachments;
       setAttachments([]);
+
+      // Upload resume/pdf files to extract text before sending to agent
+      const parts: string[] = [];
+      for (const a of currentAttachments) {
+        if (a.kind === "pdf" || a.kind === "resume") {
+          try {
+            const form = new FormData();
+            form.append("file", a.file, a.name);
+            const res = await fetch(`${resolveApiBaseUrl()}/agent/extract-text`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${getToken()}` },
+              body: form,
+            });
+            if (res.ok) {
+              const data = await res.json() as { rawText?: string; name?: string | null; email?: string | null };
+              const header = `[Resume: ${a.name}${data.name ? ` — ${data.name}` : ""}]`;
+              parts.push(`${header}\n${(data.rawText ?? "").slice(0, 12000)}`);
+            } else {
+              parts.push(`[Attached RESUME: ${a.name} — could not extract text]`);
+            }
+          } catch {
+            parts.push(`[Attached RESUME: ${a.name} — could not extract text]`);
+          }
+        } else {
+          parts.push(`[Attached ${a.kind.toUpperCase()}: ${a.name}]`);
+        }
+      }
+
+      const filePrefix = parts.join("\n\n");
+      const fullMsg = filePrefix ? `${filePrefix}\n\n${trimmed}` : trimmed;
 
       let convId = activeId;
       let currentHistory = history;
