@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  Bot,
   Brain,
   Briefcase,
   CalendarCheck,
@@ -14,6 +15,7 @@ import {
   Settings,
   Sparkles,
   Users,
+  Wand2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
@@ -24,13 +26,14 @@ import { useMeQuery } from "../../store/api/authApi";
 import { UserAccountDropdown } from "./UserAccountDropdown";
 
 const primaryLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/applicants", label: "Applicants", icon: Users },
-  { href: "/screenings", label: "Screenings", icon: Brain },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/interviews", label: "Interviews", icon: CalendarCheck },
-  { href: "/dashboard/reports", label: "Reports", icon: FileBarChart2 },
+  { href: "/dashboard",        label: "Dashboard",      icon: LayoutGrid  },
+  { href: "/agent",            label: "AI Assistant",   icon: Wand2       },
+  { href: "/jobs",             label: "Jobs",           icon: Briefcase   },
+  { href: "/applicants",       label: "Applicants",     icon: Users       },
+  { href: "/screenings",       label: "Screenings",     icon: Brain       },
+  { href: "/analytics",        label: "Analytics",      icon: BarChart3   },
+  { href: "/interviews",       label: "Interviews",     icon: CalendarCheck },
+  { href: "/dashboard/reports",label: "Reports",        icon: FileBarChart2 },
 ] as const;
 
 const secondaryLinks = [
@@ -68,7 +71,9 @@ function NavLinkRow({
         collapsed ? "mx-auto w-10 justify-center px-0" : "mx-2 mb-0.5 gap-[10px] px-3",
         active
           ? "bg-gradient-to-r from-indigo-500/15 to-violet-500/10 font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-500/20 dark:from-indigo-500/20 dark:to-violet-500/12 dark:text-indigo-300 dark:ring-indigo-500/25"
-          : "font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-100",
+          : href === "/agent"
+            ? "font-semibold text-indigo-600 hover:bg-gradient-to-r hover:from-indigo-50/80 hover:to-violet-50/60 dark:text-indigo-400 dark:hover:from-indigo-950/40 dark:hover:to-violet-950/30"
+            : "font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-100",
       )}
     >
       <span className="relative flex shrink-0 items-center justify-center">
@@ -77,7 +82,9 @@ function NavLinkRow({
             "h-[18px] w-[18px] shrink-0 transition-colors duration-150 ease-out",
             active
               ? "text-indigo-600 dark:text-indigo-400"
-              : "text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-200",
+              : href === "/agent"
+                ? "text-indigo-500 dark:text-indigo-400"
+                : "text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-200",
           )}
         />
         {showBadge && collapsed && badgeCount > 0 ? (
