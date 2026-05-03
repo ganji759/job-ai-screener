@@ -8,7 +8,7 @@ const ScreeningSchema = new Schema({
   /** How this screening was produced (optional; legacy queued worker may omit). */
   pipeline: {
     type: String,
-    enum: ["bull_queue", "umurava_platform_ai", "external_upload_sync"],
+    enum: ["bull_queue", "umurava_platform_ai", "external_upload_sync", "agent_ingest_sync"],
     required: false,
   },
   /** Denormalized from results for quick listing (optional). */

@@ -2,6 +2,9 @@ import type { z } from "zod";
 import { Types } from "mongoose";
 import { ApplicantModel } from "../models/Applicant.model";
 import { JobModel } from "../models/Job.model";
+import { ScreeningModel } from "../models/Screening.model";
+import { redisSet } from "../config/redis";
+import { notifyUser } from "./notification.service";
 import type {
   CandidateResult,
   JobRequirements,
@@ -232,10 +235,6 @@ export async function runScreeningForJobAgent(params: {
   averageScore: number;
   jobTitle: string;
 }> {
-  const { ScreeningModel } = await import("../models/Screening.model");
-  const { redisSet } = await import("../config/redis");
-  const { notifyUser } = await import("./notification.service");
-
   const shortlistSize = params.shortlistSize ?? 10;
   const job = await JobModel.findOne({ _id: params.jobId, recruiterId: params.recruiterId }).lean();
   if (!job) throw new Error("Job not found or access denied.");
