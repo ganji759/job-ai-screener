@@ -58,6 +58,7 @@ const envSchema = z.object({
     z.string().optional(),
   ),
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
+  RESEND_FROM: z.string().min(1).default("onboarding@resend.dev"),
   OTP_EXPIRES_MINUTES: z.coerce.number().int().positive().default(10),
 });
 
