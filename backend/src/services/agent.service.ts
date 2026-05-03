@@ -15,16 +15,20 @@ const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 export type AgentMessage = { role: "user" | "model"; content: string };
 export type ToolCall = { name: string; args: Record<string, unknown>; result: unknown };
 
-const SYSTEM_INSTRUCTION = `You are an AI hiring assistant for the Umurava HR platform. You help recruiters manage their hiring pipeline efficiently.
+const SYSTEM_INSTRUCTION = `You are an AI hiring assistant for the Umurava HR platform. You help recruiters manage their entire hiring pipeline hands-free.
 
-You have access to tools that let you query jobs, applicants, screenings, interviews, and analytics in real time — and even schedule interviews.
+You have tools to query jobs, applicants, screenings, and interviews in real time — and can schedule interviews directly.
 
-Guidelines:
-- Always use tools to fetch live data before answering questions about specific jobs, candidates, or screenings.
-- Present data clearly and concisely. Use bullet points or short tables when listing multiple items.
-- When you schedule an interview, confirm the details with the recruiter before calling the tool.
-- Never invent data — if a tool returns no results, say so.
-- Keep responses professional and focused on helping the recruiter make good hiring decisions.`;
+Critical rules — follow these strictly:
+- NEVER ask the recruiter for an ID. IDs are internal database keys. Always look them up yourself using tools before doing anything that needs an ID.
+  - Need a job ID? → call list_jobs first.
+  - Need an applicant ID or email? → call search_applicants (by name) or get_applicants (by jobId).
+  - Need a screening ID? → call list_screenings first.
+- NEVER say "I cannot search the database" — you have tools that can. Use them.
+- Chain tool calls automatically. For example: if the recruiter says "schedule an interview for John Smith", first call search_applicants to find John, then call schedule_interview with the data you found.
+- When scheduling interviews, default to "video" type if the recruiter doesn't specify. Default to a 1-hour slot if no duration is given.
+- Present results clearly. Use bullet points for lists. Be concise.
+- Never invent data. If a tool returns nothing, say so and suggest next steps.`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const functionDeclarations: any[] = [
@@ -60,7 +64,7 @@ const functionDeclarations: any[] = [
   },
   {
     name: "get_applicants",
-    description: "List applicants for a specific job with their source and status.",
+    description: "List applicants for a specific job with their name, email, and status.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -68,6 +72,18 @@ const functionDeclarations: any[] = [
         limit: { type: SchemaType.NUMBER, description: "Max applicants to return (default 20, max 100)." },
       },
       required: ["jobId"],
+    },
+  },
+  {
+    name: "search_applicants",
+    description: "Search for applicants by name across all jobs (or within a specific job). Use this whenever the recruiter mentions a candidate by name and you need their ID or email.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        name: { type: SchemaType.STRING, description: "Partial or full name to search for (case-insensitive)." },
+        jobId: { type: SchemaType.STRING, description: "Limit search to a specific job's applicants (optional)." },
+      },
+      required: ["name"],
     },
   },
   {
@@ -164,6 +180,43 @@ const functionDeclarations: any[] = [
 
 const agentTools: Tool[] = [{ functionDeclarations }];
 
+/** Models that support function calling with the in-process SDK + v1 API. */
+const AGENT_CAPABLE_MODELS = [env.GEMINI_MODEL, "gemini-2.0-flash"].filter(
+  (m, i, arr) => arr.indexOf(m) === i,
+);
+
+/** Extract a display name from the Mixed profile field regardless of source shape. */
+function extractApplicantName(profile: unknown): string {
+  if (!profile || typeof profile !== "object") return "Unknown";
+  const p = profile as Record<string, unknown>;
+  // Umurava platform shape
+  if (typeof p.name === "string" && p.name.trim()) return p.name.trim();
+  // firstName + lastName
+  const first = typeof p.firstName === "string" ? p.firstName.trim() : "";
+  const last = typeof p.lastName === "string" ? p.lastName.trim() : "";
+  if (first || last) return `${first} ${last}`.trim();
+  // fullName
+  if (typeof p.fullName === "string" && p.fullName.trim()) return p.fullName.trim();
+  // personalInfo sub-object (some CSV parsers)
+  const pi = p.personalInfo as Record<string, unknown> | undefined;
+  if (pi) {
+    if (typeof pi.name === "string" && pi.name.trim()) return pi.name.trim();
+    const pf = typeof pi.firstName === "string" ? pi.firstName.trim() : "";
+    const pl = typeof pi.lastName === "string" ? pi.lastName.trim() : "";
+    if (pf || pl) return `${pf} ${pl}`.trim();
+  }
+  return "Unknown";
+}
+
+function extractApplicantEmail(profile: unknown): string | null {
+  if (!profile || typeof profile !== "object") return null;
+  const p = profile as Record<string, unknown>;
+  if (typeof p.email === "string" && p.email.trim()) return p.email.trim();
+  const pi = p.personalInfo as Record<string, unknown> | undefined;
+  if (pi && typeof pi.email === "string") return pi.email.trim();
+  return null;
+}
+
 async function executeTool(
   name: string,
   args: Record<string, unknown>,
@@ -216,10 +269,47 @@ async function executeTool(
         id: String(a._id),
         source: a.source,
         status: a.status,
-        name: (a.profile as Record<string, unknown>)?.name ?? (a.profile as Record<string, unknown>)?.fullName ?? "Unknown",
-        email: (a.profile as Record<string, unknown>)?.email ?? null,
+        name: extractApplicantName(a.profile),
+        email: extractApplicantEmail(a.profile),
         createdAt: a.createdAt,
       }));
+    }
+
+    case "search_applicants": {
+      const nameQuery = String(args.name ?? "").trim();
+      if (!nameQuery) return { error: "name is required for search_applicants." };
+
+      // Find all jobs for this recruiter
+      const jobFilter: Record<string, unknown> = {};
+      if (args.jobId) {
+        jobFilter._id = String(args.jobId);
+      } else {
+        const jobs = await JobModel.find({ recruiterId }).select("_id").lean();
+        jobFilter._id = { $in: jobs.map((j) => j._id) };
+      }
+      const jobs = await JobModel.find({ recruiterId, ...( args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
+      const jobIds = jobs.map((j) => j._id);
+      const jobTitleById = new Map(jobs.map((j) => [String(j._id), j.title]));
+
+      const applicants = await ApplicantModel.find({ jobId: { $in: jobIds } }).lean().limit(200);
+
+      const regex = new RegExp(nameQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const matches = applicants.filter((a) => regex.test(extractApplicantName(a.profile)));
+
+      if (matches.length === 0) return { found: 0, results: [], message: `No applicants found matching "${nameQuery}".` };
+
+      return {
+        found: matches.length,
+        results: matches.map((a) => ({
+          id: String(a._id),
+          name: extractApplicantName(a.profile),
+          email: extractApplicantEmail(a.profile),
+          status: a.status,
+          source: a.source,
+          jobId: String(a.jobId),
+          jobTitle: jobTitleById.get(String(a.jobId)) ?? "Unknown job",
+        })),
+      };
     }
 
     case "list_screenings": {
@@ -414,9 +504,11 @@ async function runAgentChatInProcess(
   history: AgentMessage[],
   recruiterId: string,
 ): Promise<{ reply: string; toolCalls: ToolCall[] }> {
-  const model = genAI.getGenerativeModel(
+  // Use only models known to support function calling with the v1 API.
+  // gemini-2.5-flash-lite does NOT support tools/systemInstruction in v1 — skip it.
+  let chatModel = genAI.getGenerativeModel(
     {
-      model: env.GEMINI_MODEL,
+      model: AGENT_CAPABLE_MODELS[0]!,
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: agentTools,
       toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
@@ -424,7 +516,7 @@ async function runAgentChatInProcess(
     { apiVersion: env.GEMINI_API_VERSION },
   );
 
-  const chat = model.startChat({
+  const chat = chatModel.startChat({
     history: history.map((m) => ({ role: m.role, parts: [{ text: m.content }] })),
   });
 

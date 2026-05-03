@@ -34,7 +34,8 @@ def _is_quota_error(err: Exception) -> bool:
 
 def _cascade_models() -> list[str]:
     primary = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    candidates = [primary, "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+    # gemini-2.5-flash-lite does not support tools/systemInstruction — exclude from agent cascade
+    candidates = [primary, "gemini-2.0-flash"]
     seen: set[str] = set()
     result: list[str] = []
     for m in candidates:
@@ -71,7 +72,7 @@ _FUNCTION_DECLARATIONS = [
     ),
     glm.FunctionDeclaration(
         name="get_applicants",
-        description="List applicants for a specific job with their source and status.",
+        description="List applicants for a specific job with their name, email, and status.",
         parameters=glm.Schema(
             type=glm.Type.OBJECT,
             properties={
@@ -79,6 +80,18 @@ _FUNCTION_DECLARATIONS = [
                 "limit": glm.Schema(type=glm.Type.NUMBER, description="Max applicants to return (default 20, max 100)."),
             },
             required=["jobId"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="search_applicants",
+        description="Search for applicants by name across all jobs (or within a specific job). Use this whenever the recruiter mentions a candidate by name and you need their ID or email.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "name": glm.Schema(type=glm.Type.STRING, description="Partial or full name to search for (case-insensitive)."),
+                "jobId": glm.Schema(type=glm.Type.STRING, description="Limit search to a specific job (optional)."),
+            },
+            required=["name"],
         ),
     ),
     glm.FunctionDeclaration(
@@ -159,11 +172,15 @@ _TOOLS = [genai.protos.Tool(function_declarations=_FUNCTION_DECLARATIONS)]
 
 SYSTEM_INSTRUCTION = (
     "You are an AI hiring assistant for the Umurava HR platform. "
-    "You help recruiters manage their hiring pipeline efficiently. "
-    "Always use tools to fetch live data before answering questions. "
-    "Present data clearly and concisely. "
-    "Never invent data — if a tool returns no results, say so. "
-    "Keep responses professional and focused on helping the recruiter make good hiring decisions."
+    "You help recruiters manage their entire hiring pipeline hands-free. "
+    "Critical rules: "
+    "NEVER ask the recruiter for an ID — always look IDs up yourself using tools. "
+    "Need a job ID? Call list_jobs. Need an applicant ID? Call search_applicants (by name) or get_applicants (by jobId). "
+    "Need a screening ID? Call list_screenings. "
+    "NEVER say you cannot search the database — you have tools that can. "
+    "Chain tool calls automatically: if asked to schedule an interview for John Smith, first call search_applicants, then schedule_interview. "
+    "Default interview type to video if not specified. Default slot duration to 1 hour if not specified. "
+    "Present results clearly with bullet points. Be concise. Never invent data."
 )
 
 
