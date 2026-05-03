@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ApplicantModel } from "../models/Applicant.model";
 import { JobModel } from "../models/Job.model";
 import { ScreeningModel } from "../models/Screening.model";
+import { InterviewModel } from "../models/Interview.model";
 import { notifyUser } from "../services/notification.service";
 
 const JobSchema = z.object({ title: z.string(), company: z.string().optional(), description: z.string(), requirements: z.record(z.string(), z.unknown()) }).strip();
@@ -121,11 +122,29 @@ export const deleteJob = async (request: FastifyRequest, reply: FastifyReply): P
   const { id } = request.params as { id: string };
   const jobOid = assertJobObjectId(id, reply);
   if (!jobOid) return;
-  const active = await ScreeningModel.findOne({ jobId: jobOid, status: "running" }).lean();
-  if (active) return void reply.code(400).send({ error: "Cannot close job during active screening" });
-  const result = await JobModel.findOneAndUpdate({ _id: jobOid, recruiterId: rid }, { status: "closed" }, { new: true }).lean();
-  if (!result) return void reply.code(404).send({ error: "Job not found" });
-  reply.send({ success: true });
+
+  const job = await JobModel.findOne({ _id: jobOid, recruiterId: rid }).lean();
+  if (!job) return void reply.code(404).send({ error: "Job not found" });
+
+  const activeScreening = await ScreeningModel.findOne({ jobId: jobOid, status: "running" }).lean();
+  if (activeScreening) return void reply.code(409).send({ error: "Cannot delete a job while a screening is actively running. Wait for it to complete or fail first." });
+
+  // Cascade delete: interviews → applicants → screenings → job
+  const [interviews, applicants, screenings] = await Promise.all([
+    InterviewModel.deleteMany({ jobId: jobOid }),
+    ApplicantModel.deleteMany({ jobId: jobOid }),
+    ScreeningModel.deleteMany({ jobId: jobOid }),
+  ]);
+  await JobModel.deleteOne({ _id: jobOid });
+
+  reply.send({
+    success: true,
+    deleted: {
+      interviews: interviews.deletedCount,
+      applicants: applicants.deletedCount,
+      screenings: screenings.deletedCount,
+    },
+  });
 };
 
 export const jobStats = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {

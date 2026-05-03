@@ -95,10 +95,19 @@ export default function JobDetailPage() {
 
   const handleDelete = async () => {
     if (!job) return;
-    if (!window.confirm(`Close "${job.title}"? The job will be marked as closed.`)) return;
+    if (!window.confirm(
+      `Permanently delete "${job.title}"?\n\nThis will also delete all applicants, screening results, and interviews for this job. This cannot be undone.`
+    )) return;
     try {
-      await deleteJob(id).unwrap();
-      toast.success("Job closed successfully.");
+      const result = await deleteJob(id).unwrap();
+      const { applicants, screenings, interviews } = result.deleted;
+      const parts = [
+        applicants > 0 && `${applicants} applicant${applicants !== 1 ? "s" : ""}`,
+        screenings > 0 && `${screenings} screening${screenings !== 1 ? "s" : ""}`,
+        interviews > 0 && `${interviews} interview${interviews !== 1 ? "s" : ""}`,
+      ].filter(Boolean);
+      const detail = parts.length > 0 ? ` (+ ${parts.join(", ")})` : "";
+      toast.success(`"${job.title}" deleted${detail}.`);
       router.push("/jobs");
     } catch (err) {
       toast.error(getRtkQueryErrorMessage(err));
@@ -165,7 +174,7 @@ export default function JobDetailPage() {
               </>
             )}
             <Button type="button" variant="danger" size="sm" loading={deleting} disabled={deleting || editing} onClick={() => void handleDelete()}>
-              Close job
+              Delete job
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">

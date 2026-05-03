@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { CalendarDays, Grid2X2, List, Plus, Rocket, Users } from "lucide-react";
-import { useGetJobsQuery } from "../../../store/api/jobsApi";
+import { CalendarDays, Grid2X2, List, Plus, Rocket, Trash2, Users } from "lucide-react";
+import { useGetJobsQuery, useDeleteJobMutation } from "../../../store/api/jobsApi";
 import { PageHeader } from "../../../components/layout/PageHeader";
 import { JobCard } from "../../../components/jobs/JobCard";
 import { Input } from "../../../components/ui/Input";
@@ -24,6 +24,8 @@ export default function JobsPage() {
   const [status, setStatus] = useState<string>("");
   const [sortBy, setSortBy] = useState("newest");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
   const debouncedSearch = useDebounce(search, 300);
   const { data, isLoading, isError, error, refetch } = useGetJobsQuery({
     page,
@@ -54,6 +56,25 @@ export default function JobsPage() {
     if (!isError || !error) return;
     toast.error(`Unable to load jobs: ${getRtkQueryErrorMessage(error)}`);
   }, [isError, error]);
+
+  const handleDeleteJob = async (jobId: string, jobTitle: string) => {
+    if (confirmDeleteId !== jobId) { setConfirmDeleteId(jobId); return; }
+    try {
+      const result = await deleteJob(jobId).unwrap();
+      const { applicants, screenings, interviews } = result.deleted;
+      const parts = [
+        applicants > 0 && `${applicants} applicant${applicants !== 1 ? "s" : ""}`,
+        screenings > 0 && `${screenings} screening${screenings !== 1 ? "s" : ""}`,
+        interviews > 0 && `${interviews} interview${interviews !== 1 ? "s" : ""}`,
+      ].filter(Boolean);
+      const detail = parts.length > 0 ? ` (+ ${parts.join(", ")})` : "";
+      toast.success(`"${jobTitle}" deleted${detail}.`);
+      setConfirmDeleteId(null);
+    } catch (err) {
+      toast.error(getRtkQueryErrorMessage(err));
+      setConfirmDeleteId(null);
+    }
+  };
 
   if (isError) {
     return (
@@ -188,8 +209,36 @@ export default function JobsPage() {
                             Edit
                           </Link>
                           <Link href={`/jobs/${job._id}/screenings`} className="rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-medium text-white">
-                            Run Screening
+                            Screen
                           </Link>
+                          {confirmDeleteId === job._id ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={deleting}
+                                onClick={() => void handleDeleteJob(job._id, job.title)}
+                                className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                              >
+                                {deleting ? "Deleting…" : "Confirm"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteJob(job._id, job.title)}
+                              className="rounded-lg border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                              title="Delete job"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

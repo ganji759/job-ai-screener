@@ -79,9 +79,8 @@ export const jobsApi = baseApi.injectEndpoints({
       invalidatesTags: ["Jobs"],
     }),
 
-    deleteJob: builder.mutation<{ success: boolean }, string>({
+    deleteJob: builder.mutation<{ success: boolean; deleted: { interviews: number; applicants: number; screenings: number } }, string>({
       query: (id) => ({ url: `/jobs/${id}`, method: "delete" }),
-      transformResponse: () => ({ success: true }),
       invalidatesTags: ["Jobs"],
     }),
 
