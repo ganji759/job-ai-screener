@@ -73,15 +73,31 @@ const config: Config = {
         "brand-sm": "0 1px 2px 0 rgb(99 102 241 / 0.10)",
         brand: "0 8px 24px -6px rgb(99 102 241 / 0.28)",
         "accent-glow": "0 0 0 0 rgb(217 70 239 / 0.0), 0 10px 30px -10px rgb(217 70 239 / 0.45)",
+        "glass": "0 4px 24px -2px rgba(0,0,0,0.06), 0 2px 8px -2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.55)",
+        "card": "0 1px 4px -1px rgba(0,0,0,0.06), 0 2px 8px -2px rgba(0,0,0,0.04)",
+        "card-hover": "0 8px 24px -4px rgba(0,0,0,0.10), 0 2px 8px -2px rgba(0,0,0,0.06)",
+        "indigo-md": "0 8px 32px -8px rgba(99,102,241,0.45)",
+        "indigo-lg": "0 16px 48px -8px rgba(99,102,241,0.6), 0 4px 16px -4px rgba(99,102,241,0.25)",
+        "header": "0 1px 0 rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.06)",
       },
       keyframes: {
         "gradient-shift": {
           "0%, 100%": { backgroundPosition: "0% 50%" },
           "50%": { backgroundPosition: "100% 50%" },
         },
+        "agent-ring": {
+          "0%": { transform: "scale(1)", opacity: "0.6" },
+          "100%": { transform: "scale(1.7)", opacity: "0" },
+        },
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-4px)" },
+        },
       },
       animation: {
         "gradient-shift": "gradient-shift 12s ease infinite",
+        "agent-ring": "agent-ring 2s ease-out infinite",
+        "float": "float 3s ease-in-out infinite",
       },
     },
   },

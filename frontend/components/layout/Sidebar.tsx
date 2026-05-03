@@ -67,17 +67,17 @@ function NavLinkRow({
         "group relative flex h-10 items-center rounded-[10px] transition-colors duration-150 ease-out",
         collapsed ? "mx-auto w-10 justify-center px-0" : "mx-2 mb-0.5 gap-[10px] px-3",
         active
-          ? "bg-[rgba(0,122,255,0.12)] font-semibold text-[#007AFF] dark:bg-blue-500/20 dark:text-blue-300"
-          : "font-medium text-[#3a3a3c] hover:bg-black/[0.04] hover:text-[#1d1d1f] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
-        !active && "text-[#3a3a3c] dark:text-slate-300",
+          ? "bg-gradient-to-r from-indigo-500/15 to-violet-500/10 font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-500/20 dark:from-indigo-500/20 dark:to-violet-500/12 dark:text-indigo-300 dark:ring-indigo-500/25"
+          : "font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-100",
       )}
     >
       <span className="relative flex shrink-0 items-center justify-center">
         <Icon
           className={cn(
             "h-[18px] w-[18px] shrink-0 transition-colors duration-150 ease-out",
-            active ? "text-[#007AFF]" : "text-[#8e8e93] group-hover:text-[#1d1d1f]",
-            !active && "dark:text-slate-400 dark:group-hover:text-white",
+            active
+              ? "text-indigo-600 dark:text-indigo-400"
+              : "text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-200",
           )}
         />
         {showBadge && collapsed && badgeCount > 0 ? (
@@ -192,7 +192,7 @@ export const Sidebar = ({
       <aside
         style={{ fontFamily: appleSans }}
         className={cn(
-          "fixed top-0 z-50 flex h-screen flex-col overflow-hidden border-r border-black/[0.08] bg-white/[0.95] backdrop-blur-[20px] dark:border-slate-700 dark:bg-slate-900/95",
+          "fixed top-0 z-50 flex h-screen flex-col overflow-hidden border-r border-black/[0.06] bg-white/90 backdrop-blur-2xl dark:border-white/[0.05] dark:bg-[#0d1117]/95",
           "transition-[transform,width] duration-300 ease-out md:duration-[250ms] md:ease-in-out",
           collapsed ? "w-16" : "w-[240px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
@@ -206,13 +206,13 @@ export const Sidebar = ({
           )}
         >
           <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[#007AFF]">
-              <Sparkles className="h-8 w-8" strokeWidth={1.75} />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/30 text-white">
+              <Sparkles className="h-5 w-5" strokeWidth={2} />
             </span>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="text-base font-semibold leading-tight text-[#1d1d1f] dark:text-slate-100">Umurava</p>
-                <p className="text-[11px] font-medium leading-tight text-[#8e8e93] dark:text-slate-400">AI HR</p>
+                <p className="text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-50">Umurava</p>
+                <p className="text-[11px] font-medium leading-tight text-slate-400 dark:text-slate-500">AI Hiring</p>
               </div>
             ) : null}
           </div>
@@ -281,7 +281,7 @@ export const Sidebar = ({
                   onError={() => setAvatarErr(true)}
                 />
               ) : (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#007AFF] text-xs font-semibold text-white">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">
                   {initials}
                 </span>
               )}

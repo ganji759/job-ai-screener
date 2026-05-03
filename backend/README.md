@@ -87,6 +87,73 @@ GET    /screenings/:id/interviews     # interviews scoped to a screening
 GET /dashboard/analytics    # KPIs + HR vs AI confusion matrix
 ```
 
+### AI Hiring Assistant
+```
+POST /agent/chat            # one conversational turn (auth required)
+```
+
+Request body:
+```json
+{
+  "message": "Schedule an interview with John Smith for the Senior Engineer role",
+  "history": [
+    { "role": "user",  "content": "..." },
+    { "role": "model", "content": "..." }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "reply": "Done! I've scheduled a video interview...",
+  "toolCalls": [
+    { "name": "search_applicants", "args": { "name": "John Smith" }, "result": { ... } },
+    { "name": "schedule_interview", "args": { ... }, "result": { ... } }
+  ]
+}
+```
+
+The endpoint runs a **Gemini function-calling loop** (max 5 iterations). Each iteration:
+1. Forwards `contents[]` (Gemini-format conversation history) to Python `POST /agent/turn`
+2. Python makes **one** `generate_content` call and returns either tool calls or a final text reply
+3. Node executes any tool calls against MongoDB, appends function-response parts to `contents[]`, and loops back
+
+**Available tools (12):**
+
+| Tool | Description |
+|------|-------------|
+| `list_jobs` | List recruiter's jobs, optionally filtered by status |
+| `get_job_details` | Full job details including skills and applicant count |
+| `get_applicants` | List applicants for a specific job |
+| `search_applicants` | Search candidates by name across all jobs |
+| `list_screenings` | List screening runs, optionally filtered by status or job |
+| `get_screening_results` | Ranked shortlist and scores from a completed screening |
+| `list_interviews` | List scheduled interviews, optionally filtered by status |
+| `get_pipeline_summary` | High-level overview: job counts, applicant totals, pending screenings, upcoming interviews |
+| `schedule_interview` | Schedule an interview — sends invite email + `.ics` calendar attachment |
+| `create_job` | Create a new job posting |
+| `update_job_status` | Change a job's status (active / draft / closed) |
+| `approve_candidate` | Set HR decision for a candidate in a screening (approved / rejected / review) |
+
+## AI Agent Architecture
+
+```
+Frontend AgentPanel
+    │  POST /api/v1/agent/chat  (message + history)
+    ▼
+Node agent.service.ts
+    │  builds contents[] in Gemini Content format
+    │  loops up to 5 times:
+    │    POST /agent/turn  →  Python FastAPI
+    │    ← { type: "tool_calls", calls } or { type: "text", reply }
+    │    if tool_calls: execute in Node (MongoDB queries, interview service)
+    │                   append function_response parts to contents[]
+    └─ returns { reply, toolCalls[] } to frontend
+```
+
+**Python `/agent/turn`** makes a single `generate_content` call per request. The model cascade (quota-aware) is: `GEMINI_MODEL` → `gemini-2.5-flash` → `gemini-2.0-flash`. `gemini-2.5-flash-lite` is always excluded — it does not support function calling or `systemInstruction`. When `AI_SERVICE_URL` is unset the agent loop runs entirely in-process using the `@google/generative-ai` SDK with `{ apiVersion: "v1beta" }` (tools and systemInstruction are v1beta-only features).
+
 ## AI Decision Flow
 
 1. Recruiter creates a job with scoring weights (`skills` + `experience` + `education`, sum = 1.0)
@@ -123,6 +190,7 @@ Requires at least one completed screening with saved HR decisions to populate.
 |----------|-------|
 | `POST /screenings/:id/ai-chat` | 30 req / min |
 | Screening run variants | 5–10 req / hour |
+| `POST /agent/chat` | Gemini quota (shared with other AI calls); agent loop capped at 5 Gemini turns per request |
 
 ## Environment Variables
 

@@ -258,7 +258,7 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 4 }}
       transition={{ duration: 0.15 }}
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(70vh,420px)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800"
+      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(70vh,420px)] overflow-hidden rounded-xl border border-white/60 bg-white/95 shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95"
     >
       <div className="max-h-[min(70vh,420px)] overflow-y-auto p-2">
         {isFetching && qOk ? (
@@ -410,8 +410,10 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
     <>
       <header
         className={cn(
-          "sticky top-0 z-50 w-full border-b border-[#e5e7eb] bg-white transition-shadow duration-200 ease-out dark:border-slate-700 dark:bg-slate-900",
-          scrolled ? "shadow-sm" : "shadow-none",
+          "sticky top-0 z-50 w-full border-b backdrop-blur-xl transition-all duration-200 ease-out",
+          scrolled
+            ? "border-white/30 bg-white/85 shadow-header dark:border-white/[0.06] dark:bg-[#0d1117]/90"
+            : "border-white/40 bg-white/65 dark:border-white/[0.04] dark:bg-[#0d1117]/75",
         )}
       >
         <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-3 md:gap-4 md:px-4">
@@ -529,7 +531,7 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
                     onError={() => setAvatarLoadError(true)}
                   />
                 ) : (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#007AFF] text-xs font-bold text-white ring-2 ring-[#007AFF]/30">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white ring-2 ring-indigo-500/20">
                     {initials}
                   </span>
                 )}
@@ -552,7 +554,7 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2 }}
-            className="pointer-events-none fixed right-4 top-20 z-[60] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+            className="pointer-events-none fixed right-4 top-20 z-[60] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border border-white/60 bg-white/90 px-4 py-3 shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-slate-800/90"
           >
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{banner.title}</p>
             <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{banner.message}</p>

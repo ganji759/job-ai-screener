@@ -38,7 +38,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen">
       <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div
         className={cn(
@@ -55,14 +55,17 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         type="button"
         onClick={() => setAgentOpen((v) => !v)}
         className={cn(
-          "fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200",
+          "fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 focus-visible:ring-offset-2",
           agentOpen
-            ? "bg-slate-700 text-white hover:bg-slate-600"
-            : "bg-indigo-600 text-white hover:bg-indigo-700",
+            ? "bg-slate-800 text-white shadow-xl shadow-slate-900/40 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+            : "bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 text-white shadow-indigo-md hover:scale-110 hover:shadow-indigo-lg",
         )}
         title="AI Hiring Assistant"
       >
-        <Bot className="h-6 w-6" />
+        {!agentOpen && (
+          <span className="pointer-events-none absolute inset-0 animate-agent-ring rounded-full bg-indigo-400/50" />
+        )}
+        <Bot className="relative z-10 h-6 w-6" />
       </button>
 
       {agentOpen && <AgentPanel onClose={() => setAgentOpen(false)} />}

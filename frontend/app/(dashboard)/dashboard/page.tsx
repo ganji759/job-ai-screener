@@ -41,7 +41,7 @@ import { humanizeDurationMs } from "../../../lib/utils";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { useAuth } from "../../../hooks/useAuth";
 
-const metricBoxClass = "rounded-xl border border-brand-100 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.08)]";
+const metricBoxClass = "stat-card p-6";
 
 const getRelativeTime = (dateString: string): string => {
   const date = new Date(dateString);
@@ -182,27 +182,38 @@ export default function DashboardPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-violet-600 p-6 text-white shadow-[0_12px_30px_rgba(79,70,229,0.25)]"
+        className="relative overflow-hidden rounded-2xl p-6 text-white shadow-indigo-md"
+        style={{
+          background:
+            "linear-gradient(135deg, #4f46e5 0%, #6d28d9 40%, #7c3aed 65%, #a21caf 100%)",
+        }}
       >
-        <div className="flex items-center justify-between gap-4">
+        {/* Decorative radial blobs */}
+        <span className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" aria-hidden />
+        <span className="pointer-events-none absolute -bottom-8 left-10 h-36 w-36 rounded-full bg-violet-300/20 blur-2xl" aria-hidden />
+        <div className="relative flex items-center justify-between gap-4">
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-bold tracking-tight">
               {greeting}, {recruiterFirstName} 👋
             </p>
-            <p className="mt-1 text-sm text-white/90">Here&apos;s what&apos;s happening with your recruiting today.</p>
+            <p className="mt-1.5 text-sm text-white/80">Here&apos;s what&apos;s happening with your recruiting today.</p>
           </div>
-          <div className="text-right">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs text-white/95">
+          <div className="hidden text-right sm:block">
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
               <CalendarDays className="h-3.5 w-3.5" />
               {today}
             </div>
-            <Brain className="ml-auto h-10 w-10 shrink-0 text-white/90" />
+            <div className="flex justify-end">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm">
+                <Brain className="h-6 w-6 text-white/90" />
+              </span>
+            </div>
           </div>
         </div>
       </motion.div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-brand-100 bg-white py-16 text-slate-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+        <div className="stat-card flex flex-col items-center justify-center gap-3 py-16 text-slate-500">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" aria-hidden />
           <p className="text-sm font-medium">Loading dashboard metrics…</p>
         </div>
@@ -218,17 +229,17 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.07 }}
-                    whileHover={{ y: -2 }}
-                    className="rounded-xl border border-brand-100 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition duration-200 hover:shadow-[0_10px_20px_rgba(15,23,42,0.12)]"
+                    whileHover={{ y: -3, scale: 1.01 }}
+                    className="stat-card cursor-pointer p-6 transition duration-200 hover:shadow-card-hover"
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`rounded-xl p-2 ${item.color}`}>
+                      <span className={`rounded-xl p-2.5 ${item.color}`}>
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{item.hint}</span>
+                      <span className="rounded-full border border-slate-100 bg-slate-50/80 px-2.5 py-1 text-xs font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">{item.hint}</span>
                     </div>
-                    <p className="mt-3 text-xs uppercase text-slate-500">{item.label}</p>
-                    <p className="mt-1 text-3xl font-bold text-brand-900">{item.value}</p>
+                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</p>
+                    <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{item.value}</p>
                   </motion.div>
                 </Link>
               );

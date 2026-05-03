@@ -13,10 +13,12 @@ export const Button = ({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }) => {
   const variantClass: Record<Variant, string> = {
-    primary: "bg-brand-600 text-white shadow-brand-sm hover:bg-brand-700 active:scale-[0.98]",
-    secondary: "border border-brand-200 bg-white text-brand-800 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 active:scale-[0.98]",
-    danger: "bg-red-600 text-white hover:bg-red-500 active:scale-[0.98]",
-    ghost: "bg-transparent text-slate-700 hover:bg-brand-50 dark:text-slate-200 dark:hover:bg-slate-700 active:scale-[0.98]",
+    primary:
+      "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md hover:from-indigo-600 hover:to-violet-700 hover:shadow-indigo-lg active:scale-[0.97]",
+    secondary:
+      "border border-slate-200/80 bg-white/80 text-slate-800 shadow-card backdrop-blur-sm hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 dark:border-slate-600/60 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-700/70 active:scale-[0.97]",
+    danger: "bg-gradient-to-br from-red-500 to-rose-600 text-white hover:from-red-600 hover:to-rose-700 shadow-sm active:scale-[0.97]",
+    ghost: "bg-transparent text-slate-600 hover:bg-slate-100/80 dark:text-slate-300 dark:hover:bg-white/[0.06] active:scale-[0.97]",
   };
   const sizeClass: Record<Size, string> = { sm: "px-4 py-2 text-sm", md: "px-5 py-2.5", lg: "px-6 py-3 text-lg" };
   return (

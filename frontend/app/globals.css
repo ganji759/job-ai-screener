@@ -17,20 +17,22 @@
 
   body {
     @apply min-h-screen text-slate-900;
-    /* Joyful light gradient: peach → cream → mint → lavender.
-       Animated very slowly so it feels alive without being distracting. */
     background:
-      radial-gradient(1100px 600px at 85% -10%, rgba(217, 70, 239, 0.10), transparent 60%),
-      radial-gradient(900px 500px at -10% 10%, rgba(99, 102, 241, 0.12), transparent 60%),
-      linear-gradient(135deg, #fef3f2 0%, #fffbeb 28%, #f0fdfa 60%, #eef2ff 100%);
+      radial-gradient(ellipse 1200px 700px at 90% -5%, rgba(217, 70, 239, 0.09) 0%, transparent 55%),
+      radial-gradient(ellipse 900px 600px at -5% 15%, rgba(99, 102, 241, 0.11) 0%, transparent 55%),
+      radial-gradient(ellipse 600px 400px at 50% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 60%),
+      linear-gradient(160deg, #fdf8ff 0%, #fffcf0 25%, #f0fdfb 55%, #eef2ff 85%, #fdf4ff 100%);
     background-attachment: fixed;
-    transition: background 220ms ease, color 220ms ease;
+    transition: background 250ms ease, color 250ms ease;
   }
 
   html[data-theme="midnight"] body,
   html.dark body {
     color: #e2e8f0;
-    background: #111827;
+    background:
+      radial-gradient(ellipse 1000px 600px at 90% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 55%),
+      radial-gradient(ellipse 700px 500px at 0% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 55%),
+      #0d1117;
     background-attachment: fixed;
   }
 
@@ -65,10 +67,14 @@
    `html.dark` so the whole app gets a consistent dark palette for free.
    Specificity: `html.dark .xyz` (0,2,1) > `.xyz` (0,1,0) so these always win.
    ------------------------------------------------------------------------- */
-html.dark .bg-white { background-color: #0f172a; }
-html.dark .bg-white\/50 { background-color: rgba(15, 23, 42, 0.5); }
-html.dark .bg-white\/80 { background-color: rgba(15, 23, 42, 0.8); }
-html.dark .bg-white\/90 { background-color: rgba(15, 23, 42, 0.9); }
+html.dark .bg-white { background-color: #161b27; }
+html.dark .bg-white\/50 { background-color: rgba(13, 17, 23, 0.5); }
+html.dark .bg-white\/60 { background-color: rgba(13, 17, 23, 0.6); }
+html.dark .bg-white\/70 { background-color: rgba(13, 17, 23, 0.7); }
+html.dark .bg-white\/75 { background-color: rgba(13, 17, 23, 0.75); }
+html.dark .bg-white\/80 { background-color: rgba(13, 17, 23, 0.8); }
+html.dark .bg-white\/85 { background-color: rgba(13, 17, 23, 0.85); }
+html.dark .bg-white\/90 { background-color: rgba(13, 17, 23, 0.9); }
 html.dark .bg-slate-50 { background-color: #1e293b; }
 html.dark .bg-slate-100 { background-color: #1e293b; }
 html.dark .bg-slate-200 { background-color: #334155; }
@@ -162,12 +168,26 @@ html.dark .recharts-default-tooltip {
 /* Reusable joyful utilities for new components.                      */
 /* ------------------------------------------------------------------ */
 .joy-card {
-  @apply rounded-2xl border border-white/60 bg-white/80 backdrop-blur-sm shadow-brand-sm;
+  @apply rounded-2xl border border-white/70 bg-white/85 backdrop-blur-md shadow-glass;
 }
 html.dark .joy-card {
-  background-color: rgba(17, 24, 39, 0.75);
-  border-color: rgba(99, 102, 241, 0.18);
-  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  background-color: rgba(22, 27, 39, 0.80);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Standard surface card — glass morphism with subtle top highlight */
+.surface-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background-color: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+html.dark .surface-card {
+  background-color: rgba(22, 27, 39, 0.80);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.3), 0 4px 16px -4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .joy-gradient-text {
@@ -175,4 +195,32 @@ html.dark .joy-card {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* Premium stat card with inner highlight */
+.stat-card {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.04), 0 6px 20px -6px rgba(0,0,0,0.07);
+  overflow: hidden;
+}
+html.dark .stat-card {
+  background: rgba(22, 27, 39, 0.82);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 6px 20px -6px rgba(0,0,0,0.5);
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9) 30%, rgba(255,255,255,0.9) 70%, transparent);
+}
+html.dark .stat-card::before {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.08) 70%, transparent);
 }
