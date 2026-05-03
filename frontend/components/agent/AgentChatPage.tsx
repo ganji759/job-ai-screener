@@ -12,10 +12,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  FileSpreadsheet,
   FileText,
+  FileUp,
   Loader2,
   MessageSquare,
   MessagesSquare,
+  Mic,
+  MicOff,
+  Paperclip,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -28,12 +33,14 @@ import {
   Users,
   Wand2,
   Wrench,
+  X,
   Zap,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentMessage, ToolCall } from "../../store/api/agentApi";
 import { useAgentChatMutation } from "../../store/api/agentApi";
+import { useMeQuery } from "../../store/api/authApi";
 import { cn } from "../../lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -42,6 +49,8 @@ type EntryUser  = { type: "user";     id: string; content: string };
 type EntryAgent = { type: "agent";    id: string; content: string; toolCalls: ToolCall[] };
 type EntryThink = { type: "thinking"; id: string };
 type Entry = EntryUser | EntryAgent | EntryThink;
+
+type AttachedFile = { id: string; name: string; kind: "pdf" | "resume" | "excel"; file: File };
 
 type Conversation = {
   id: string;
@@ -474,71 +483,143 @@ const ConvSidebar = ({
   );
 };
 
+// ── Attach menu ───────────────────────────────────────────────────────────────
+
+const ATTACH_OPTIONS = [
+  { kind: "pdf"    as const, label: "PDF Document", icon: FileText,        accept: ".pdf"                         },
+  { kind: "resume" as const, label: "Resume",        icon: FileUp,          accept: ".pdf,.doc,.docx"              },
+  { kind: "excel"  as const, label: "Excel / CSV",   icon: FileSpreadsheet, accept: ".xlsx,.xls,.csv,.ods"         },
+];
+
+const AttachMenu = ({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (kind: AttachedFile["kind"], accept: string) => void;
+  onClose: () => void;
+}) => (
+  <>
+    <div className="fixed inset-0 z-10" onClick={onClose} />
+    <motion.div
+      initial={{ opacity: 0, y: 6, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 6, scale: 0.96 }}
+      transition={{ duration: 0.14 }}
+      className="absolute bottom-full left-0 z-20 mb-2 w-52 overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-lg backdrop-blur-xl dark:border-white/[0.08] dark:bg-slate-800/95"
+    >
+      {ATTACH_OPTIONS.map(({ kind, label, icon: Icon, accept }) => (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => { onSelect(kind, accept); onClose(); }}
+          className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-indigo-50/70 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-100/70 dark:bg-indigo-900/40">
+            <Icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          </span>
+          <span className="font-medium">{label}</span>
+        </button>
+      ))}
+    </motion.div>
+  </>
+);
+
 // ── Welcome screen ────────────────────────────────────────────────────────────
 
-const WelcomeScreen = ({ onSend }: { onSend: (text: string) => void }) => (
-  <div className="flex flex-1 flex-col items-center justify-center gap-8 px-4 py-10">
-    <motion.div
-      initial={{ scale: 0.7, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 220, damping: 16 }}
-      className="relative"
-    >
-      <span className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 shadow-indigo-lg">
-        <Wand2 className="h-12 w-12 text-white" />
-      </span>
-      {/* Orbiting sparkle */}
-      <motion.span
-        animate={{ rotate: 360 }}
-        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-        className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md"
+const CAPABILITIES = [
+  { icon: Users,        text: "Find & rank top candidates"       },
+  { icon: CalendarCheck,text: "Schedule & manage interviews"     },
+  { icon: Brain,        text: "Run AI-powered screenings"        },
+  { icon: Briefcase,    text: "Create & manage job postings"     },
+  { icon: Zap,          text: "Summarise your entire pipeline"   },
+];
+
+const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; userName: string }) => {
+  const firstName = userName.split(" ")[0] || userName;
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-8 px-4 py-10">
+      <motion.div
+        initial={{ scale: 0.7, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 220, damping: 16 }}
+        className="relative"
       >
-        <Sparkles className="h-4 w-4 text-white" />
-      </motion.span>
-    </motion.div>
+        <span className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 shadow-indigo-lg">
+          <Wand2 className="h-12 w-12 text-white" />
+        </span>
+        <motion.span
+          animate={{ rotate: 360 }}
+          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md"
+        >
+          <Sparkles className="h-4 w-4 text-white" />
+        </motion.span>
+      </motion.div>
 
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.12 }}
-      className="text-center"
-    >
-      <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-        AI Hiring Assistant
-      </h2>
-      <p className="mt-2.5 max-w-md text-sm text-slate-500 dark:text-slate-400">
-        Ask me anything about your hiring pipeline. I can find candidates, schedule interviews,
-        approve applicants, create jobs, and summarise your entire pipeline — all through natural language.
-      </p>
-    </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="text-center"
+      >
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          Welcome back, {firstName}!
+        </h2>
+        <p className="mt-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+          I'm your AI Hiring Assistant — here's what I can do for you:
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {CAPABILITIES.map(({ icon: Icon, text }, i) => (
+            <motion.span
+              key={text}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 + i * 0.06 }}
+              className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-card backdrop-blur-sm dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-slate-300"
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+              {text}
+            </motion.span>
+          ))}
+        </div>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.55 }}
+          className="mt-5 text-sm text-slate-500 dark:text-slate-400"
+        >
+          Where would you like to start?
+        </motion.p>
+      </motion.div>
 
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.22 }}
-      className="flex max-w-xl flex-wrap justify-center gap-2"
-    >
-      {SUGGESTIONS.map((s, i) => {
-        const Icon = s.icon;
-        return (
-          <motion.button
-            key={s.text}
-            type="button"
-            onClick={() => onSend(s.text)}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.28 + i * 0.05 }}
-            whileHover={{ scale: 1.03, y: -1 }}
-            className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-card backdrop-blur-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700 dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-800 dark:hover:text-indigo-300"
-          >
-            <Icon className="h-4 w-4 shrink-0 text-indigo-500" />
-            {s.text}
-          </motion.button>
-        );
-      })}
-    </motion.div>
-  </div>
-);
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="flex max-w-xl flex-wrap justify-center gap-2"
+      >
+        {SUGGESTIONS.map((s, i) => {
+          const Icon = s.icon;
+          return (
+            <motion.button
+              key={s.text}
+              type="button"
+              onClick={() => onSend(s.text)}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.64 + i * 0.05 }}
+              whileHover={{ scale: 1.03, y: -1 }}
+              className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-card backdrop-blur-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700 dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-800 dark:hover:text-indigo-300"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-indigo-500" />
+              {s.text}
+            </motion.button>
+          );
+        })}
+      </motion.div>
+    </div>
+  );
+};
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -547,9 +628,16 @@ export const AgentChatPage = () => {
   const [activeId, setActiveId]           = useState<string | null>(null);
   const [input, setInput]                 = useState("");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [attachments, setAttachments]     = useState<AttachedFile[]>([]);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [isRecording, setIsRecording]     = useState(false);
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const textareaRef    = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const fileKindRef    = useRef<AttachedFile["kind"]>("pdf");
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
   const [agentChat, { isLoading }] = useAgentChatMutation();
+  const { data: user } = useMeQuery();
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -588,6 +676,9 @@ export const AgentChatPage = () => {
       const trimmed = msg.trim();
       if (!trimmed || isLoading) return;
       setInput("");
+      const filePrefix = attachments.map((a) => `[Attached ${a.kind.toUpperCase()}: ${a.name}]`).join("\n");
+      const fullMsg = filePrefix ? `${filePrefix}\n\n${trimmed}` : trimmed;
+      setAttachments([]);
 
       let convId = activeId;
       let currentHistory = history;
@@ -620,7 +711,7 @@ export const AgentChatPage = () => {
                 updatedAt: new Date().toISOString(),
                 entries: [
                   ...c.entries.filter((e) => e.type !== "thinking"),
-                  { type: "user" as const, id: uid, content: trimmed },
+                  { type: "user" as const, id: uid, content: fullMsg },
                   { type: "thinking" as const, id: tid },
                 ],
               },
@@ -628,7 +719,7 @@ export const AgentChatPage = () => {
       );
 
       try {
-        const res = await agentChat({ message: trimmed, history: currentHistory }).unwrap();
+        const res = await agentChat({ message: fullMsg, history: currentHistory }).unwrap();
         setConversations((prev) =>
           prev.map((c) =>
             c.id !== convId
@@ -638,7 +729,7 @@ export const AgentChatPage = () => {
                   updatedAt: new Date().toISOString(),
                   history: [
                     ...c.history,
-                    { role: "user" as const, content: trimmed },
+                    { role: "user" as const, content: fullMsg },
                     { role: "model" as const, content: res.reply },
                   ],
                   entries: [
@@ -675,6 +766,53 @@ export const AgentChatPage = () => {
     },
     [activeId],
   );
+
+  const openFilePicker = (kind: AttachedFile["kind"], accept: string) => {
+    fileKindRef.current = kind;
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = accept;
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachments((prev) => [
+      ...prev,
+      { id: newId(), name: file.name, kind: fileKindRef.current, file },
+    ]);
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setIsRecording(false);
+      return;
+    }
+    type SR = { new(): { continuous: boolean; interimResults: boolean; lang: string; onresult: ((e: SpeechRecognitionEvent) => void) | null; onend: (() => void) | null; start(): void; stop(): void } };
+    const SRClass =
+      ((window as unknown as Record<string, unknown>).SpeechRecognition as SR | undefined) ??
+      ((window as unknown as Record<string, unknown>).webkitSpeechRecognition as SR | undefined);
+    if (!SRClass) {
+      alert("Voice input is not supported in this browser. Try Chrome.");
+      return;
+    }
+    const recognition = new SRClass();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = (ev: SpeechRecognitionEvent) => {
+      const transcript = Array.from(ev.results).map((r) => r[0].transcript).join("");
+      setInput(transcript);
+    };
+    recognition.onend = () => setIsRecording(false);
+    recognition.start();
+    recognitionRef.current = { stop: () => recognition.stop() };
+    setIsRecording(true);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -745,7 +883,7 @@ export const AgentChatPage = () => {
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto">
           {isEmpty ? (
-            <WelcomeScreen onSend={(text) => void send(text)} />
+            <WelcomeScreen onSend={(text) => void send(text)} userName={user?.name ?? "there"} />
           ) : (
             <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
               {entries.map((entry) => {
@@ -761,37 +899,103 @@ export const AgentChatPage = () => {
         {/* Input area */}
         <div className="shrink-0 border-t border-white/30 bg-white/50 px-4 pb-5 pt-4 backdrop-blur-md dark:border-white/[0.05] dark:bg-slate-900/50">
           <div className="mx-auto max-w-3xl">
-            <div className="flex items-end gap-3 rounded-2xl border border-white/60 bg-white/90 px-4 py-3.5 shadow-glass backdrop-blur-sm transition-all focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-400/20 dark:border-white/[0.08] dark:bg-slate-800/80 dark:focus-within:border-indigo-500/50">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about your pipeline, candidates, or schedule an interview…"
-                rows={1}
-                className="flex-1 resize-none bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
-                style={{ maxHeight: "160px" }}
-              />
-              <motion.button
-                type="button"
-                onClick={() => void send(input)}
-                disabled={!input.trim() || isLoading}
-                whileHover={input.trim() && !isLoading ? { scale: 1.07 } : {}}
-                whileTap={input.trim() && !isLoading ? { scale: 0.95 } : {}}
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
-                  input.trim() && !isLoading
-                    ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md"
-                    : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500",
-                )}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </motion.button>
+            <div className="rounded-2xl border border-white/60 bg-white/90 shadow-glass backdrop-blur-sm transition-all focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-400/20 dark:border-white/[0.08] dark:bg-slate-800/80 dark:focus-within:border-indigo-500/50">
+
+              {/* Attached file pills */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-slate-100/70 px-4 py-2.5 dark:border-white/[0.06]">
+                  {attachments.map((a) => {
+                    const Icon = ATTACH_OPTIONS.find((o) => o.kind === a.kind)?.icon ?? FileText;
+                    return (
+                      <span key={a.id} className="flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50/80 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300">
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="max-w-[160px] truncate">{a.name}</span>
+                        <button type="button" onClick={() => setAttachments((prev) => prev.filter((f) => f.id !== a.id))} className="ml-0.5 rounded-full text-indigo-400 hover:text-indigo-700 dark:text-indigo-500 dark:hover:text-indigo-200">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Textarea row */}
+              <div className="flex items-end gap-2 px-3 py-3">
+                {/* Attach button */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setAttachMenuOpen((v) => !v)}
+                    title="Attach file"
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-150",
+                      attachMenuOpen
+                        ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
+                        : "text-slate-400 hover:bg-slate-100/80 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/[0.07] dark:hover:text-slate-300",
+                    )}
+                  >
+                    <Paperclip className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+                  </button>
+                  <AnimatePresence>
+                    {attachMenuOpen && (
+                      <AttachMenu
+                        onSelect={openFilePicker}
+                        onClose={() => setAttachMenuOpen(false)}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about your pipeline, candidates, or schedule an interview…"
+                  rows={1}
+                  className="flex-1 resize-none bg-transparent py-1 text-sm text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
+                  style={{ maxHeight: "160px" }}
+                />
+
+                {/* Mic button */}
+                <motion.button
+                  type="button"
+                  onClick={toggleRecording}
+                  title={isRecording ? "Stop recording" : "Voice message"}
+                  animate={isRecording ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                  transition={isRecording ? { duration: 1.1, repeat: Infinity } : {}}
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
+                    isRecording
+                      ? "bg-red-500 text-white shadow-md shadow-red-500/30"
+                      : "text-slate-400 hover:bg-slate-100/80 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/[0.07] dark:hover:text-slate-300",
+                  )}
+                >
+                  {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </motion.button>
+
+                {/* Send button */}
+                <motion.button
+                  type="button"
+                  onClick={() => void send(input)}
+                  disabled={(!input.trim() && attachments.length === 0) || isLoading}
+                  whileHover={(input.trim() || attachments.length > 0) && !isLoading ? { scale: 1.07 } : {}}
+                  whileTap={(input.trim() || attachments.length > 0) && !isLoading ? { scale: 0.95 } : {}}
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
+                    (input.trim() || attachments.length > 0) && !isLoading
+                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md"
+                      : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500",
+                  )}
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </motion.button>
+              </div>
             </div>
+
+            {/* Hidden file input */}
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+
             <p className="mt-2 text-center text-[10px] text-slate-400 dark:text-slate-500">
               <kbd className="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] dark:border-slate-700 dark:bg-slate-800">Enter</kbd>
               {" "}to send ·{" "}
