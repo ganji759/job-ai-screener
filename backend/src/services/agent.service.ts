@@ -9,7 +9,7 @@ import { ScreeningModel } from "../models/Screening.model";
 import { InterviewModel } from "../models/Interview.model";
 import { UserModel } from "../models/User.model";
 import { createInterview } from "./interview.service";
-import { heuristicExtractResume } from "./parser.service";
+import { heuristicExtractResume, mergeGeminiResume } from "./parser.service";
 import { runScreeningForJobAgent } from "./screening.service";
 import { callGeminiWithRetry } from "./gemini.service";
 import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
@@ -605,27 +605,7 @@ async function executeTool(
       try {
         const prompt = buildResumeExtractionPrompt(resumeText);
         const g = await callGeminiWithRetry(prompt, ZodResumeGeminiExtraction) as Record<string, unknown>;
-        const base = heuristicExtractResume(resumeText);
-        const fullName = typeof g.fullName === "string" ? g.fullName.trim() : "";
-        let first = typeof g.firstName === "string" ? g.firstName.trim() : "";
-        let last = typeof g.lastName === "string" ? g.lastName.trim() : "";
-        if (!first && fullName) {
-          const parts = fullName.split(/\s+/).filter(Boolean);
-          first = parts[0] ?? "";
-          last = parts.slice(1).join(" ");
-        }
-        profile = {
-          ...base,
-          id: randomUUID(),
-          firstName: first || base.firstName,
-          lastName: last || base.lastName,
-          email: typeof g.email === "string" && g.email.includes("@") ? g.email : base.email,
-          title: typeof g.title === "string" && g.title ? g.title : base.title,
-          summary: typeof g.summary === "string" ? g.summary : base.summary,
-          skills: Array.isArray(g.skills) && (g.skills as unknown[]).length ? g.skills : base.skills,
-          totalYearsExperience: typeof g.totalYearsExperience === "number" ? g.totalYearsExperience : base.totalYearsExperience,
-          location: typeof g.location === "string" ? g.location : base.location,
-        };
+        profile = { ...mergeGeminiResume(resumeText, g), id: randomUUID() };
       } catch {
         profile = { ...heuristicExtractResume(resumeText), id: randomUUID() };
       }

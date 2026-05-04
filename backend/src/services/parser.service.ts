@@ -158,7 +158,7 @@ export const heuristicExtractResume = (rawText: string): Partial<UmuravaProfile>
   };
 }; 
 
-const mergeGeminiResume = (
+export const mergeGeminiResume = (
   rawText: string,
   gemini: Record<string, unknown>,
 ): Partial<UmuravaProfile> => {
