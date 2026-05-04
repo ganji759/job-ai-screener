@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, FunctionCallingMode, SchemaType } from "@google/generative-ai";
 import type { FunctionDeclaration, Tool } from "@google/generative-ai";
 import { env } from "../config/env";
-import { agentTurn, AiServiceError } from "./aiClient";
+import { agentTurn, AiServiceError, normaliseText } from "./aiClient";
 import type { AgentContent } from "./aiClient";
 import { JobModel } from "../models/Job.model";
 import { ApplicantModel } from "../models/Applicant.model";
@@ -14,6 +14,7 @@ import { runScreeningForJobAgent } from "./screening.service";
 import { callGeminiWithRetry } from "./gemini.service";
 import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
 import { ZodResumeGeminiExtraction } from "../utils/jsonValidator";
+import { pythonProfileToUmurava } from "./pythonAdapter";
 import { randomUUID } from "node:crypto";
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -605,16 +606,37 @@ async function executeTool(
       const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
       if (!job) return { error: "Job not found or access denied." };
 
-      // Try Gemini-assisted extraction, fall back to heuristics, then normalise to full UmuravaProfile shape
+      // Primary: Python AI service with normalise_prompt.py (same schema as regular PDF upload)
+      // Fallback 1: Node Gemini + mergeGeminiResume
+      // Fallback 2: heuristics only
       let profile: Record<string, unknown>;
       try {
-        const prompt = buildResumeExtractionPrompt(resumeText);
-        const g = await callGeminiWithRetry(prompt, ZodResumeGeminiExtraction) as Record<string, unknown>;
-        const merged = { ...mergeGeminiResume(resumeText, g), id: randomUUID() };
-        profile = normalizeProfile(merged) as unknown as Record<string, unknown>;
+        if (env.AI_SERVICE_URL) {
+          const parsed = await normaliseText(resumeText);
+          const base = pythonProfileToUmurava(parsed);
+          profile = normalizeProfile({
+            ...base,
+            id: randomUUID(),
+            headline: parsed.headline,
+            bio: parsed.bio ?? undefined,
+            projects: (parsed.projects ?? []).map((p) => ({
+              name: p.name,
+              description: p.description,
+              technologies: p.technologies,
+              role: p.role,
+              link: p.link,
+              startDate: p.startDate,
+              endDate: p.endDate,
+            })),
+            availability: parsed.availability,
+            socialLinks: parsed.socialLinks ?? undefined,
+          }) as unknown as Record<string, unknown>;
+        } else {
+          const g = await callGeminiWithRetry(buildResumeExtractionPrompt(resumeText), ZodResumeGeminiExtraction) as Record<string, unknown>;
+          profile = normalizeProfile({ ...mergeGeminiResume(resumeText, g), id: randomUUID() }) as unknown as Record<string, unknown>;
+        }
       } catch {
-        const base = { ...heuristicExtractResume(resumeText), id: randomUUID() };
-        profile = normalizeProfile(base) as unknown as Record<string, unknown>;
+        profile = normalizeProfile({ ...heuristicExtractResume(resumeText), id: randomUUID() }) as unknown as Record<string, unknown>;
       }
 
       const applicant = await ApplicantModel.create({
