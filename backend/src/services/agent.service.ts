@@ -19,6 +19,37 @@ import { randomUUID } from "node:crypto";
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
+// ---------------------------------------------------------------------------
+// Pre-parse cache — populated by extractTextHandler (pdfplumber quality),
+// consumed by ingest_resume to skip re-parsing the same resume text.
+// ---------------------------------------------------------------------------
+const PRE_PARSE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const preParsedCache = new Map<string, { profile: Record<string, unknown>; expiresAt: number }>();
+
+/** Key derived from the first 300 chars of resume text (stable across truncations). */
+const preParseCacheKey = (text: string) => text.slice(0, 300).trim();
+
+export function cacheParsedProfile(rawText: string, profile: Record<string, unknown>): void {
+  const key = preParseCacheKey(rawText);
+  if (!key) return;
+  preParsedCache.set(key, { profile, expiresAt: Date.now() + PRE_PARSE_TTL_MS });
+  // Evict expired entries to avoid unbounded growth
+  for (const [k, v] of preParsedCache) {
+    if (v.expiresAt < Date.now()) preParsedCache.delete(k);
+  }
+}
+
+function getCachedParsedProfile(resumeText: string): Record<string, unknown> | null {
+  const key = preParseCacheKey(resumeText);
+  const entry = preParsedCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    preParsedCache.delete(key);
+    return null;
+  }
+  return entry.profile;
+}
+
 export type AgentMessage = { role: "user" | "model"; content: string };
 export type ToolCall = { name: string; args: Record<string, unknown>; result: unknown };
 
@@ -606,11 +637,16 @@ async function executeTool(
       const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
       if (!job) return { error: "Job not found or access denied." };
 
-      // Primary: Python AI service with normalise_prompt.py (same schema as regular PDF upload)
-      // Fallback 1: Node Gemini + mergeGeminiResume
-      // Fallback 2: heuristics only
+      // Tier 1: pre-parsed profile cached by extractTextHandler (pdfplumber quality, no re-parse needed)
+      // Tier 2: Python normalise/text (same normalise_prompt.py, but fed pdf-parse text)
+      // Tier 3: Node Gemini + mergeGeminiResume
+      // Tier 4: heuristics only
       let profile: Record<string, unknown>;
-      try {
+      const cachedProfile = getCachedParsedProfile(resumeText);
+      if (cachedProfile) {
+        // Already fully parsed by pdfplumber + Gemini in extractTextHandler — just stamp a new id
+        profile = { ...cachedProfile, id: randomUUID() };
+      } else try {
         if (env.AI_SERVICE_URL) {
           const parsed = await normaliseText(resumeText);
           const base = pythonProfileToUmurava(parsed);

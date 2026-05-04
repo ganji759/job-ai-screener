@@ -714,7 +714,7 @@ export const AgentChatPage = () => {
               ].filter(Boolean).join(" | ");
               const header = `[Resume uploaded: ${a.name}${meta ? `\nExtracted: ${meta}` : ""}]`;
               const instruction = `\n\nPlease do the following automatically:\n1. Briefly introduce this candidate (name, current role, top 3–5 skills) in 2–3 sentences.\n2. Call list_jobs to find the right job, then call ingest_resume to add them as an applicant.\n3. Call run_screening to rank all candidates for that job.\n4. Present the top candidates from the screening results.`;
-              parts.push(`${header}\n${data.rawText.slice(0, 12000)}${instruction}`);
+              parts.push(`${header}\n${data.rawText}${instruction}`);
               // Compact display shown in the user bubble
               const displayLabel = data.name ? `${a.name} — ${data.name}` : a.name;
               displayParts.push(`📎 Uploaded resume: ${displayLabel}${data.title ? ` (${data.title})` : ""}`);

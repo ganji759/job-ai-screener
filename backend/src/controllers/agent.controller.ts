@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { runAgentChat } from "../services/agent.service";
+import { runAgentChat, cacheParsedProfile } from "../services/agent.service";
 import type { AgentMessage } from "../services/agent.service";
 import { parsePDF, heuristicExtractResume, extractRawTextFromPdf } from "../services/parser.service";
 
@@ -58,6 +58,11 @@ export async function extractTextHandler(req: FastifyRequest, reply: FastifyRepl
           const p = result as Record<string, unknown>;
           rawText = [p.firstName, p.lastName, p.email, p.title, p.summary].filter(Boolean).join(" ");
         }
+        // Cache the fully-parsed profile (pdfplumber + Gemini quality) so ingest_resume can reuse it
+        if (rawText.trim().length >= 20) {
+          const { rawText: _rt, ...profileData } = result as Record<string, unknown> & { rawText?: string };
+          cacheParsedProfile(rawText, profileData as Record<string, unknown>);
+        }
       } catch {
         // parsePDF failed entirely — fall back to raw text extraction only
         rawText = await extractRawTextFromPdf(buf).catch(() => "");
@@ -75,7 +80,7 @@ export async function extractTextHandler(req: FastifyRequest, reply: FastifyRepl
     const preview = heuristicExtractResume(rawText);
 
     return reply.send({
-      rawText: rawText.slice(0, 14000),
+      rawText: rawText.slice(0, 50000),
       name: `${preview.firstName ?? ""} ${preview.lastName ?? ""}`.trim() || null,
       email: preview.email ?? null,
       title: preview.title ?? null,
