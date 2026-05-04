@@ -318,6 +318,7 @@ async function executeTool(
   name: string,
   args: Record<string, unknown>,
   recruiterId: string,
+  sessionCache: Map<string, unknown> = new Map(),
 ): Promise<unknown> {
   switch (name) {
     case "list_jobs": {
@@ -597,6 +598,10 @@ async function executeTool(
       if (!jobId) return { error: "jobId is required." };
       if (resumeText.length < 20) return { error: "resumeText is too short to parse a resume." };
 
+      // Idempotency: same resume text + same job in this session → return cached applicant
+      const ingestCacheKey = `ingest_resume:${jobId}:${resumeText.slice(0, 200)}`;
+      if (sessionCache.has(ingestCacheKey)) return sessionCache.get(ingestCacheKey);
+
       const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
       if (!job) return { error: "Job not found or access denied." };
 
@@ -620,7 +625,7 @@ async function executeTool(
         status: "pending",
       });
 
-      return {
+      const ingestResult = {
         applicantId: String(applicant._id),
         name: `${String(profile.firstName ?? "")} ${String(profile.lastName ?? "")}`.trim() || "Unknown",
         email: profile.email ?? null,
@@ -628,15 +633,20 @@ async function executeTool(
         skills: Array.isArray(profile.skills) ? (profile.skills as string[]).slice(0, 8) : [],
         message: `Resume ingested and added as applicant for "${job.title}". You can now call run_screening to rank all candidates.`,
       };
+      sessionCache.set(ingestCacheKey, ingestResult);
+      return ingestResult;
     }
 
     case "run_screening": {
       const jobId = String(args.jobId ?? "").trim();
       if (!jobId) return { error: "jobId is required." };
       const shortlistSize = args.shortlistSize === 20 ? 20 : 10;
+      // Idempotency: return the cached result if this job was already screened this session
+      const screeningCacheKey = `run_screening:${jobId}`;
+      if (sessionCache.has(screeningCacheKey)) return sessionCache.get(screeningCacheKey);
       try {
         const result = await runScreeningForJobAgent({ jobId, recruiterId, shortlistSize });
-        return {
+        const payload = {
           screeningId: result.screeningId,
           jobTitle: result.jobTitle,
           totalEvaluated: result.totalEvaluated,
@@ -655,6 +665,8 @@ async function executeTool(
             hiringRisk: (c as unknown as Record<string, unknown>).hiringRisk ?? null,
           })),
         };
+        sessionCache.set(screeningCacheKey, payload);
+        return payload;
       } catch (err) {
         return { error: err instanceof Error ? err.message : "Screening failed." };
       }
@@ -663,6 +675,25 @@ async function executeTool(
     default:
       return { error: `Unknown tool: ${name}` };
   }
+}
+
+const AGENT_MAX_ITERATIONS = 10;
+const AGENT_TIMEOUT_MS = 120_000;
+const AGENT_MAX_REPEAT_CALLS = 2;
+
+/** Stable key for detecting repeated identical tool calls. */
+function toolCallKey(name: string, args: Record<string, unknown>): string {
+  return `${name}:${JSON.stringify(args, Object.keys(args).sort())}`;
+}
+
+/** Builds a human-readable summary of what the agent completed, for use in fallback replies. */
+function buildExhaustionReply(toolCalls: ToolCall[]): string {
+  const done = toolCalls.map((t) => t.name);
+  const unique = [...new Set(done)];
+  return (
+    `I completed the following actions: ${unique.join(", ")}. ` +
+    `Please check the results in the screening dashboard or ask me a specific follow-up question.`
+  );
 }
 
 /**
@@ -674,36 +705,54 @@ async function runAgentChatViaPython(
   history: AgentMessage[],
   recruiterId: string,
 ): Promise<{ reply: string; toolCalls: ToolCall[] }> {
-  // Build Gemini-format contents from conversation history
   const contents: AgentContent[] = history.map((m) => ({
     role: m.role,
     parts: [{ text: m.content }],
   }));
-
-  // Append the new user message
   contents.push({ role: "user", parts: [{ text: message }] });
 
   const toolCalls: ToolCall[] = [];
+  const callCounts = new Map<string, number>();
+  const sessionCache = new Map<string, unknown>();
+  const deadline = Date.now() + AGENT_TIMEOUT_MS;
 
-  for (let iteration = 0; iteration < 10; iteration++) {
+  for (let iteration = 0; iteration < AGENT_MAX_ITERATIONS; iteration++) {
+    if (Date.now() > deadline) {
+      return { reply: buildExhaustionReply(toolCalls), toolCalls };
+    }
+
     const turn = await agentTurn({ contents });
 
     if (turn.type === "text") {
       return { reply: turn.reply, toolCalls };
     }
 
-    // Model wants to call tools — append model's function-call parts to contents
+    // Detect repeated identical calls — inject a stop signal instead of executing again
+    const repeated = turn.calls.filter((c) => {
+      const key = toolCallKey(c.name, c.args);
+      const count = (callCounts.get(key) ?? 0) + 1;
+      callCounts.set(key, count);
+      return count > AGENT_MAX_REPEAT_CALLS;
+    });
+    if (repeated.length > 0) {
+      const names = repeated.map((c) => c.name).join(", ");
+      contents.push({
+        role: "user",
+        parts: [{ text: `You have already called ${names} with the same arguments. Stop looping and give your final answer based on what you already know.` }],
+      });
+      continue;
+    }
+
     contents.push({
       role: "model",
       parts: turn.calls.map((c) => ({ function_call: { name: c.name, args: c.args } })),
     });
 
-    // Execute each tool in Node, collect responses
     const responseParts = await Promise.all(
       turn.calls.map(async (fc) => {
         let result: unknown;
         try {
-          result = await executeTool(fc.name, fc.args, recruiterId);
+          result = await executeTool(fc.name, fc.args, recruiterId, sessionCache);
         } catch (toolErr) {
           result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
         }
@@ -712,16 +761,17 @@ async function runAgentChatViaPython(
       }),
     );
 
-    // Append function responses as a user turn (Gemini protocol)
     contents.push({ role: "user", parts: responseParts });
   }
 
-  // Exhausted iterations without a text reply — ask for a summary
+  // Iterations exhausted — request a text summary rather than making another tool-call turn
+  contents.push({
+    role: "user",
+    parts: [{ text: "Please summarise what you have done so far and provide your final answer. Do not call any more tools." }],
+  });
   const finalTurn = await agentTurn({ contents });
   return {
-    reply: finalTurn.type === "text"
-      ? finalTurn.reply
-      : `Completed ${toolCalls.map((t) => t.name).join(", ")}.`,
+    reply: finalTurn.type === "text" ? finalTurn.reply : buildExhaustionReply(toolCalls),
     toolCalls,
   };
 }
@@ -752,18 +802,41 @@ async function runAgentChatInProcess(
   });
 
   const toolCalls: ToolCall[] = [];
+  const callCounts = new Map<string, number>();
+  const sessionCache = new Map<string, unknown>();
+  const deadline = Date.now() + AGENT_TIMEOUT_MS;
   let response = await chat.sendMessage(message);
 
-  for (let iteration = 0; iteration < 10; iteration++) {
+  for (let iteration = 0; iteration < AGENT_MAX_ITERATIONS; iteration++) {
+    if (Date.now() > deadline) {
+      return { reply: buildExhaustionReply(toolCalls), toolCalls };
+    }
+
     const fns = response.response.functionCalls();
     if (!fns || fns.length === 0) break;
 
+    // Detect repeated identical calls
+    const toExecute = fns.filter((fc) => {
+      const args = (fc.args ?? {}) as Record<string, unknown>;
+      const key = toolCallKey(fc.name, args);
+      const count = (callCounts.get(key) ?? 0) + 1;
+      callCounts.set(key, count);
+      return count <= AGENT_MAX_REPEAT_CALLS;
+    });
+
+    if (toExecute.length === 0) {
+      try {
+        response = await chat.sendMessage("You have already called these tools with the same arguments. Stop looping and give your final answer.");
+      } catch { break; }
+      continue;
+    }
+
     const parts = await Promise.all(
-      fns.map(async (fc) => {
+      toExecute.map(async (fc) => {
         const args = (fc.args ?? {}) as Record<string, unknown>;
         let result: unknown;
         try {
-          result = await executeTool(fc.name, args, recruiterId);
+          result = await executeTool(fc.name, args, recruiterId, sessionCache);
         } catch (toolErr) {
           result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
         }
@@ -777,9 +850,8 @@ async function runAgentChatInProcess(
     } catch (sendErr) {
       const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
       console.error(`[runAgentChatInProcess] sendMessage after tool execution failed: ${errMsg}`);
-      const completedNames = toolCalls.map((t) => t.name).join(", ");
       return {
-        reply: `I completed the action (${completedNames}) but couldn't generate a summary due to a Gemini API error: ${errMsg}`,
+        reply: `I completed the following but couldn't generate a summary: ${toolCalls.map((t) => t.name).join(", ")}. Gemini error: ${errMsg}`,
         toolCalls,
       };
     }
@@ -788,10 +860,9 @@ async function runAgentChatInProcess(
   let reply: string;
   try {
     reply = response.response.text();
+    if (!reply) reply = buildExhaustionReply(toolCalls);
   } catch {
-    reply = toolCalls.length > 0
-      ? `Completed: ${toolCalls.map((t) => t.name).join(", ")}.`
-      : "No response generated.";
+    reply = buildExhaustionReply(toolCalls);
   }
 
   return { reply, toolCalls };
