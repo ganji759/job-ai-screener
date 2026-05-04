@@ -12,9 +12,9 @@ interface AxiosBaseQueryArgs {
 }
 
 const axiosBaseQuery = (): BaseQueryFn<AxiosBaseQueryArgs, unknown, unknown> =>
-  async ({ url, method = "get", data, params, responseType }) => {
+  async ({ url, method = "get", data, params, responseType }, api) => {
     try {
-      const result = await axiosInstance({ url, method, data, params, responseType });
+      const result = await axiosInstance({ url, method, data, params, responseType, signal: api.signal });
       if (responseType === "blob") return { data: result.data };
       // If a payload includes both `error` and `success: true` (e.g. proxy), treat as success.
       const body = result.data as { data?: unknown; error?: unknown; success?: boolean } | null;

@@ -644,7 +644,9 @@ export const AgentChatPage = () => {
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const fileKindRef    = useRef<AttachedFile["kind"]>("pdf");
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
-  const [agentChat, { isLoading }] = useAgentChatMutation();
+  const [agentChat, { isLoading, reset: resetMutation }] = useAgentChatMutation();
+  const pendingMutationRef = useRef<{ abort: () => void } | null>(null);
+  const wasAbortedRef = useRef(false);
   const { data: user } = useMeQuery();
 
   // Restore from localStorage on mount
@@ -775,8 +777,12 @@ export const AgentChatPage = () => {
         ),
       );
 
+      wasAbortedRef.current = false;
       try {
-        const res = await agentChat({ message: fullMsg, history: currentHistory }).unwrap();
+        const mutation = agentChat({ message: fullMsg, history: currentHistory });
+        pendingMutationRef.current = mutation;
+        const res = await mutation.unwrap();
+        pendingMutationRef.current = null;
         setConversations((prev) =>
           prev.map((c) =>
             c.id !== convId
@@ -797,6 +803,17 @@ export const AgentChatPage = () => {
           ),
         );
       } catch (err) {
+        pendingMutationRef.current = null;
+        // If the user clicked Stop, silently remove the thinking card — don't show an error
+        if (wasAbortedRef.current) {
+          wasAbortedRef.current = false;
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id !== convId ? c : { ...c, entries: c.entries.filter((e) => e.type !== "thinking") },
+            ),
+          );
+          return;
+        }
         const errMsg = extractError(err);
         setConversations((prev) =>
           prev.map((c) =>
@@ -815,6 +832,13 @@ export const AgentChatPage = () => {
     },
     [activeId, activeConv, agentChat, history, isLoading, attachments],
   );
+
+  const handleStop = useCallback(() => {
+    wasAbortedRef.current = true;
+    pendingMutationRef.current?.abort();
+    pendingMutationRef.current = null;
+    resetMutation();
+  }, [resetMutation]);
 
   const deleteConversation = useCallback(
     (id: string) => {
@@ -1031,22 +1055,39 @@ export const AgentChatPage = () => {
                   {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 </motion.button>
 
-                {/* Send button */}
-                <motion.button
-                  type="button"
-                  onClick={() => void send(input)}
-                  disabled={(!input.trim() && attachments.length === 0) || isLoading}
-                  whileHover={(input.trim() || attachments.length > 0) && !isLoading ? { scale: 1.07 } : {}}
-                  whileTap={(input.trim() || attachments.length > 0) && !isLoading ? { scale: 0.95 } : {}}
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
-                    (input.trim() || attachments.length > 0) && !isLoading
-                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md"
-                      : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500",
-                  )}
-                >
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </motion.button>
+                {/* Stop button — visible while agent is running */}
+                {isLoading ? (
+                  <motion.button
+                    type="button"
+                    onClick={handleStop}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    whileHover={{ scale: 1.07 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white shadow-md shadow-red-500/30 transition-all duration-200 hover:bg-red-600"
+                    title="Stop"
+                  >
+                    <X className="h-4 w-4" />
+                  </motion.button>
+                ) : (
+                  /* Send button */
+                  <motion.button
+                    type="button"
+                    onClick={() => void send(input)}
+                    disabled={!input.trim() && attachments.length === 0}
+                    whileHover={input.trim() || attachments.length > 0 ? { scale: 1.07 } : {}}
+                    whileTap={input.trim() || attachments.length > 0 ? { scale: 0.95 } : {}}
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
+                      input.trim() || attachments.length > 0
+                        ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md"
+                        : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500",
+                    )}
+                  >
+                    <Send className="h-4 w-4" />
+                  </motion.button>
+                )}
               </div>
             </div>
 
