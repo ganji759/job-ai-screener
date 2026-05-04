@@ -37,7 +37,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import type { AgentMessage, ToolCall } from "../../store/api/agentApi";
 import { useAgentChatMutation } from "../../store/api/agentApi";
@@ -668,6 +668,14 @@ export const AgentChatPage = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conversations, activeId]);
 
+  // Auto-resize textarea to content (min 1 row, max ~8 rows)
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [input]);
+
   const activeConv = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? null,
     [conversations, activeId],
@@ -1034,8 +1042,7 @@ export const AgentChatPage = () => {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask about your pipeline, candidates, or schedule an interview…"
                   rows={1}
-                  className="flex-1 resize-none bg-transparent py-1 text-sm text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
-                  style={{ maxHeight: "160px" }}
+                  className="flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm leading-relaxed text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
                 />
 
                 {/* Mic button */}
