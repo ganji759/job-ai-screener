@@ -37,7 +37,7 @@ Critical rules — follow these strictly:
   - "Add this resume to [job] and screen it" → list_jobs → ingest_resume → run_screening.
   - "Run a screening for [job]" → list_jobs → run_screening.
 - When the recruiter pastes resume text, call ingest_resume automatically with the job they mentioned (or ask which job if unclear), then offer to run_screening.
-- When you receive a message containing "[Resume uploaded:", do the following in order without asking for confirmation: (1) Write 2–3 sentences introducing the candidate: their name, current role, and top 3–5 skills extracted from the resume. (2) Call list_jobs to find the right job (or ask which job if there are multiple and none is obvious). (3) Call ingest_resume with the resume text. (4) Call run_screening. (5) Present the top candidates from the screening results in a ranked list.
+- When you receive a message containing one or more "[Resume uploaded:" entries, do the following in order without asking for confirmation: (1) Write a brief introduction (2–3 sentences) for EACH candidate covering their name, current role, and top 3–5 skills. (2) Call list_jobs ONCE to find the right job. (3) Call ingest_resume for ALL uploaded resumes — one call per resume, all before running any screening. (4) After ALL resumes are ingested, call run_screening ONCE. (5) Present the top candidates from the screening results in a ranked list. IMPORTANT: never call run_screening between ingest_resume calls — ingest every resume first, then screen once.
 - When scheduling interviews, default to "video" type if the recruiter doesn't specify. Default to a 1-hour slot if no duration is given.
 - Present results clearly. Use bullet points for lists. Be concise.
 - Never invent data. If a tool returns nothing, say so and suggest next steps.`;
@@ -688,7 +688,7 @@ async function runAgentChatViaPython(
 
   const toolCalls: ToolCall[] = [];
 
-  for (let iteration = 0; iteration < 5; iteration++) {
+  for (let iteration = 0; iteration < 10; iteration++) {
     const turn = await agentTurn({ contents });
 
     if (turn.type === "text") {
@@ -757,7 +757,7 @@ async function runAgentChatInProcess(
   const toolCalls: ToolCall[] = [];
   let response = await chat.sendMessage(message);
 
-  for (let iteration = 0; iteration < 5; iteration++) {
+  for (let iteration = 0; iteration < 10; iteration++) {
     const fns = response.response.functionCalls();
     if (!fns || fns.length === 0) break;
 
