@@ -223,6 +223,11 @@ export async function screenFromExternal(params: {
  * Agent-callable screening: runs AI scoring on all pending applicants for a job,
  * persists a Screening document, and returns a summary without requiring Fastify req/reply.
  */
+export interface AgentShortlistCandidate extends CandidateResult {
+  name: string;
+  email: string | null;
+}
+
 export async function runScreeningForJobAgent(params: {
   jobId: string;
   recruiterId: string;
@@ -234,6 +239,7 @@ export async function runScreeningForJobAgent(params: {
   totalEvaluated: number;
   averageScore: number;
   jobTitle: string;
+  shortlist: AgentShortlistCandidate[];
 }> {
   const shortlistSize = params.shortlistSize ?? 10;
   const job = await JobModel.findOne({ _id: params.jobId, recruiterId: params.recruiterId }).lean();
@@ -313,6 +319,19 @@ export async function runScreeningForJobAgent(params: {
     sendEmail: false,
   }).catch(() => null);
 
+  const profileIdToApplicant = new Map(
+    applicants.map((a) => [String((a.profile as Record<string, unknown>)?.id ?? ""), a])
+  );
+  const enrichedShortlist: AgentShortlistCandidate[] = shortlist.map((r) => {
+    const applicant = profileIdToApplicant.get(r.candidateId);
+    const p = applicant?.profile as Record<string, unknown> | undefined;
+    return {
+      ...r,
+      name: p ? `${String(p.firstName ?? "")} ${String(p.lastName ?? "")}`.trim() || "Unknown" : "Unknown",
+      email: p ? String(p.email ?? "") || null : null,
+    };
+  });
+
   return {
     screeningId,
     status: "completed",
@@ -320,5 +339,6 @@ export async function runScreeningForJobAgent(params: {
     totalEvaluated: results.length,
     averageScore: Math.round(insights.averageScore),
     jobTitle: job.title,
+    shortlist: enrichedShortlist,
   };
 }

@@ -9,7 +9,7 @@ import { ScreeningModel } from "../models/Screening.model";
 import { InterviewModel } from "../models/Interview.model";
 import { UserModel } from "../models/User.model";
 import { createInterview } from "./interview.service";
-import { heuristicExtractResume, mergeGeminiResume } from "./parser.service";
+import { heuristicExtractResume, mergeGeminiResume, normalizeProfile } from "./parser.service";
 import { runScreeningForJobAgent } from "./screening.service";
 import { callGeminiWithRetry } from "./gemini.service";
 import { buildResumeExtractionPrompt } from "../utils/promptBuilder";
@@ -37,7 +37,7 @@ Critical rules — follow these strictly:
   - "Add this resume to [job] and screen it" → list_jobs → ingest_resume → run_screening.
   - "Run a screening for [job]" → list_jobs → run_screening.
 - When the recruiter pastes resume text, call ingest_resume automatically with the job they mentioned (or ask which job if unclear), then offer to run_screening.
-- When you receive a message containing one or more "[Resume uploaded:" entries, do the following in order without asking for confirmation: (1) Write a brief introduction (2–3 sentences) for EACH candidate covering their name, current role, and top 3–5 skills. (2) Call list_jobs ONCE to find the right job. (3) Call ingest_resume for ALL uploaded resumes — one call per resume, all before running any screening. (4) After ALL resumes are ingested, call run_screening ONCE. (5) Present the top candidates from the screening results in a ranked list. IMPORTANT: never call run_screening between ingest_resume calls — ingest every resume first, then screen once.
+- When you receive a message containing one or more "[Resume uploaded:" entries, do the following in order without asking for confirmation: (1) Write a brief introduction (2–3 sentences) for EACH candidate covering their name, current role, and top 3–5 skills. (2) Call list_jobs ONCE to find the right job. (3) Call ingest_resume for ALL uploaded resumes — one call per resume, all before running any screening. (4) After ALL resumes are ingested, call run_screening ONCE. (5) Present the topCandidates array from the run_screening result as a ranked list — show rank, name, score, recommendation, strengths, and gaps for each candidate. IMPORTANT: never call run_screening between ingest_resume calls — ingest every resume first, then screen once. IMPORTANT: run_screening already returns the full ranked shortlist in topCandidates — do NOT call get_screening_results afterward, just present topCandidates directly.
 - When scheduling interviews, default to "video" type if the recruiter doesn't specify. Default to a 1-hour slot if no duration is given.
 - Present results clearly. Use bullet points for lists. Be concise.
 - Never invent data. If a tool returns nothing, say so and suggest next steps.`;
@@ -600,14 +600,16 @@ async function executeTool(
       const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
       if (!job) return { error: "Job not found or access denied." };
 
-      // Try Gemini-assisted extraction, fall back to heuristics
+      // Try Gemini-assisted extraction, fall back to heuristics, then normalise to full UmuravaProfile shape
       let profile: Record<string, unknown>;
       try {
         const prompt = buildResumeExtractionPrompt(resumeText);
         const g = await callGeminiWithRetry(prompt, ZodResumeGeminiExtraction) as Record<string, unknown>;
-        profile = { ...mergeGeminiResume(resumeText, g), id: randomUUID() };
+        const merged = { ...mergeGeminiResume(resumeText, g), id: randomUUID() };
+        profile = normalizeProfile(merged) as unknown as Record<string, unknown>;
       } catch {
-        profile = { ...heuristicExtractResume(resumeText), id: randomUUID() };
+        const base = { ...heuristicExtractResume(resumeText), id: randomUUID() };
+        profile = normalizeProfile(base) as unknown as Record<string, unknown>;
       }
 
       const applicant = await ApplicantModel.create({
@@ -635,8 +637,23 @@ async function executeTool(
       try {
         const result = await runScreeningForJobAgent({ jobId, recruiterId, shortlistSize });
         return {
-          ...result,
-          message: `Screening complete for "${result.jobTitle}": ${result.shortlistCount} candidates shortlisted out of ${result.totalEvaluated} evaluated. Average score: ${result.averageScore}/100. Use get_screening_results with screeningId "${result.screeningId}" to see the ranked shortlist.`,
+          screeningId: result.screeningId,
+          jobTitle: result.jobTitle,
+          totalEvaluated: result.totalEvaluated,
+          averageScore: result.averageScore,
+          shortlistCount: result.shortlistCount,
+          topCandidates: result.shortlist.map((c) => ({
+            rank: c.rank,
+            name: c.name,
+            email: c.email,
+            totalScore: c.totalScore,
+            recommendation: c.recommendation,
+            strengths: c.strengths.slice(0, 3),
+            gaps: c.gaps.slice(0, 2),
+            mustHaveSkillsMet: c.mustHaveSkillsMet,
+            mustHaveSkillsMissing: c.mustHaveSkillsMissing,
+            hiringRisk: (c as unknown as Record<string, unknown>).hiringRisk ?? null,
+          })),
         };
       } catch (err) {
         return { error: err instanceof Error ? err.message : "Screening failed." };
