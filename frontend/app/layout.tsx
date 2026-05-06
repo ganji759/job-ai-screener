@@ -1,8 +1,14 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
 import { Providers } from "./providers";
 import { ToastStack } from "../components/ui/Toast";
+
+export const metadata: Metadata = {
+  title: "HERON — Hiring Evaluation & Ranking for Optimized Networks",
+  description: "AI-powered candidate screening, transparent scoring, and automated interview scheduling for modern recruiters.",
+};
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

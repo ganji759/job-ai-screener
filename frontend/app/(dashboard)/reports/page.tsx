@@ -194,7 +194,7 @@ export default function ReportsPage() {
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(28);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Umurava AI HR", M, 35);
+      pdf.text("HERON", M, 35);
 
       pdf.setFontSize(11);
       pdf.setFont("helvetica", "normal");
@@ -331,7 +331,7 @@ export default function ReportsPage() {
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(196, 181, 253);
-      pdf.text("Umurava AI HR — Screening Report", W - M, 12, { align: "right" });
+      pdf.text("HERON — Screening Report", W - M, 12, { align: "right" });
       y = 28;
       pdf.setFillColor(88, 28, 235);
       pdf.roundedRect(M, y, W - 2 * M, 9, 1, 1, "F");
@@ -415,7 +415,7 @@ export default function ReportsPage() {
         pdf.setFillColor(243, 244, 246); pdf.rect(0, 285, W, 12, "F");
         pdf.setDrawColor(229, 231, 235); pdf.setLineWidth(0.2); pdf.line(0, 285, W, 285);
         pdf.setTextColor(107, 114, 128); pdf.setFontSize(7); pdf.setFont("helvetica", "normal");
-        pdf.text("Umurava AI HR — Confidential Screening Report", M, 291);
+        pdf.text("HERON — Confidential Screening Report", M, 291);
         pdf.text(`Page ${p} of ${totalPages}`, W - M, 291, { align: "right" });
         pdf.text("ai-hr-pi.vercel.app", W / 2, 291, { align: "center" });
       }
@@ -434,7 +434,7 @@ export default function ReportsPage() {
       const wb = XLSX.utils.book_new();
 
       const candidateData = [
-        ["UMURAVA AI HR — CANDIDATE SCREENING REPORT"],
+        ["HERON — CANDIDATE SCREENING REPORT"],
         ["Generated:", new Date().toLocaleDateString()],
         [],
         ["RANK", "CANDIDATE NAME", "JOB APPLIED", "MATCH SCORE", "STATUS", "SCREENING DATE"],

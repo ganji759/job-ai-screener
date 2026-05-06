@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
-const LINE_1 = "Umurava AI HR";
+const LINE_1 = "HERON";
 const LINE_2 = "Screen smarter, rank faster, and hire with confidence.";
 const LINE_3 = "Your recruiter workspace is ready.";
 const BULLETS = [

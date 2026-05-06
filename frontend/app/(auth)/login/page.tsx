@@ -15,7 +15,7 @@ import { setToken } from "../../../lib/auth";
 const schema = z.object({ email: z.email(), password: z.string().min(1) });
 type FormValues = z.infer<typeof schema>;
 
-const LOGIN_LINE_1 = "Umurava AI HR";
+const LOGIN_LINE_1 = "HERON";
 const LOGIN_LINE_2 = "Screen smarter, rank faster, and hire with confidence.";
 const LOGIN_LINE_3 = "Your recruiter workspace is ready.";
 const LOGIN_BULLET_1 = "Multi-candidate AI scoring with transparent insights";

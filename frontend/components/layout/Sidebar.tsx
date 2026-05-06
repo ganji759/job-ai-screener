@@ -206,7 +206,7 @@ export const Sidebar = ({
             </span>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-50">Umurava</p>
+                <p className="text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-50">HERON</p>
                 <p className="text-[11px] font-medium leading-tight text-slate-400 dark:text-slate-500">AI Hiring</p>
               </div>
             ) : null}

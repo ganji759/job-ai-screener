@@ -27,7 +27,7 @@ function MiniSidebar({ activeScreen }: { activeScreen: string }) {
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-[10px] text-white">
           ✦
         </span>
-        <span className="text-[11px] font-bold text-white/90">Umurava</span>
+        <span className="text-[11px] font-bold text-white/90">HERON</span>
       </div>
       {/* Nav links */}
       <nav className="flex flex-col gap-0.5 px-1.5">
@@ -66,7 +66,7 @@ function BrowserFrame({ title, children }: { title: string; children: ReactNode 
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
         <div className="mx-2 flex flex-1 items-center gap-1.5 rounded-md bg-white/5 px-2 py-1">
           <span className="text-[9px] text-slate-500">🔒</span>
-          <span className="text-[10px] text-slate-500">app.umurava.ai / {title.toLowerCase().replace(" ", "-")}</span>
+          <span className="text-[10px] text-slate-500">app.heron.ai / {title.toLowerCase().replace(" ", "-")}</span>
         </div>
       </div>
       {/* App shell */}

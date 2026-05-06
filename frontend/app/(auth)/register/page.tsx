@@ -76,7 +76,7 @@ export default function RegisterPage() {
               Recruiter onboarding
             </div>
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Create your account</h1>
-            <p className="mt-2 text-sm text-white/85">Join Umurava AI HR to run screenings and shortlists in one place.</p>
+            <p className="mt-2 text-sm text-white/85">Join HERON to run screenings and shortlists in one place.</p>
           </div>
 
           <div className="rounded-3xl border border-white/25 bg-white/10 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
