@@ -10,7 +10,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-slate-950 py-16 px-6 text-center">
+    <footer className="bg-[#1c2331] py-16 px-6 text-center">
       <a href="#home" className="inline-flex items-center gap-2 text-xl font-black text-white mb-8" aria-label="HERON home">
         🦢 <span className="text-white">HERON</span>
       </a>

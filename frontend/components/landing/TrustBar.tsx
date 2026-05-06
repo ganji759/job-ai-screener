@@ -8,7 +8,7 @@ export function TrustBar() {
       </p>
       <div className="flex flex-wrap items-center justify-center gap-10 sm:gap-16 max-w-4xl mx-auto">
         {companies.map((name) => (
-          <span key={name} className="text-base font-black text-slate-300 tracking-tight">
+          <span key={name} className="text-base font-black text-[#8fa3b8] tracking-tight">
             {name}
           </span>
         ))}

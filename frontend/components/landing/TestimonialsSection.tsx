@@ -509,12 +509,12 @@ export function TestimonialsSection() {
   const [activeTab, setActiveTab] = useState<Tab>("Dashboard");
 
   return (
-    <section id="product-tour" className="bg-slate-900 py-24 px-6">
+    <section id="product-tour" className="bg-[#1c2331] py-24 px-6">
       <div className="mx-auto max-w-6xl">
 
         {/* Section header */}
         <div className="mb-12 text-center">
-          <span className="mb-4 inline-block rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-400">
+          <span className="mb-4 inline-block rounded-full border border-[#5b7fa6]/30 bg-[#5b7fa6]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#a8c4d8]">
             Product Tour
           </span>
           <h2 className="text-4xl font-extrabold tracking-tight text-white">
@@ -535,7 +535,7 @@ export function TestimonialsSection() {
               className={[
                 "rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
                 activeTab === tab
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-700/40"
+                  ? "bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white shadow-lg shadow-[#5b7fa6]/40"
                   : "border border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200",
               ].join(" ")}
             >
@@ -555,7 +555,7 @@ export function TestimonialsSection() {
         <div className="mt-14 grid gap-6 sm:grid-cols-3">
           {CALLOUTS.map((c) => (
             <div key={c.title} className="flex gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-lg text-indigo-400">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#5b7fa6]/15 text-lg text-[#a8c4d8]">
                 {c.icon}
               </div>
               <div>

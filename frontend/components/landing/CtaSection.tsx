@@ -1,6 +1,6 @@
 export function CtaSection() {
   return (
-    <section className="bg-gradient-to-br from-indigo-950 to-blue-900 py-24 px-6 text-center">
+    <section className="bg-gradient-to-br from-[#1c2331] to-[#243040] py-24 px-6 text-center">
       <div className="max-w-2xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-black text-white mb-5 tracking-tight">
           Ready to transform your hiring?
@@ -11,7 +11,7 @@ export function CtaSection() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href="#pricing"
-            className="bg-white text-blue-800 font-bold px-9 py-4 rounded-xl hover:-translate-y-0.5 shadow-xl transition-all text-sm"
+            className="bg-white text-[#1c2331] font-bold px-9 py-4 rounded-xl hover:-translate-y-0.5 shadow-xl transition-all text-sm"
           >
             Start Your Free Trial →
           </a>

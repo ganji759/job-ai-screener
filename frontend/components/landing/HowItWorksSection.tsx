@@ -29,10 +29,10 @@ const steps: Step[] = [
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="bg-slate-900 py-24 px-6">
+    <section id="how-it-works" className="bg-[#1c2331] py-24 px-6">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <span className="inline-block bg-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4 border border-indigo-500/30">
+          <span className="inline-block bg-[#5b7fa6]/20 text-[#a8c4d8] text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4 border border-[#5b7fa6]/30">
             How It Works
           </span>
           <h2 className="text-4xl font-extrabold text-white mb-4">
@@ -44,11 +44,11 @@ export function HowItWorksSection() {
         </div>
 
         <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          <div className="hidden lg:block absolute top-8 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600" aria-hidden="true" />
+          <div className="hidden lg:block absolute top-8 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6]" aria-hidden="true" />
 
           {steps.map((step) => (
             <div key={step.number} className="relative z-10 flex flex-col items-center text-center px-5">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-2xl font-black flex items-center justify-center mb-5 border-4 border-slate-900 shadow-lg shadow-blue-600/40">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#5b7fa6] to-[#7b6fa6] text-white text-2xl font-black flex items-center justify-center mb-5 border-4 border-[#1c2331] shadow-lg shadow-[#5b7fa6]/40">
                 {step.number}
               </div>
               <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
