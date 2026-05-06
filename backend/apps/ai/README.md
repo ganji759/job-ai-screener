@@ -1,6 +1,6 @@
-# Umurava AI Service (Python)
+# HERON — Python AI Service
 
-FastAPI service that owns every Gemini call the Node backend makes. Handles batch candidate screening, PDF parsing, score normalisation, and a thin Gemini proxy used by the Node backend.
+FastAPI service that owns every Gemini call the Node backend makes. Handles batch candidate screening, PDF parsing, score normalisation, agent turn execution, and a thin Gemini proxy used by the Node backend.
 
 ## Architecture
 
@@ -8,8 +8,8 @@ FastAPI service that owns every Gemini call the Node backend makes. Handles batc
 Next.js frontend (:3000)
         │  HTTP
         ▼
-Node backend (:3001)   ← auth, DB, routes, prompt building, Zod validation
-        │  HTTP  POST /ai/generate
+Node backend (:3001)   ← auth, DB, routes, prompt building, Zod validation, agent tool execution
+        │  HTTP  POST /ai/generate  |  POST /agent/turn
         ▼
 Python AI service (:8000)   ← google-generativeai, pdfplumber
         │
@@ -17,7 +17,7 @@ Python AI service (:8000)   ← google-generativeai, pdfplumber
   Google Gemini
 ```
 
-The Node backend builds every prompt and validates JSON responses with Zod. It forwards only the raw prompt text to this service. Business logic stays in TypeScript; the Gemini SDK and Python ML ecosystem (pdfplumber, future embeddings) live here.
+The Node backend builds every prompt and validates JSON responses with Zod. It forwards only the raw prompt text (or Gemini Content objects for agent turns) to this service. Business logic stays in TypeScript; the Gemini SDK and Python ML ecosystem (pdfplumber, future embeddings) live here.
 
 ## Endpoints
 
@@ -25,11 +25,12 @@ The Node backend builds every prompt and validates JSON responses with Zod. It f
 |--------|------|---------|-------------|
 | GET  | `/health`         | Any          | Liveness probe: `{"status":"ok"}` |
 | POST | `/ai/generate`    | Node backend | Thin Gemini proxy. Body: `{ prompt, timeoutMs?, temperature? }`. Response: `{ text, model }` |
+| POST | `/agent/turn`     | Node backend | Single Gemini generate_content call with tool declarations. Returns `{ type: "tool_calls", calls }` or `{ type: "text", reply }` |
 | POST | `/screening/run`  | (legacy)     | End-to-end screening in Python — not used by current Node backend |
-| POST | `/normalise/pdf`  | (legacy)     | PDF → ParsedProfile via pdfplumber + Gemini |
-| POST | `/normalise/text` | (legacy)     | Free text → ParsedProfile |
+| POST | `/normalise/pdf`  | Node backend | PDF → ParsedProfile via pdfplumber + Gemini |
+| POST | `/normalise/text` | Node backend | Free text → ParsedProfile |
 
-Only `/health` and `/ai/generate` are required by the running Node backend.
+Only `/health`, `/ai/generate`, and `/agent/turn` are required by the running Node backend.
 
 ## Local Development (Windows)
 
@@ -60,7 +61,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Disabling the Python Path
 
-Set `AI_SERVICE_URL=` (empty string) in `backend/.env` and restart the Node backend. Node falls back to the in-process `@google/generativeai` SDK automatically — no code change needed.
+Set `AI_SERVICE_URL=` (empty string) in `backend/.env` and restart the Node backend. Node falls back to the in-process `@google/generative-ai` SDK automatically — no code change needed.
 
 ## Health Check
 
@@ -75,6 +76,16 @@ curl -X POST http://localhost:8000/ai/generate `
   -d '{"prompt":"Return JSON: {\"ok\": true}","timeoutMs":10000}'
 # {"text":"{\"ok\": true}", "model":"gemini-2.5-flash"}
 ```
+
+## Agent Turn — Model Cascade
+
+The `/agent/turn` endpoint uses a quota-aware model cascade:
+
+1. `GEMINI_MODEL` (env var, default `gemini-2.5-flash`)
+2. `gemini-2.5-flash` (fallback)
+3. `gemini-2.0-flash` (final fallback)
+
+`gemini-2.5-flash-lite` is always excluded — it does not support function calling or `systemInstruction`.
 
 ## Environment Variables
 
@@ -104,3 +115,4 @@ Never expose this service publicly — it has no auth.
 | `429 QUOTA_EXCEEDED` from Node | Wait for quota reset, or change `GEMINI_MODEL` in `backend/.env` |
 | `Python AI service at http://localhost:8000 is not reachable` | Start this service, or set `AI_SERVICE_URL=` in `backend/.env` to use the in-process fallback |
 | Port 8000 in use | Run `uvicorn main:app --port 8001` and update `AI_SERVICE_URL` in `.env` |
+| Agent turns returning wrong model | Check `GEMINI_MODEL` env var; `gemini-2.5-flash-lite` is blocked — use `gemini-2.5-flash` or `gemini-2.0-flash` |

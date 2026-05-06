@@ -1,6 +1,6 @@
-# Umurava AI HR — Frontend
+# HERON — Frontend
 
-Next.js 14 App Router recruiter dashboard for AI-powered talent screening.
+Next.js 14 App Router recruiter dashboard for AI-powered talent screening and hiring.
 
 ## Stack
 
@@ -37,7 +37,9 @@ NEXT_PUBLIC_WS_BASE_URL=ws://localhost:3001/ws/notifications
 
 | Route | Description |
 |-------|-------------|
-| `/login` | Login form |
+| `/` | Public landing page — HERON branding, heron-bird color palette |
+| `/demo` | Public demo page with video player slot |
+| `/login` | Login form (OTP-based auth) |
 | `/register` | Registration form |
 | `/jobs` | Job listing |
 | `/jobs/new` | Create job |
@@ -123,7 +125,7 @@ useAgentChatMutation()   // POST /agent/chat — one conversational turn
 - `JobSubNav` — tab navigation for job detail (overview / applicants / screenings)
 
 ### Applicants
-- `UmuravaIngestForm` — ingest Umurava platform profiles by username / URL
+- `IngestForm` — ingest candidate profiles by username / URL
 - `ExternalUploadForm` — drag-and-drop CSV or PDF upload
 - `ApplicantTable` — sortable applicant list with filters
 - `ApplicantDetailDrawer` — full profile view with parsed resume data
@@ -149,9 +151,9 @@ useAgentChatMutation()   // POST /agent/chat — one conversational turn
 
 ## Features
 
-- **Auth** — login / register with JWT token persistence in Redux store
+- **Auth** — OTP-based login / register with JWT token persistence in Redux store
 - **Jobs lifecycle** — create, list, detail, benchmark, stats, delete
-- **Applicant ingestion** — Umurava JSON profiles + CSV / PDF bulk upload with preview
+- **Applicant ingestion** — structured JSON profiles + CSV / PDF bulk upload with preview
 - **Async screening** — trigger run, poll status every 3 s, explore results when complete
 - **HR decisions** — approve / reject / review per shortlisted candidate; saved server-side
 - **"Talk to AI"** — RAG chat with Gemini per candidate; context includes job requirements, dimension scores, strengths / gaps, and current HR decision
@@ -159,7 +161,7 @@ useAgentChatMutation()   // POST /agent/chat — one conversational turn
 - **Exports** — PDF export + judge-ready explanations export
 - **Acceptance emails** — send Resend-powered emails to approved candidates from within the app
 - **Interview scheduling** — Accepted tab on `screenings/[id]` shows all approved candidates with interview status; "Schedule Interview" opens a modal to propose up to 3 time slots; invite email + `.ics` calendar file sent automatically; interview lifecycle tracked (pending → confirmed → completed) on the `/interviews` page
-- **AI Hiring Assistant** — floating `Bot` button (bottom-right corner of every page) opens `AgentPanel`; powered by Gemini function calling via the backend agent loop; supports 12 tools (see backend README); conversation history and rendered tool cards persist in `localStorage` (`umurava_agent_chat`, max 40 entries); cleared with the trash icon
+- **AI Hiring Assistant** — floating `Bot` button (bottom-right corner of every page) opens `AgentPanel`; powered by Gemini function calling via the backend agent loop; supports 12 tools (see backend README); conversation history and rendered tool cards persist in `localStorage` (`heron_agent_chat`, max 40 entries); cleared with the trash icon
 
 ## "Talk to AI" Detail
 

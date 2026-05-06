@@ -1,4 +1,4 @@
-# Frontend Integration Guide
+# HERON Frontend — Integration Guide
 
 ## Current State — Integration Complete
 

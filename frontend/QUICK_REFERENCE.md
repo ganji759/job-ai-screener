@@ -1,4 +1,4 @@
-# Quick Reference — Frontend
+# HERON Frontend — Quick Reference
 
 ## API Endpoints
 

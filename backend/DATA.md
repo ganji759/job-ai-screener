@@ -23,7 +23,7 @@ async function connectWithRetry(uri: string, maxAttempts = 10): Promise<void> {
 ```
 
 > **VPN caveat**: MongoDB SRV strings (`mongodb+srv://`) resolve via DNS and may fail behind corporate VPN. Use the direct multi-host form:
-> `mongodb://user:pass@ac-xxx.mongodb.net:27017,ac-yyy.mongodb.net:27017,ac-zzz.mongodb.net:27017/umurava?authSource=admin&ssl=true`
+> `mongodb://user:pass@ac-xxx.mongodb.net:27017,ac-yyy.mongodb.net:27017,ac-zzz.mongodb.net:27017/heron?authSource=admin&ssl=true`
 
 Call `connectWithRetry` once at app startup and once at worker startup. Never call per-request.
 
@@ -32,15 +32,15 @@ Call `connectWithRetry` once at app startup and once at worker startup. Never ca
 ### Screening document (`Screening` model)
 The primary model for a screening run. Stores everything inline — not split into `ScreeningRun` + `ScreeningResult`:
 - `jobId`, `recruiterId`, `status` (`"queued" | "running" | "complete" | "failed"`)
-- `results.shortlist[]` — ranked candidates with `candidateId` (= `profile.id`, the Umurava platform string), `totalScore`, `recommendation`, `strengths[]`, `gaps[]`, dimension scores
+- `results.shortlist[]` — ranked candidates with `candidateId` (= `profile.id`, the platform string), `totalScore`, `recommendation`, `strengths[]`, `gaps[]`, dimension scores
 - `results.allResults[]` — full pool before shortlisting
 - `recruiterDecisions` — `Record<string, { decision, hrNote, decidedAt, aiLabel }>` keyed by Applicant MongoDB `_id`
 - `jobTitle`, `jobDomain`, `totalAnalyzed`, `shortlistedCount`, `averageScore`, `durationMs`
 
 ### Applicant model
 - `_id` — MongoDB ObjectId (used as key in `recruiterDecisions`)
-- `jobId`, `source` (`"umurava_platform" | "upload_csv" | "resume_pdf"`)
-- `profile` — Umurava profile object with `.id` (the Umurava platform string, used as `candidateId` in screening results)
+- `jobId`, `source` (`"platform" | "upload_csv" | "resume_pdf"`)
+- `profile` — candidate profile object with `.id` (the platform string, used as `candidateId` in screening results)
 - `status` (`"pending" | "screened"`)
 
 ### Job model
@@ -50,7 +50,7 @@ The primary model for a screening run. Stores everything inline — not split in
 - `status`, soft-delete via `deletedAt`
 
 ## ID mismatch — critical to understand
-`results.shortlist[n].candidateId` stores `profile.id` (the Umurava platform ID string, e.g. `"user-abc123"`), but `recruiterDecisions` is keyed by Applicant MongoDB `_id`.
+`results.shortlist[n].candidateId` stores `profile.id` (the platform ID string, e.g. `"user-abc123"`), but `recruiterDecisions` is keyed by Applicant MongoDB `_id`.
 
 When joining these (e.g. in the confusion matrix), fetch applicants and build a join map:
 ```typescript
@@ -94,7 +94,7 @@ const applicants = await Applicant
 
 ## Atlas setup
 1. Create free M0 cluster
-2. Create DB user with `readWrite` on `umurava` database only
+2. Create DB user with `readWrite` on `heron` database only
 3. Whitelist `0.0.0.0/0` for dev; scope to deployment IPs in production
 4. Use direct connection string (not SRV) if behind VPN
 

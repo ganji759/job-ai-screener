@@ -1,213 +1,123 @@
-# Frontend Setup Guide - Ardent-Frontend
-
-## ✅ Status: Ready to Run
-
-**Location**: `C:\portfolio\New folder\job-ai-screener-frontend`
-
-**Branch**: Ardent-Frontend
-
-**Framework**: Next.js 14 + React 18 + Tailwind CSS
-
----
+# HERON Frontend — Setup Guide
 
 ## Prerequisites
 
-- ✅ Node.js 20+ (you have v23.11.0)
-- ✅ pnpm (you have v10.33.0)
-- ✅ Backend running on port 3001 (already running)
-
----
+- Node.js 20+
+- Backend API running on port 3001
+- Python AI service running on port 8000 (or `AI_SERVICE_URL=` set to empty to use in-process fallback)
 
 ## Quick Start
 
 ### Step 1: Install Dependencies
 
 ```bash
-cd "C:\portfolio\New folder\job-ai-screener-frontend"
-pnpm install
+cd frontend
+npm install
 ```
 
-### Step 2: Start Frontend Development Server
+### Step 2: Configure Environment
 
 ```bash
-pnpm dev
+cp .env.local.example .env.local
 ```
 
-The frontend will start on **http://localhost:3000**
+Edit `.env.local`:
 
----
-
-## Environment Configuration
-
-The `.env.local` file is already created with:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
 NEXT_PUBLIC_WS_BASE_URL=ws://localhost:3001/ws/notifications
 ```
 
-This connects the frontend to your backend running on port 3001.
+### Step 3: Start Development Server
 
----
-
-## Frontend Structure
-
-```
-job-ai-screener-frontend/
-├── app/                    # Next.js app directory
-├── components/             # React components
-├── hooks/                  # Custom React hooks
-├── lib/                    # Utility functions
-├── store/                  # Redux store configuration
-├── types/                  # TypeScript type definitions
-├── src/                    # Source files
-├── middleware.ts           # Next.js middleware
-├── next.config.mjs         # Next.js configuration
-├── tailwind.config.ts      # Tailwind CSS configuration
-└── tsconfig.json           # TypeScript configuration
+```bash
+npm run dev
 ```
 
----
+Frontend starts on **http://localhost:3000**
+
+## Full Stack Startup Order
+
+Run each in a separate terminal:
+
+```bash
+# Terminal 1 — Backend API
+cd backend
+npm run dev
+
+# Terminal 2 — BullMQ Worker (required for screening)
+cd backend
+npm run worker
+
+# Terminal 3 — Python AI Service
+cd backend/apps/ai
+.\start.ps1    # Windows
+# source .venv/bin/activate && uvicorn main:app --reload --port 8000  # macOS/Linux
+
+# Terminal 4 — Frontend
+cd frontend
+npm run dev
+```
 
 ## Available Scripts
 
 ```bash
-# Development server (port 3000)
-pnpm dev
-
-# Production build
-pnpm build
-
-# Start production server
-pnpm start
-
-# Run linter
-pnpm lint
-
-# Run tests
-pnpm test
+npm run dev         # Development server (port 3000)
+npm run dev:clean   # Clear .next cache + dev
+npm run build       # Production build
+npm run start       # Start production server
+npm run lint        # ESLint
 ```
 
----
+## Project Structure
+
+```
+frontend/
+├── app/                    # Next.js App Router pages
+│   ├── (auth)/             # login, register
+│   └── (dashboard)/        # all protected routes
+├── components/             # React components
+├── hooks/                  # Custom React hooks
+├── lib/                    # Utility functions
+├── store/                  # Redux store + RTK Query APIs
+├── types/                  # TypeScript type definitions
+├── middleware.ts            # Next.js middleware (auth guard)
+├── next.config.mjs          # Next.js configuration
+├── tailwind.config.ts       # Tailwind CSS configuration
+└── tsconfig.json            # TypeScript configuration
+```
 
 ## Key Technologies
 
 | Technology | Purpose |
 |-----------|---------|
-| **Next.js 14** | React framework with SSR/SSG |
-| **React 18** | UI library |
-| **Tailwind CSS** | Utility-first CSS framework |
-| **Redux Toolkit** | State management |
-| **React Hook Form** | Form handling |
-| **Axios** | HTTP client |
-| **Recharts** | Data visualization |
-| **Radix UI** | Accessible UI components |
-| **Framer Motion** | Animations |
-
----
+| Next.js 14 | React framework with App Router |
+| TypeScript | Type safety (strict mode) |
+| Tailwind CSS | Utility-first styling |
+| Redux Toolkit + RTK Query | State management + data fetching |
+| React Hook Form + Zod | Form handling + validation |
+| Framer Motion | Animations |
+| Recharts | Data visualization (score charts) |
+| TanStack Table | Sortable/filterable shortlist table |
+| Radix UI | Accessible UI primitives |
+| lucide-react | Icons |
 
 ## Backend Integration
 
-The frontend connects to the backend API at:
-- **Base URL**: `http://localhost:3001/api`
-- **Endpoints**: Jobs, Applicants, Screenings
+The frontend connects to the Fastify API at:
+- **Base URL**: `http://localhost:3001/api/v1`
+- **Auth**: `Authorization: Bearer <token>` attached automatically by axios interceptor
 
-**Make sure the backend is running before starting the frontend!**
-
----
-
-## Full Stack Setup
-
-### Backend (Running on port 3001)
-```
-Location: C:\portfolio\New folder\job-ai-screener
-Branch: feature/ai-integration
-Status: ✅ Running
-```
-
-### Frontend (Ready to start on port 3000)
-```
-Location: C:\portfolio\New folder\job-ai-screener-frontend
-Branch: Ardent-Frontend
-Status: ⏳ Ready to install
-```
-
----
-
-## Testing the Frontend
-
-1. **Verify Backend is Running**:
-   ```bash
-   curl http://localhost:3001/health
-   ```
-   Should return: `{"data":{"status":"ok"},"error":null}`
-
-2. **Install Frontend Dependencies**:
-   ```bash
-   cd "C:\portfolio\New folder\job-ai-screener-frontend"
-   pnpm install
-   ```
-
-3. **Start Frontend**:
-   ```bash
-   pnpm dev
-   ```
-
-4. **Access Application**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:3001/api
-   - Python AI: http://localhost:8000
-
----
+All API calls use RTK Query hooks — never raw `fetch()` or `axios` in components.
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| `ECONNREFUSED` on API calls | Backend not running. Start it first. |
-| Port 3000 already in use | Change port: `pnpm dev -- -p 3001` |
-| Module not found errors | Run `pnpm install` again |
+| `ECONNREFUSED` on API calls | Backend not running. Start `npm run dev` in `backend/` first. |
+| Port 3000 already in use | `npm run dev -- -p 3001` |
+| Module not found errors | Run `npm install` again |
 | Tailwind styles not loading | Restart dev server |
-| `.env.local` not found | Create it with the API URL configuration |
-
----
-
-## Directory Structure
-
-```
-C:\portfolio\New folder\
-├── job-ai-screener/              # Backend
-│   ├── apps/api/                 # Express API
-│   ├── apps/ai/                  # Python AI Service
-│   └── packages/db/              # MongoDB schemas
-│
-└── job-ai-screener-frontend/     # Frontend (This directory)
-    ├── app/                      # Next.js pages
-    ├── components/               # React components
-    ├── store/                    # Redux store
-    └── .env.local                # Frontend config
-```
-
----
-
-## Next Steps
-
-1. ✅ Backend is running and healthy
-2. ⏳ Install frontend dependencies: `pnpm install`
-3. ⏳ Start frontend: `pnpm dev`
-4. ⏳ Open http://localhost:3000
-5. ⏳ Test the full application
-
----
-
-## Notes
-
-- Frontend and backend are in **separate directories**
-- Frontend connects to backend via API URL in `.env.local`
-- All API calls use the base URL: `http://localhost:3001/api`
-- Frontend uses Redux for state management
-- Tailwind CSS is configured for styling
-- TypeScript is enabled for type safety
-
-Enjoy! 🚀
+| `.env.local` not found | Create it with the API URL configuration above |
+| Screenings stuck in "queued" | BullMQ worker not running. Start `npm run worker` in `backend/`. |
+| Agent chat not responding | Python AI service not running, or `AI_SERVICE_URL=` not set for fallback. |

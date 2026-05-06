@@ -21,18 +21,21 @@ backend/src/
 │   ├── applicants.routes.ts
 │   ├── screenings.routes.ts
 │   ├── dashboard.routes.ts
+│   ├── agent.routes.ts
 │   └── notifications.routes.ts
 ├── controllers/
 │   ├── auth.controller.ts
 │   ├── job.controller.ts
 │   ├── applicant.controller.ts
 │   ├── screening.controller.ts   # includes candidateAiChat handler
+│   ├── agent.controller.ts       # AI hiring assistant chat handler
 │   └── dashboard.controller.ts   # includes HR vs AI confusion matrix
 ├── services/
 │   ├── job.service.ts
 │   ├── applicant.service.ts
 │   ├── ingestion.service.ts      # CSV parsing (local) + PDF routing (→ Python)
 │   ├── screening.service.ts      # enqueue + status
+│   ├── agent.service.ts          # Gemini function-calling agent loop (max 5 turns)
 │   ├── ai.client.ts              # HTTP client for Python AI service
 │   └── gemini.service.ts         # In-process Gemini SDK; generatePlainText for AI chat
 ├── middleware/
@@ -72,9 +75,8 @@ POST   /jobs/:jobId/screenings   # trigger new screening run
 ### Screenings
 ```
 GET    /screenings                          # list all screening runs
-POST   /screenings/run                      # start screening (alternate)
 POST   /screenings/run-for-job              # one-click screening (all sources)
-POST   /screenings/platform                 # sync Umurava-platform applicants
+POST   /screenings/platform                 # sync platform applicants
 POST   /screenings/external                 # sync CSV/PDF-upload applicants
 GET    /screenings/job/:jobId               # screening history for a job
 GET    /screenings/:id                      # get screening document
@@ -90,6 +92,22 @@ POST   /screenings/:id/compare              # head-to-head candidate compare
 POST   /screenings/:id/ai-chat              # RAG chat about a shortlisted candidate
 ```
 
+### Interviews
+```
+GET    /interviews                    # list all interviews (filterable)
+POST   /interviews                    # schedule interview + send invite email + .ics
+GET    /interviews/:id
+PATCH  /interviews/:id                # update status, confirm slot, meeting link
+DELETE /interviews/:id
+GET    /screenings/:id/accepted       # approved candidates with interview data
+GET    /screenings/:id/interviews     # interviews scoped to a screening
+```
+
+### AI Hiring Assistant
+```
+POST   /agent/chat            # one conversational turn (auth required)
+```
+
 ### Dashboard
 ```
 GET    /dashboard/analytics      # KPIs, charts, HR vs AI confusion matrix
@@ -98,7 +116,7 @@ GET    /dashboard/analytics      # KPIs, charts, HR vs AI confusion matrix
 ## MongoDB connection
 `connectWithRetry` in `src/index.ts` retries up to 10 times with exponential backoff.
 
-> **VPN caveat**: MongoDB SRV connection strings (`mongodb+srv://`) may fail behind corporate VPN. Use the direct multi-host form: `mongodb://user:pass@host1:27017,host2:27017,host3:27017/umurava?authSource=admin`.
+> **VPN caveat**: MongoDB SRV connection strings (`mongodb+srv://`) may fail behind corporate VPN. Use the direct multi-host form: `mongodb://user:pass@host1:27017,host2:27017,host3:27017/heron?authSource=admin`.
 
 ## Gemini service — `src/services/gemini.service.ts`
 Two modes:
@@ -139,7 +157,7 @@ Classifies each candidate in completed screenings that have `recruiterDecisions`
 - **FN**: AI did NOT recommend AND HR approved
 - **TN**: AI did NOT recommend AND HR rejected
 
-**ID resolution**: `results.shortlist[n].candidateId` stores `profile.id` (Umurava platform string), while `recruiterDecisions` is keyed by Applicant MongoDB `_id`. The controller fetches all relevant applicants and builds a `Map<profileId, { mongoId, name }>` join to resolve this.
+**ID resolution**: `results.shortlist[n].candidateId` stores `profile.id` (platform string), while `recruiterDecisions` is keyed by Applicant MongoDB `_id`. The controller fetches all relevant applicants and builds a `Map<profileId, { mongoId, name }>` join to resolve this.
 
 ## Request validation
 Fastify schema-based validation + Zod for body parsing. `z.parse()` throws typed errors caught by the global error handler.

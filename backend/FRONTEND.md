@@ -37,6 +37,7 @@ frontend/
 │       │   ├── page.tsx        # screening list
 │       │   └── [id]/page.tsx   # screening detail — shortlist + Talk to AI
 │       ├── analytics/page.tsx  # HR vs AI matrix + charts
+│       ├── interviews/page.tsx # all interviews filterable by status
 │       └── applicants/
 ├── components/
 │   ├── screenings/
@@ -46,6 +47,9 @@ frontend/
 │   │   └── ...
 │   ├── jobs/
 │   ├── applicants/
+│   ├── agent/
+│   │   ├── AgentPanel.tsx      # AI Hiring Assistant floating chat panel
+│   │   └── AgentToolCard.tsx   # expandable tool call card
 │   └── ui/                     # shared primitives
 ├── store/
 │   ├── index.ts                # Redux store
@@ -53,7 +57,8 @@ frontend/
 │   │   ├── baseApi.ts          # RTK Query base (axios adapter)
 │   │   ├── jobsApi.ts
 │   │   ├── applicantsApi.ts
-│   │   └── screeningsApi.ts    # includes useCandidateAiChatMutation
+│   │   ├── screeningsApi.ts    # includes useCandidateAiChatMutation
+│   │   └── agentApi.ts         # useAgentChatMutation
 │   └── slices/
 │       ├── authSlice.ts
 │       └── ...
@@ -87,6 +92,11 @@ useCandidateAiChatMutation()        // "Talk to AI" chat
 useGetDashboardAnalyticsQuery()
 ```
 
+## AI Hiring Assistant hooks (agentApi)
+```typescript
+useAgentChatMutation()   // POST /agent/chat — one conversational turn
+```
+
 ## "Talk to AI" feature — `AiChatModal.tsx`
 Launched from the screening detail page (`/screenings/[id]`) via the "Talk to AI" button on each shortlisted candidate row.
 
@@ -100,6 +110,15 @@ Props: `screeningId, candidateId, candidateName, aiRecommendation, totalScore, j
 - `**bold**` markdown rendered safely via HTML escape + regex replace
 - Clicking backdrop closes the modal
 
+## AI Hiring Assistant — `AgentPanel.tsx`
+Floating chat panel (400 × 560 px, bottom-right corner of every page). Powered by Gemini function calling via the backend agent loop.
+
+- Minimizable; persists conversation in `localStorage` (`heron_agent_chat`, max 40 entries)
+- Renders markdown with `AgentMarkdown` (bold, inline code, bullet lists)
+- Displays per-tool-call cards via `AgentToolCard` (expandable, shows tool name + args)
+- Cleared with the trash icon
+- Supports 12 tools — see backend README for full list
+
 ## Analytics page — `app/(dashboard)/analytics/page.tsx`
 **Structure:**
 1. **AI vs HR Decision Explainability** — always visible at top, compact layout:
@@ -108,7 +127,7 @@ Props: `screeningId, candidateId, candidateName, aiRecommendation, totalScore, j
    - Compact disagreements table
 2. **KPI cards** — always visible
 3. **Screenings Over Time + Score Distribution** — always visible
-4. **"See more" toggle** — `ChevronDown/ChevronUp` button reveals remaining ~5 chart sections
+4. **"See more" toggle** — `ChevronDown/ChevronUp` button reveals remaining chart sections
 
 ## State management rules
 - Redux for: `auth` slice (token, user), `jobs` slice (UI state), `screenings` slice (polling flag)
@@ -125,6 +144,9 @@ const { data } = useGetScreeningStatusQuery(screeningId, {
 ```
 
 ## Routing conventions
+- `/` — public landing page (HERON branding)
+- `/demo` — public demo page with video player slot
+- `/login`, `/register` — auth pages
 - `/jobs` — job list
 - `/jobs/new` — create job
 - `/jobs/[id]` — job detail
@@ -132,6 +154,8 @@ const { data } = useGetScreeningStatusQuery(screeningId, {
 - `/screenings/[id]` — screening detail + shortlist + "Talk to AI"
 - `/analytics` — dashboard analytics
 - `/applicants` — applicant management
+- `/interviews` — all interviews
+- `/reports`, `/profile`, `/settings`, `/notifications` — additional dashboard pages
 
 ## Responsible AI UI requirement
 Every page showing AI output includes:

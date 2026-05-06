@@ -1,22 +1,17 @@
-# Umurava AI Talent Screener — Project Root
+# HERON — Project Root (Backend)
 
-## What you are building
-An AI-powered recruiter tool that ingests job descriptions + candidate pools
-(structured Umurava profiles OR uploaded CSV/PDF resumes), runs batch Gemini
-screening, and returns a ranked shortlist (Top 10/20) with per-candidate
-explainability. Humans make final hiring decisions — AI is advisory only.
+## What this is
+HERON (Hiring Evaluation & Ranking for Optimized Networks) is an AI-powered recruiter tool. It ingests job descriptions + candidate pools (structured JSON profiles OR uploaded CSV/PDF resumes), runs batch Gemini screening, and returns a ranked shortlist with per-candidate explainability. Humans make final hiring decisions — AI is advisory only.
 
 ## Repo layout
 ```
 /
 ├── apps/
-│   ├── web/          # Next.js 14 frontend          → see FRONTEND.md
-│   ├── api/          # Node.js + TypeScript backend → see BACKEND.md
-│   └── ai/           # Python + FastAPI AI service  → see AI_ML.md
+│   ├── api/          # Node.js + TypeScript Fastify backend → see BACKEND.md
+│   └── ai/           # Python + FastAPI AI service          → see AI_ML.md
 ├── packages/
-│   └── db/           # Mongo schemas/client (TS)    → see DATA.md
+│   └── db/           # Mongo schemas/client (TS)            → see DATA.md
 ├── CLAUDE.md         ← you are here
-├── FRONTEND.md
 ├── BACKEND.md
 ├── AI_ML.md
 └── DATA.md
@@ -56,28 +51,37 @@ MONGODB_URI=
 
 # AI service
 GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
 AI_SERVICE_URL=http://localhost:8000   # Node.js → Python bridge
 
 # Queue
 REDIS_URL=
+REDIS_ENABLED=true
 
 # App
-NEXTAUTH_SECRET=
-NEXT_PUBLIC_API_URL=http://localhost:4000
+JWT_SECRET=
+JWT_EXPIRES_IN=24h
+PORT=3001
+
+# CORS
+FRONTEND_URL=http://localhost:3000
+
+# Email
+RESEND_API_KEY=
+RESEND_FROM=
 ```
-Never commit `.env`. Use `.env.example` with keys only. `GEMINI_API_KEY`
-is only set on the **Python AI service** — Node.js never touches it.
+Never commit `.env`. Use `.env.example` with keys only.
 
 ## Service communication
 ```
 Frontend (Next.js, :3000)
       │  REST/JSON
       ▼
-Backend API (Node.js, :4000)  ← CRUD, auth, file upload, queue orchestration
+Backend API (Node.js, :3001)  ← CRUD, auth, file upload, queue orchestration, agent tool execution
       │  HTTP (internal)
       ▼
-AI Service (Python, :8000)    ← Gemini calls, PDF parsing, ranking
-      │                          (stateless; reads/writes MongoDB)
+AI Service (Python, :8000)    ← Gemini calls, PDF parsing, agent turn
+      │
       ▼
 MongoDB Atlas
 ```
@@ -101,43 +105,44 @@ localhost in dev).
 - API responses always `{ data, error, meta }` envelope (Node and Python both).
 
 ## Key architectural decisions
-1. Screening is async — Node API returns `screening_run_id` immediately.
+1. Screening is async — Node API returns `screeningId` immediately.
    Node's BullMQ worker calls the Python AI service, which processes the batch.
    Frontend polls `GET /screenings/:id/status` every 3s.
 2. Gemini is called in batches of 25 candidates max (Python side).
    Results are normalised across batches with min-max before final ranking.
 3. Screening results are immutable once written. Re-screening creates a new
-   `screening_run_id`.
+   `screeningId`.
 4. Scoring weights are per-job and recruiter-configurable before triggering
-   a screening run.
+   a screening run (skills + experience + education, sum = 1.0).
 5. Python AI service is stateless — it can be scaled horizontally behind a
    load balancer if volume grows. All state lives in MongoDB.
+6. Agent loop (POST /agent/chat) runs up to 5 Gemini turns per request.
+   Tool execution (MongoDB queries, interview scheduling) runs in Node.
+   Python only handles the Gemini generate_content call.
 
 ## Commands
 ```bash
 # Root (JS/TS apps)
-pnpm dev          # start web + api via turbo
-pnpm build        # production build
-pnpm lint         # eslint + tsc --noEmit
-pnpm test         # vitest
+npm run dev      # start API server (:3001)
+npm run worker   # start BullMQ worker (separate process)
+npm run build    # production build
+npm run lint     # eslint + tsc --noEmit
 
 # Python AI service (apps/ai/)
 cd apps/ai
+.\start.ps1                              # Windows — creates .venv, starts uvicorn
+# macOS/Linux:
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000   # dev server
-pytest                                    # tests
-ruff check . && mypy .                    # lint + type check
-
-# Full stack dev (run in separate terminals)
-pnpm dev                                  # terminal 1: web + api
-cd apps/ai && uvicorn main:app --reload   # terminal 2: AI service
+uvicorn main:app --reload --port 8000
+pytest                                   # tests
+ruff check . && mypy .                   # lint + type check
 ```
 
 ## Deployment targets
-- Frontend → Vercel (`apps/web`)
+- Frontend → Vercel
 - Backend API + Queue worker → Railway (two services from `apps/api`)
-- **AI Service → Railway (Docker build from `apps/ai/`)**
+- AI Service → Railway (Docker build from `apps/ai/`)
 - DB → MongoDB Atlas M0 free tier
 - Redis → Upstash free tier
 

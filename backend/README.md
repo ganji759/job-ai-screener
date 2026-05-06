@@ -1,6 +1,6 @@
-# Umurava AI HR — Backend
+# HERON — Backend
 
-AI-powered talent screening API. Ingests candidate profiles (JSON/PDF/CSV), runs batch Gemini scoring via a Python AI service, produces a ranked shortlist with per-candidate explainability, and supports conversational AI chat about shortlisted candidates.
+AI-powered talent screening API. Ingests candidate profiles (JSON/PDF/CSV), runs batch Gemini scoring via a Python AI service, produces a ranked shortlist with per-candidate explainability, and supports a conversational AI hiring assistant.
 
 ## Architecture
 
@@ -51,7 +51,7 @@ DELETE /jobs/:id
 ### Applicants
 ```
 GET  /jobs/:jobId/applicants
-POST /jobs/:jobId/applicants          # ingest Umurava JSON profiles
+POST /jobs/:jobId/applicants          # ingest structured JSON profiles
 POST /jobs/:jobId/applicants/upload   # CSV or PDF bulk upload
 ```
 
@@ -59,7 +59,7 @@ POST /jobs/:jobId/applicants/upload   # CSV or PDF bulk upload
 ```
 GET    /screenings
 POST   /screenings/run-for-job            # one-click — all sources combined
-POST   /screenings/platform               # Umurava platform applicants only
+POST   /screenings/platform               # platform applicants only
 POST   /screenings/external               # CSV/PDF upload applicants only
 GET    /screenings/:id/status             # poll every 3 s
 GET    /screenings/:id/results            # ranked shortlist + scores
@@ -157,7 +157,7 @@ Node agent.service.ts
 ## AI Decision Flow
 
 1. Recruiter creates a job with scoring weights (`skills` + `experience` + `education`, sum = 1.0)
-2. Candidates ingested — Umurava JSON profiles, CSV rows, or PDF resumes
+2. Candidates ingested — structured JSON profiles, CSV rows, or PDF resumes
 3. Recruiter triggers screening → API enqueues a BullMQ job, returns `screeningId` immediately
 4. Worker calls Python AI service in batches of ≤ 25 candidates
 5. Python normalises scores (min-max) across batches and ranks candidates
@@ -227,7 +227,7 @@ MAX_FILE_SIZE_MB=10
 
 - **Async screening** — API returns `screeningId` immediately; worker processes in the background
 - **Immutable results** — re-screening creates a new document; existing results are never mutated
-- **ID mismatch** — `results.shortlist[n].candidateId` stores Umurava `profile.id` (string); `recruiterDecisions` is keyed by Applicant MongoDB `_id` (ObjectId); the analytics endpoint joins the two
+- **ID mismatch** — `results.shortlist[n].candidateId` stores a platform profile ID (string); `recruiterDecisions` is keyed by Applicant MongoDB `_id` (ObjectId); the analytics endpoint joins the two
 - **Python fallback** — set `AI_SERVICE_URL=` (empty) to run Gemini entirely in-process via `@google/generativeai`; no code change needed
 - **Connection resilience** — `connectWithRetry` handles transient MongoDB failures at startup (10 retries, exponential backoff)
 - **ICS generation** — calendar invites generated in-process (no external package); `.ics` attached to invite email via Resend `attachments`; works with Google Calendar, Outlook, Apple Calendar

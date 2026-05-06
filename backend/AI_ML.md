@@ -2,10 +2,10 @@
 
 ## Overview
 Gemini is called from **two places**:
-1. **Python AI service** (FastAPI, port 8000) — batch candidate screening (JSON mode, Gemini 1.5 Flash)
-2. **Node.js backend** (in-process SDK) — conversational AI chat (`generatePlainText`, plain-text mode)
+1. **Python AI service** (FastAPI, port 8000) — batch candidate screening (JSON mode) and agent turns
+2. **Node.js backend** (in-process SDK fallback) — conversational AI chat (`generatePlainText`, plain-text mode) when `AI_SERVICE_URL` is unset
 
-The Node.js backend prefers routing through the Python service when `AI_SERVICE_URL` is set, but falls back to calling Gemini in-process via `google-generativeai` SDK.
+The Node.js backend prefers routing through the Python service when `AI_SERVICE_URL` is set, but falls back to calling Gemini in-process via `@google/generative-ai` SDK.
 
 ## Python AI service stack
 - Python 3.11
@@ -26,7 +26,7 @@ Model used: `gemini-2.5-flash-lite` (in-process SDK path).
 
 ## Python service layout
 ```
-apps/ai/ (or standalone Python project)
+apps/ai/
 ├── main.py                       # FastAPI app + lifespan
 ├── core/
 │   ├── gemini.py                 # Gemini SDK client (singleton, JSON mode)
@@ -48,7 +48,7 @@ apps/ai/ (or standalone Python project)
 ## Gemini model configuration (Python — JSON mode)
 ```python
 _model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-2.5-flash",   # configurable via GEMINI_MODEL env var
     generation_config=genai.GenerationConfig(
         response_mime_type="application/json",  # force JSON mode
         temperature=0.1,                         # deterministic scoring
@@ -56,6 +56,15 @@ _model = genai.GenerativeModel(
     ),
 )
 ```
+
+## Agent turn endpoint — `POST /agent/turn`
+The Python service exposes a thin `/agent/turn` endpoint used by the Node agent loop:
+
+- Accepts `contents[]` (Gemini Content format conversation history) + tool declarations
+- Makes a single `generate_content` call
+- Returns `{ type: "tool_calls", calls }` or `{ type: "text", reply }`
+- Model cascade (quota-aware): `GEMINI_MODEL` → `gemini-2.5-flash` → `gemini-2.0-flash`
+- `gemini-2.5-flash-lite` is always excluded — does not support function calling or `systemInstruction`
 
 ## Screening prompt structure
 The Python screening prompt is built by `prompts/screen_prompt.py`:
@@ -66,6 +75,16 @@ The Python screening prompt is built by `prompts/screen_prompt.py`:
 - Required JSON output schema
 
 Batch size ≤ 25. Results are min-max normalised across all batches by `services/merger.py` before final ranking.
+
+## Scoring dimensions
+Five dimensions, recruiter-configurable weights per job:
+- **Skills** — default 35%
+- **Experience** — default 25%
+- **Education** — default 15%
+- **Role relevance** — default 15%
+- **Assets** (certifications, side projects, tools) — default 10%
+
+Skills + experience + education weights are user-configurable; they must sum to 1.0.
 
 ## Conversational AI chat prompt structure (Node.js)
 Built in `screening.controller.ts → candidateAiChat`:
@@ -106,7 +125,7 @@ if s_max > s_min:
 
 ## Do not
 - Do not set temperature > 0.2 for screening
-- Do not call Gemini for CSV rows that already match the Umurava profile schema
+- Do not call Gemini for CSV rows that already match the structured profile schema
 - Do not write raw Gemini output to DB — always validate first (pydantic in Python, zod in Node)
 - Do not batch > 25 candidates per call
 - Do not expose `GEMINI_API_KEY` outside the Python service (or backend env)

@@ -1,6 +1,8 @@
-# Umurava AI HR
+# HERON — Hiring Evaluation & Ranking for Optimized Networks
 
-AI-powered talent screening platform. Ingests candidate profiles (Umurava JSON, CSV, PDF), runs batch Gemini scoring, and delivers a ranked shortlist with per-candidate explainability. Humans make final hiring decisions — AI is advisory only.
+Screen smarter, rank faster, hire with confidence.
+
+HERON is an AI-powered talent screening platform. It ingests candidate profiles (JSON, CSV, PDF resumes), runs Gemini-powered scoring across five weighted dimensions, and delivers a ranked shortlist with per-candidate explainability. Humans make final hiring decisions — AI is advisory only.
 
 ## Architecture
 
@@ -61,16 +63,14 @@ npm run dev                   # http://localhost:3000
 
 ## Key Features
 
-- **Job management** — create jobs with skill requirements and scoring weights
-- **Candidate ingestion** — Umurava platform profiles, CSV bulk upload, PDF resumes
-- **Async AI screening** — BullMQ queues screening; frontend polls for completion
-- **Ranked shortlist** — min-max normalised scores across skills / experience / education
-- **HR decisions** — approve, reject, or mark for review per candidate
-- **"Talk to AI"** — RAG chat (Gemini) about any shortlisted candidate (30 req/min)
-- **Analytics** — HR vs AI confusion matrix (precision / recall / accuracy / agreement)
-- **Acceptance emails** — Resend integration to notify approved candidates
-- **Interview scheduling** — propose up to 3 time slots per accepted candidate; invite email + `.ics` calendar file sent automatically via Resend
-- **AI Hiring Assistant** — floating chat panel powered by Gemini function calling; can list jobs, search candidates, read screening results, schedule interviews, approve/reject candidates, and create jobs — all via natural language; conversation persists across page reloads
+1. **Conversational AI Agent** — Gemini-powered agent chains up to 12 tool calls (list jobs, search candidates, schedule interviews, approve candidates, and more) via natural language
+2. **Intelligent Resume Ingestion** — pdfplumber + Gemini multi-tier parsing for PDF resumes; CSV bulk upload; structured JSON profiles
+3. **Weighted AI Candidate Scoring** — 5-dimension rubric: skills 35%, experience 25%, education 15%, role relevance 15%, assets 10%; weights are recruiter-configurable per job
+4. **Explainable Shortlists** — per-candidate strengths, gaps, hiring-risk summary, must-have skills met/missing, recommended onboarding time
+5. **Automated Interview Scheduling** — agent schedules interviews and sends calendar invites (.ics) via Resend
+6. **Pool Insights & Benchmarking** — score distribution, skill gaps, salary range, time-to-fill analytics
+7. **HR vs AI Analytics** — confusion matrix (TP/FP/FN/TN), precision, recall, accuracy, agreement rate across all completed screenings
+8. **"Talk to AI"** — RAG chat (Gemini) about any shortlisted candidate; rate-limited to 30 req/min
 
 ## Deployment
 
