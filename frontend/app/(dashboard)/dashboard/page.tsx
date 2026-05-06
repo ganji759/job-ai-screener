@@ -169,10 +169,10 @@ export default function DashboardPage() {
   const animatedShortlisted = useCountUp(totalShortlisted);
 
   const stats = [
-    { label: "Total Jobs", value: totalJobs, hint: `${activeJobs} active`, icon: Briefcase, href: "/jobs", color: "text-brand-600 bg-brand-50" },
-    { label: "Applicants", value: animatedApplicants, hint: `${totalPending} pending`, icon: Users, href: "/applicants", color: "text-sky-600 bg-sky-50" },
-    { label: "Screenings", value: animatedScreenings, hint: `${completedScreenings} completed`, icon: Cpu, href: "/screenings", color: "text-violet-600 bg-violet-50" },
-    { label: "Shortlisted", value: animatedShortlisted, hint: `${totalRejected} rejected`, icon: Target, href: "/applicants?status=shortlisted", color: "text-emerald-600 bg-emerald-50" },
+    { label: "Total Jobs", value: totalJobs, hint: `${activeJobs} active`, icon: Briefcase, href: "/jobs", color: "text-brand-600 bg-brand-50", accent: "border-l-indigo-500" },
+    { label: "Applicants", value: animatedApplicants, hint: `${totalPending} pending`, icon: Users, href: "/applicants", color: "text-sky-600 bg-sky-50", accent: "border-l-sky-500" },
+    { label: "Screenings", value: animatedScreenings, hint: `${completedScreenings} completed`, icon: Cpu, href: "/screenings", color: "text-violet-600 bg-violet-50", accent: "border-l-violet-500" },
+    { label: "Shortlisted", value: animatedShortlisted, hint: `${totalRejected} rejected`, icon: Target, href: "/applicants?status=shortlisted", color: "text-emerald-600 bg-emerald-50", accent: "border-l-emerald-500" },
   ];
 
   return (
@@ -185,7 +185,7 @@ export default function DashboardPage() {
         className="relative overflow-hidden rounded-2xl p-6 text-white shadow-indigo-md"
         style={{
           background:
-            "linear-gradient(135deg, #4f46e5 0%, #6d28d9 40%, #7c3aed 65%, #a21caf 100%)",
+            "linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #3730a3 60%, #4338ca 100%)",
         }}
       >
         {/* Decorative radial blobs */}
@@ -194,7 +194,7 @@ export default function DashboardPage() {
         <div className="relative flex items-center justify-between gap-4">
           <div>
             <p className="text-2xl font-bold tracking-tight">
-              {greeting}, {recruiterFirstName} 👋
+              {greeting}, {recruiterFirstName}
             </p>
             <p className="mt-1.5 text-sm text-white/80">Here&apos;s what&apos;s happening with your recruiting today.</p>
           </div>
@@ -204,7 +204,7 @@ export default function DashboardPage() {
               {today}
             </div>
             <div className="flex justify-end">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm">
+              <span title="AI Assistant" className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm cursor-default">
                 <Brain className="h-6 w-6 text-white/90" />
               </span>
             </div>
@@ -230,16 +230,16 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.07 }}
                     whileHover={{ y: -3, scale: 1.01 }}
-                    className="stat-card cursor-pointer p-6 transition duration-200 hover:shadow-card-hover"
+                    className={`stat-card cursor-pointer border-l-4 p-6 transition duration-200 hover:shadow-card-hover ${item.accent}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className={`rounded-xl p-2.5 ${item.color}`}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="rounded-full border border-slate-100 bg-slate-50/80 px-2.5 py-1 text-xs font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">{item.hint}</span>
+                    <span className={`inline-flex rounded-xl p-2.5 ${item.color}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{item.value}</p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{item.label}</p>
+                      <span className="rounded-full bg-slate-100/80 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">{item.hint}</span>
                     </div>
-                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</p>
-                    <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{item.value}</p>
                   </motion.div>
                 </Link>
               );
@@ -376,7 +376,8 @@ export default function DashboardPage() {
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
-                    <Link href={action.href} className={`mt-4 inline-flex rounded-lg px-3 py-2 text-sm font-semibold text-white ${action.ctaClass}`}>
+                    <Link href={action.href} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-white ${action.ctaClass}`}>
+                      <Icon className="h-4 w-4" />
                       {action.cta}
                     </Link>
                   </Card>
@@ -441,7 +442,7 @@ export default function DashboardPage() {
                       <Tooltip />
                       <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                         {scoreDistribution.map((_, i) => (
-                          <Cell key={i} fill={i <= 1 ? "#ef4444" : i <= 2 ? "#f59e0b" : i === 3 ? "#22c55e" : "#16a34a"} />
+                          <Cell key={i} fill={["#ddd6fe", "#a78bfa", "#7c3aed", "#4338ca", "#312e81"][Math.min(i, 4)]} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -607,16 +608,22 @@ export default function DashboardPage() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">Job</th>
-                        <th className="px-3 py-2 text-right">Applicants</th>
-                        <th className="px-3 py-2 text-right">Screenings</th>
-                        <th className="px-3 py-2 text-right">Avg Score</th>
+                        <th className="px-3 py-2 text-left">Job</th>
+                        <th className="group cursor-default px-3 py-2 text-right">
+                          Applicants <span className="ml-0.5 opacity-0 transition-opacity group-hover:opacity-40">↕</span>
+                        </th>
+                        <th className="group cursor-default px-3 py-2 text-right">
+                          Screenings <span className="ml-0.5 opacity-0 transition-opacity group-hover:opacity-40">↕</span>
+                        </th>
+                        <th className="group cursor-default px-3 py-2 text-right">
+                          Avg Score <span className="ml-0.5 opacity-0 transition-opacity group-hover:opacity-40">↕</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {jobsBreakdown.slice(0, 6).map((j) => (
-                        <tr key={j.jobId} className="border-t border-slate-100 hover:bg-slate-50/50">
-                          <td className="px-3 py-2">
+                      {jobsBreakdown.slice(0, 6).map((j, idx) => (
+                        <tr key={j.jobId} className={`border-t border-slate-100 transition-colors duration-100 hover:bg-slate-50 dark:hover:bg-slate-800/40 ${idx % 2 === 1 ? "bg-slate-50/40 dark:bg-slate-800/10" : ""}`}>
+                          <td className="px-3 py-2.5">
                             <Link href={`/jobs/${j.jobId}/screenings`} className="font-medium text-brand-800 hover:underline">
                               {j.title}
                             </Link>
@@ -624,9 +631,9 @@ export default function DashboardPage() {
                               {j.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-slate-700">{j.applicants}</td>
-                          <td className="px-3 py-2 text-right tabular-nums text-slate-700">{j.screenings}</td>
-                          <td className="px-3 py-2 text-right tabular-nums text-slate-900">
+                          <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{j.applicants ?? "—"}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{j.screenings ?? "—"}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">
                             {j.screenings > 0 ? j.avgScore.toFixed(1) : "—"}
                           </td>
                         </tr>

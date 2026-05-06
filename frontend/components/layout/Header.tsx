@@ -423,7 +423,6 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
             </button>
             <div className="hidden min-w-0 md:block">
               <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{title}</p>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">Home / {title}</p>
             </div>
           </div>
 

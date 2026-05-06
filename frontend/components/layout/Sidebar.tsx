@@ -64,13 +64,17 @@ function NavLinkRow({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "group relative flex h-10 items-center rounded-[10px] transition-colors duration-150 ease-out",
-        collapsed ? "mx-auto w-10 justify-center px-0" : "mx-2 mb-0.5 gap-[10px] px-3",
-        active
-          ? "bg-gradient-to-r from-indigo-500/15 to-violet-500/10 font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-500/20 dark:from-indigo-500/20 dark:to-violet-500/12 dark:text-indigo-300 dark:ring-indigo-500/25"
-          : href === "/agent"
-            ? "font-semibold text-indigo-600 hover:bg-gradient-to-r hover:from-indigo-50/80 hover:to-violet-50/60 dark:text-indigo-400 dark:hover:from-indigo-950/40 dark:hover:to-violet-950/30"
-            : "font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-100",
+        "group relative flex h-10 items-center transition-colors duration-150 ease-out",
+        collapsed
+          ? cn(
+              "mx-auto w-10 justify-center rounded-[10px] px-0",
+              active && "bg-indigo-100/80 dark:bg-indigo-950/40",
+            )
+          : active
+            ? "mb-0.5 w-full gap-[10px] rounded-r-[10px] border-l-[3px] border-indigo-600 bg-indigo-50/70 pl-[21px] pr-3 font-semibold text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-300"
+            : href === "/agent"
+              ? "mx-2 mb-0.5 gap-[10px] rounded-[10px] px-3 font-semibold text-indigo-600 hover:bg-gradient-to-r hover:from-indigo-50/80 hover:to-violet-50/60 dark:text-indigo-400 dark:hover:from-indigo-950/40 dark:hover:to-violet-950/30"
+              : "mx-2 mb-0.5 gap-[10px] rounded-[10px] px-3 font-medium text-slate-700 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-slate-100",
       )}
     >
       <span className="relative flex shrink-0 items-center justify-center">
@@ -253,13 +257,7 @@ export const Sidebar = ({
           </nav>
         </div>
 
-        <div className="shrink-0 border-t border-black/[0.06] py-2 dark:border-slate-700">
-          {!collapsed ? (
-            <p className="text-center text-[10px] text-[#c7c7cc] dark:text-slate-500">v1.0 Beta</p>
-          ) : (
-            <p className="text-center text-[9px] leading-tight text-[#c7c7cc] dark:text-slate-500">Beta</p>
-          )}
-        </div>
+        <div className="shrink-0 border-t border-black/[0.06] py-2 dark:border-slate-700" />
       </aside>
     </Tooltip.Provider>
   );
