@@ -17,8 +17,8 @@ export function Navbar() {
       aria-label="Main navigation"
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 lg:px-12 h-16 bg-slate-900/95 backdrop-blur-md border-b border-white/10"
     >
-      <a href="#home" className="flex items-center gap-2 text-xl font-black text-white" aria-label="Umurava AI HR home">
-        🤖 Umurava <span className="text-blue-400">AI HR</span>
+      <a href="#home" className="flex items-center gap-2 text-xl font-black text-white" aria-label="HERON home">
+        🦢 <span className="text-white">HERON</span>
       </a>
 
       {/* Desktop nav */}

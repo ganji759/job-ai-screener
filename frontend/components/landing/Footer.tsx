@@ -11,8 +11,8 @@ export function Footer() {
 
   return (
     <footer className="bg-slate-950 py-16 px-6 text-center">
-      <a href="#home" className="inline-flex items-center gap-2 text-xl font-black text-white mb-8" aria-label="Umurava AI HR home">
-        🤖 Umurava <span className="text-blue-400">AI HR</span>
+      <a href="#home" className="inline-flex items-center gap-2 text-xl font-black text-white mb-8" aria-label="HERON home">
+        🦢 <span className="text-white">HERON</span>
       </a>
 
       <nav aria-label="Footer navigation" className="flex flex-wrap items-center justify-center gap-6 mb-8">
@@ -28,7 +28,7 @@ export function Footer() {
       </nav>
 
       <p className="text-xs text-white/30">
-        © 2026 Umurava AI HR. All rights reserved. Built with ❤️ for modern recruiters.
+        © 2026 HERON. All rights reserved. Built with ❤️ for modern recruiters.
       </p>
     </footer>
   );

@@ -3,45 +3,45 @@ import type { Feature } from "../../types/landing";
 const features: Feature[] = [
   {
     iconBg: "bg-blue-50",
-    emoji: "🎯",
-    title: "AI Candidate Scoring",
+    emoji: "🤖",
+    title: "Conversational AI Agent",
     description:
-      "Multi-dimensional scoring engine ranks candidates against job requirements with full transparency on why each score was given — no black boxes.",
+      "A Gemini-powered hiring assistant that chains tool calls autonomously — list jobs, ingest resumes, run screenings, and schedule interviews through natural language without ever leaving the chat.",
   },
   {
     iconBg: "bg-violet-50",
-    emoji: "⚡",
-    title: "Bulk CV Processing",
+    emoji: "📄",
+    title: "Intelligent Resume Ingestion",
     description:
-      "Upload hundreds of CVs at once. Our AI extracts, normalizes, and ranks candidates in seconds, cutting your screening time from days to minutes.",
+      "Paste or upload PDFs and the AI extracts structured profiles in seconds via pdfplumber + Gemini. Skills, experience, education, and projects are normalised into a searchable candidate record automatically.",
   },
   {
     iconBg: "bg-green-50",
-    emoji: "📊",
-    title: "Transparent Insights",
+    emoji: "🎯",
+    title: "Weighted AI Candidate Scoring",
     description:
-      "Every ranking comes with detailed breakdowns — skills match, experience gaps, and growth potential — giving your team full confidence in every decision.",
+      "Every candidate is scored against a five-dimension rubric — skills match (35%), experience (25%), education (15%), role relevance (15%), and additional assets (10%) — with a ranked shortlist of up to 20 candidates returned per run.",
   },
   {
     iconBg: "bg-orange-50",
-    emoji: "🔐",
-    title: "Secure OTP Architecture",
+    emoji: "🔍",
+    title: "Explainable Shortlists",
     description:
-      "Enterprise-grade security with one-time password authentication, role-based access controls, and full audit trails for compliance and data protection.",
+      "Each ranked candidate comes with concrete strengths, actionable gaps, a hiring-risk level, must-have skills met vs. missing, and an estimated onboarding time — so every decision is transparent and defensible.",
   },
   {
     iconBg: "bg-pink-50",
     emoji: "📬",
-    title: "Automated Outreach",
+    title: "Automated Interview Scheduling",
     description:
-      "Send personalized interview invitations and status updates automatically. Keep candidates engaged without adding to your recruiter's workload.",
+      "The agent schedules video, phone, or in-person interviews, sends calendar invites to candidates via email, and tracks slot confirmations — all triggered by a single recruiter instruction.",
   },
   {
     iconBg: "bg-teal-50",
-    emoji: "📈",
-    title: "Analytics Dashboard",
+    emoji: "📊",
+    title: "Pool Insights & Benchmarking",
     description:
-      "Track pipeline health, time-to-hire, source effectiveness, and DEI metrics in real time. Make data-driven improvements across your recruiting funnel.",
+      "After screening, HERON analyses the full applicant pool: score distribution, top skills found, skill gaps, recommended salary range, and an estimated time-to-fill based on real industry trends.",
   },
 ];
 
@@ -57,7 +57,7 @@ export function FeaturesSection() {
             Everything you need to hire smarter
           </h2>
           <p className="text-lg text-slate-500 max-w-xl mx-auto">
-            From bulk screening to transparent AI insights, Umurava AI HR gives your team the tools to make faster, better hiring decisions.
+            From AI-driven resume parsing to explainable shortlists, HERON gives your team the tools to make faster, better hiring decisions.
           </p>
         </div>
 

@@ -6,7 +6,7 @@ export function CtaSection() {
           Ready to transform your hiring?
         </h2>
         <p className="text-lg text-white/70 max-w-md mx-auto mb-10">
-          Join thousands of recruiters using Umurava AI HR to screen smarter, rank faster, and build better teams.
+          Join thousands of recruiters using HERON to screen smarter, rank faster, and build better teams.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a

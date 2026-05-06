@@ -3,27 +3,27 @@ import type { Step } from "../../types/landing";
 const steps: Step[] = [
   {
     number: 1,
-    title: "Create Job",
+    title: "Post a Job",
     description:
-      "Define the role, required skills, and experience levels. Our AI learns what \"great\" looks like for your team.",
+      "Describe the role in plain language or paste a full job description. HERON's AI extracts required skills, experience levels, education requirements, and domain automatically — no manual forms to fill in.",
   },
   {
     number: 2,
-    title: "Upload CVs",
+    title: "Ingest Resumes",
     description:
-      "Drop in hundreds of applications at once. PDF, Word, LinkedIn exports — we handle all formats automatically.",
+      "Paste resume text, upload PDFs, or let the AI agent process bulk uploads. pdfplumber and Gemini extract structured profiles for every candidate and attach them to the right job in seconds.",
   },
   {
     number: 3,
-    title: "AI Ranks",
+    title: "Run AI Screening",
     description:
-      "Our engine scores every candidate and surfaces the top matches with transparent reasoning and insights.",
+      "One command triggers a full screening run. Gemini scores every candidate across five weighted dimensions, ranks them by total score, and builds a shortlist with per-candidate strengths, gaps, and hiring-risk labels.",
   },
   {
     number: 4,
-    title: "Hire Confidently",
+    title: "Review & Act",
     description:
-      "Review ranked shortlists, schedule interviews, and make offers — all from your recruiter workspace.",
+      "Browse the ranked shortlist, approve or reject candidates, and instruct the agent to schedule interviews — all from your recruiter workspace. Invite emails with calendar attachments go out automatically.",
   },
 ];
 
@@ -39,12 +39,11 @@ export function HowItWorksSection() {
             From job post to shortlist in minutes
           </h2>
           <p className="text-lg text-white/60 max-w-xl mx-auto">
-            Our four-step workflow is designed to eliminate manual effort and surface the best candidates automatically.
+            HERON's four-step workflow eliminates manual screening and surfaces the best candidates automatically.
           </p>
         </div>
 
         <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          {/* Connecting line (desktop only) */}
           <div className="hidden lg:block absolute top-8 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600" aria-hidden="true" />
 
           {steps.map((step) => (

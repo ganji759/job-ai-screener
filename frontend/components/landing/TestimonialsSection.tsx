@@ -13,7 +13,7 @@ const testimonials: Testimonial[] = [
   {
     stars: 5,
     quote:
-      "The bulk CV upload feature alone saved us 20+ hours per week. We were drowning in applications — Umurava AI HR made it effortless to surface the right candidates.",
+      "The bulk CV upload feature alone saved us 20+ hours per week. We were drowning in applications — HERON made it effortless to surface the right candidates.",
     name: "Nadia Mukamurenzi",
     role: "Recruitment Lead, Kigali Tech Hub",
     initials: "NM",
@@ -42,7 +42,7 @@ export function TestimonialsSection() {
             Loved by recruiters across Africa
           </h2>
           <p className="text-lg text-slate-500 max-w-xl mx-auto">
-            See what HR leaders are saying about how Umurava AI HR transformed their hiring.
+            See what HR leaders are saying about how HERON transformed their hiring.
           </p>
         </div>
 

@@ -20,7 +20,7 @@ export function HeroSection() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-          AI-Powered Talent Intelligence Platform
+          Hiring Evaluation &amp; Ranking for Optimized Networks
         </div>
 
         {/* Heading */}
@@ -35,7 +35,7 @@ export function HeroSection() {
 
         {/* Subheading */}
         <p className="text-lg text-white/70 max-w-xl mx-auto leading-relaxed mb-10">
-          Umurava AI HR automates candidate screening, delivers transparent AI scoring, and empowers recruiters to make data-driven decisions — in minutes, not days.
+          HERON automates candidate screening, delivers transparent AI scoring, and empowers recruiters to make data-driven decisions — in minutes, not days.
         </p>
 
         {/* CTA Buttons */}
@@ -47,7 +47,7 @@ export function HeroSection() {
             Start Free 14-Day Trial →
           </a>
           <a
-            href="#how-it-works"
+            href="/demo"
             className="border border-white/30 text-white font-semibold px-8 py-4 rounded-xl hover:bg-white/10 transition-all text-sm"
           >
             ▶ Watch Demo

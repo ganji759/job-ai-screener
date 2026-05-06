@@ -35,3 +35,9 @@ export interface Testimonial {
   initials: string;
   avatarGradient: string;
 }
+
+export interface DemoFeature {
+  emoji: string;
+  title: string;
+  description: string;
+}
