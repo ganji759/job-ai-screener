@@ -68,12 +68,21 @@ type StoredData = { conversations: Conversation[]; activeId: string | null };
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = "umurava_agent_v2";
+const STORAGE_KEY = "heron_agent_v2";
+const STORAGE_KEY_LEGACY = "umurava_agent_v2";
 const MAX_CONVERSATIONS = 30;
 
 function loadData(): StoredData {
   if (typeof window === "undefined") return { conversations: [], activeId: null };
   try {
+    // One-time migration: preserve history from old brand key
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      const legacy = localStorage.getItem(STORAGE_KEY_LEGACY);
+      if (legacy) {
+        localStorage.setItem(STORAGE_KEY, legacy);
+        localStorage.removeItem(STORAGE_KEY_LEGACY);
+      }
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { conversations: [], activeId: null };
     return JSON.parse(raw) as StoredData;
@@ -102,10 +111,26 @@ const TOOL_META: Record<string, ToolMeta> = {
   schedule_interview:    { label: "Scheduled interview",       icon: CalendarCheck },
   create_job:            { label: "Created job posting",       icon: PlusCircle   },
   update_job_status:     { label: "Updated job status",        icon: RefreshCw    },
-  approve_candidate:     { label: "Saved HR decision",         icon: CheckCircle2 },
-  ingest_resume:         { label: "Ingested resume",           icon: FileUp       },
-  run_screening:         { label: "Ran AI screening",          icon: Brain        },
+  approve_candidate:          { label: "Saved HR decision",        icon: CheckCircle2 },
+  ingest_resume:              { label: "Ingested resume",          icon: FileUp       },
+  run_screening:              { label: "Ran AI screening",         icon: Brain        },
+  get_applicant_details:      { label: "Fetched candidate profile", icon: Users       },
+  search_applicants_by_skill: { label: "Searched by skill",        icon: Search      },
+  update_job:                 { label: "Updated job posting",      icon: RefreshCw   },
+  cancel_interview:           { label: "Cancelled interview",      icon: X           },
 };
+
+function inferToolMeta(name: string): { label: string; icon: ComponentType<{ className?: string }> } {
+  const words = name.split("_");
+  const verb = words[0];
+  const label = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  let icon: ComponentType<{ className?: string }> = Wrench;
+  if (verb === "list" || verb === "get" || verb === "search") icon = Search;
+  else if (verb === "create" || verb === "add") icon = PlusCircle;
+  else if (verb === "update" || verb === "cancel" || verb === "approve") icon = RefreshCw;
+  else if (verb === "run" || verb === "schedule" || verb === "ingest") icon = Zap;
+  return { label, icon };
+}
 
 // ── Thinking status messages ──────────────────────────────────────────────────
 
@@ -166,6 +191,9 @@ const Markdown = ({ text }: { text: string }) => {
   const lines  = text.split("\n");
   const nodes: React.ReactNode[] = [];
   let listBuf: Array<{ kind: "bullet" | "num"; text: string }> = [];
+  let inCode = false;
+  let codeLang = "";
+  let codeBuf: string[] = [];
 
   const flushList = (key: string) => {
     if (!listBuf.length) return;
@@ -179,26 +207,60 @@ const Markdown = ({ text }: { text: string }) => {
     listBuf = [];
   };
 
+  const flushCode = (key: string) => {
+    if (!codeBuf.length && !codeLang) return;
+    nodes.push(
+      <div key={key} className="my-2 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/80 dark:border-slate-700/50 dark:bg-slate-800/60">
+        {codeLang && (
+          <div className="border-b border-slate-200/60 px-3 py-1 font-mono text-[10px] text-slate-400 dark:border-slate-700/40 dark:text-slate-500">
+            {codeLang}
+          </div>
+        )}
+        <pre className="overflow-x-auto p-3 text-[11px] leading-relaxed">
+          <code className="font-mono text-slate-700 dark:text-slate-300">{codeBuf.join("\n")}</code>
+        </pre>
+      </div>,
+    );
+    codeBuf = [];
+    codeLang = "";
+  };
+
   const inline = (raw: string): React.ReactNode =>
-    raw.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((p, i) => {
+    raw.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g).map((p, i) => {
       if (p.startsWith("**") && p.endsWith("**")) return <strong key={i}>{p.slice(2, -2)}</strong>;
       if (p.startsWith("`")  && p.endsWith("`"))
         return <code key={i} className="rounded bg-slate-200/70 px-1 py-0.5 font-mono text-[11px] dark:bg-slate-700/60">{p.slice(1, -1)}</code>;
+      const link = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (link) return <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200">{link[1]}</a>;
       return p;
     });
 
   lines.forEach((line, i) => {
+    if (line.startsWith("```")) {
+      if (!inCode) {
+        flushList(`fl-pre-${i}`);
+        inCode = true;
+        codeLang = line.slice(3).trim();
+      } else {
+        inCode = false;
+        flushCode(`code-${i}`);
+      }
+      return;
+    }
+    if (inCode) { codeBuf.push(line); return; }
+
     const bullet   = line.match(/^[-*•]\s+(.*)/);
     const numbered = line.match(/^\d+\.\s+(.*)/);
     const heading  = line.match(/^#{1,3}\s+(.*)/);
     if (bullet)   { listBuf.push({ kind: "bullet", text: bullet[1] });   return; }
     if (numbered) { listBuf.push({ kind: "num",    text: numbered[1] }); return; }
     flushList(`fl-${i}`);
-    if (heading)        nodes.push(<p key={i} className="mt-2 font-semibold">{inline(heading[1])}</p>);
+    if (heading)          nodes.push(<p key={i} className="mt-2 font-semibold">{inline(heading[1])}</p>);
     else if (!line.trim()) nodes.push(<div key={i} className="h-1.5" />);
-    else                nodes.push(<p key={i} className="leading-relaxed">{inline(line)}</p>);
+    else                  nodes.push(<p key={i} className="leading-relaxed">{inline(line)}</p>);
   });
   flushList("fl-end");
+  if (inCode) flushCode("code-end");
   return <div className="space-y-0.5 text-sm">{nodes}</div>;
 };
 
@@ -267,7 +329,7 @@ const ThinkingCard = () => {
 
 const ToolCard = ({ toolCall, delay }: { toolCall: ToolCall; delay: number }) => {
   const [open, setOpen] = useState(false);
-  const meta = TOOL_META[toolCall.name] ?? { label: toolCall.name.replaceAll("_", " "), icon: Wrench };
+  const meta = TOOL_META[toolCall.name as keyof typeof TOOL_META] ?? inferToolMeta(toolCall.name);
   const Icon = meta.icon;
   const isErr = toolCall.result != null && typeof toolCall.result === "object" && "error" in (toolCall.result as object);
 
@@ -975,10 +1037,30 @@ export const AgentChatPage = () => {
             <WelcomeScreen onSend={(text) => void send(text)} userName={user?.name ?? "there"} />
           ) : (
             <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-              {entries.map((entry) => {
+              {entries.map((entry, idx) => {
                 if (entry.type === "thinking") return <ThinkingCard key={entry.id} />;
                 if (entry.type === "user")     return <UserBubble   key={entry.id} entry={entry} />;
-                return                                <AgentBubble  key={entry.id} entry={entry} />;
+                const isLastEntry = idx === entries.length - 1;
+                const lastUserEntry = isLastEntry
+                  ? (entries.slice(0, idx).reverse().find((e) => e.type === "user") as EntryUser | undefined)
+                  : undefined;
+                return (
+                  <div key={entry.id} className="group relative">
+                    <AgentBubble entry={entry} />
+                    {isLastEntry && !isLoading && lastUserEntry && (
+                      <div className="mt-1.5 flex justify-start pl-12 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => void send(lastUserEntry.content)}
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:bg-slate-100/70 hover:text-indigo-600 dark:text-slate-500 dark:hover:bg-white/[0.06] dark:hover:text-indigo-400"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Regenerate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
               })}
               <div ref={bottomRef} />
             </div>

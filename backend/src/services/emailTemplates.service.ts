@@ -18,7 +18,7 @@ export const renderBaseEmailTemplate = (params: {
   footer?: string;
 }): string => {
   const accent = params.accent ?? brandBlue;
-  const footer = params.footer ?? "Regards,<br/>Umurava AI HR";
+  const footer = params.footer ?? "Regards,<br/>HERON";
   return `
   <div style="margin:0;padding:24px;background:#f8fbff;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
     <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dbeafe;border-radius:16px;overflow:hidden;">

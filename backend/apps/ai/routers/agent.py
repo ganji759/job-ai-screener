@@ -241,12 +241,69 @@ _FUNCTION_DECLARATIONS = [
             required=["jobId"],
         ),
     ),
+    glm.FunctionDeclaration(
+        name="get_applicant_details",
+        description="Get full profile details for a specific applicant including skills, experience, education, location, and their screening score if available. Use this after search_applicants when the recruiter wants to know more about a specific candidate.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "applicantId": glm.Schema(type=glm.Type.STRING, description="MongoDB _id of the Applicant document."),
+            },
+            required=["applicantId"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="search_applicants_by_skill",
+        description="Find applicants who have a specific skill listed in their profile. Use this when the recruiter asks to find candidates who know a technology or have a particular skill.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "skill": glm.Schema(type=glm.Type.STRING, description="Skill to search for (case-insensitive, partial match)."),
+                "jobId": glm.Schema(type=glm.Type.STRING, description="Limit search to a specific job (optional)."),
+                "limit": glm.Schema(type=glm.Type.NUMBER, description="Max results to return (default 30, max 100)."),
+            },
+            required=["skill"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="update_job",
+        description="Update fields on an existing job posting such as title, description, required skills, experience level, education, location, or remote policy. Use this when the recruiter asks to edit or change a job.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "jobId": glm.Schema(type=glm.Type.STRING, description="The job's MongoDB _id."),
+                "title": glm.Schema(type=glm.Type.STRING, description="New job title (optional)."),
+                "description": glm.Schema(type=glm.Type.STRING, description="New job description (optional)."),
+                "company": glm.Schema(type=glm.Type.STRING, description="Company name (optional)."),
+                "domain": glm.Schema(type=glm.Type.STRING, description="Job domain e.g. engineering, product (optional)."),
+                "mustHaveSkills": glm.Schema(type=glm.Type.ARRAY, items=glm.Schema(type=glm.Type.STRING), description="Updated required skills (optional)."),
+                "niceToHaveSkills": glm.Schema(type=glm.Type.ARRAY, items=glm.Schema(type=glm.Type.STRING), description="Updated nice-to-have skills (optional)."),
+                "minYearsExperience": glm.Schema(type=glm.Type.NUMBER, description="Minimum years of experience (optional)."),
+                "educationLevel": glm.Schema(type=glm.Type.STRING, description="none, certificate, bachelor, master, or phd (optional)."),
+                "location": glm.Schema(type=glm.Type.STRING, description="Job location (optional)."),
+                "remoteAllowed": glm.Schema(type=glm.Type.STRING, description="yes or no (optional)."),
+            },
+            required=["jobId"],
+        ),
+    ),
+    glm.FunctionDeclaration(
+        name="cancel_interview",
+        description="Cancel a scheduled interview. Updates status to cancelled, removes the Google Calendar event if present, and sends a cancellation email to the candidate.",
+        parameters=glm.Schema(
+            type=glm.Type.OBJECT,
+            properties={
+                "interviewId": glm.Schema(type=glm.Type.STRING, description="MongoDB _id of the Interview document."),
+                "reason": glm.Schema(type=glm.Type.STRING, description="Optional reason for cancellation to include in the candidate email."),
+            },
+            required=["interviewId"],
+        ),
+    ),
 ]
 
 _TOOLS = [genai.protos.Tool(function_declarations=_FUNCTION_DECLARATIONS)]
 
 SYSTEM_INSTRUCTION = (
-    "You are an AI hiring assistant for the Umurava HR platform. "
+    "You are HERON, an AI hiring assistant for the HERON platform. "
     "You help recruiters manage their entire hiring pipeline hands-free. "
     "Critical rules: "
     "NEVER ask the recruiter for an ID — always look IDs up yourself using tools. "

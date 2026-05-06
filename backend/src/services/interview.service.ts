@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import { InterviewModel } from "../models/Interview.model";
 import { sendMailSafe } from "./email.service";
-import { renderInterviewInviteEmail } from "./emailTemplates.service";
+import { renderInterviewInviteEmail, renderBaseEmailTemplate } from "./emailTemplates.service";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -28,11 +28,11 @@ function generateIcs(params: {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Umurava AI HR//Interview//EN",
+    "PRODID:-//HERON//Interview//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:REQUEST",
     "BEGIN:VEVENT",
-    `UID:${params.uid}@umurava.ai`,
+    `UID:${params.uid}@heron.ai`,
     `DTSTAMP:${fmtIcs(new Date())}`,
     `DTSTART:${fmtIcs(params.start)}`,
     `DTEND:${fmtIcs(params.end)}`,
@@ -243,4 +243,38 @@ export const deleteInterview = async (id: string, recruiterId: string) => {
 
   const res = await InterviewModel.deleteOne({ _id: id, recruiterId: new Types.ObjectId(recruiterId) });
   return res.deletedCount > 0;
+};
+
+export const cancelInterview = async (
+  id: string,
+  recruiterId: string,
+  reason?: string,
+): Promise<{ success: boolean; message: string }> => {
+  const interview = await InterviewModel.findOneAndUpdate(
+    { _id: id, recruiterId: new Types.ObjectId(recruiterId) },
+    { $set: { status: "cancelled" } },
+    { new: true },
+  ).lean() as { candidateName: string; candidateEmail: string; jobTitle: string; googleCalendarEventId?: string } | null;
+
+  if (!interview) return { success: false, message: "Interview not found or access denied." };
+
+  if (interview.googleCalendarEventId && isGoogleConfigured()) {
+    deleteCalendarEvent(recruiterId, interview.googleCalendarEventId).catch(() => undefined);
+  }
+
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const reasonBlock = reason ? `<br/><br/>Reason: ${esc(reason)}` : "";
+  const html = renderBaseEmailTemplate({
+    title: "Interview cancelled",
+    greeting: `Hello ${esc(interview.candidateName)},`,
+    message: `We regret to inform you that your interview for the <b>${esc(interview.jobTitle)}</b> role has been cancelled.${reasonBlock}<br/><br/>We will be in touch if any new dates become available.`,
+    accent: "#64748b",
+  });
+
+  await sendMailSafe(interview.candidateEmail, `Interview cancelled — ${interview.jobTitle}`, html);
+
+  return {
+    success: true,
+    message: `Interview cancelled for ${interview.candidateName}. Cancellation email sent to ${interview.candidateEmail}.`,
+  };
 };

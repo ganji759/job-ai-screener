@@ -8,7 +8,7 @@ import { ApplicantModel } from "../models/Applicant.model";
 import { ScreeningModel } from "../models/Screening.model";
 import { InterviewModel } from "../models/Interview.model";
 import { UserModel } from "../models/User.model";
-import { createInterview } from "./interview.service";
+import { createInterview, cancelInterview } from "./interview.service";
 import { heuristicExtractResume, mergeGeminiResume, normalizeProfile } from "./parser.service";
 import { runScreeningForJobAgent } from "./screening.service";
 import { callGeminiWithRetry } from "./gemini.service";
@@ -53,7 +53,7 @@ function getCachedParsedProfile(resumeText: string): Record<string, unknown> | n
 export type AgentMessage = { role: "user" | "model"; content: string };
 export type ToolCall = { name: string; args: Record<string, unknown>; result: unknown };
 
-const SYSTEM_INSTRUCTION = `You are an AI hiring assistant for the Umurava HR platform. You help recruiters manage their entire hiring pipeline hands-free.
+const SYSTEM_INSTRUCTION = `You are HERON, an AI hiring assistant for the HERON platform. You help recruiters manage their entire hiring pipeline hands-free.
 
 You have tools to create and manage jobs, ingest resumes, run AI screenings, query applicants and screenings, approve candidates, schedule interviews, and more.
 
@@ -303,6 +303,67 @@ functionDeclarations.push({
   },
 });
 
+functionDeclarations.push({
+  name: "get_applicant_details",
+  description: "Get full profile details for a specific applicant including skills, experience, education, location, and their screening score if available. Use this after search_applicants when the recruiter wants to know more about a specific candidate.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      applicantId: { type: SchemaType.STRING, description: "MongoDB _id of the Applicant document." },
+    },
+    required: ["applicantId"],
+  },
+});
+
+functionDeclarations.push({
+  name: "search_applicants_by_skill",
+  description: "Find applicants who have a specific skill listed in their profile. Use this when the recruiter asks 'find candidates who know React' or similar. Searches both string[] and {name, level}[] skill shapes.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      skill: { type: SchemaType.STRING, description: "Skill to search for (case-insensitive, partial match)." },
+      jobId: { type: SchemaType.STRING, description: "Limit search to a specific job (optional)." },
+      limit: { type: SchemaType.NUMBER, description: "Max results to return (default 30, max 100)." },
+    },
+    required: ["skill"],
+  },
+});
+
+functionDeclarations.push({
+  name: "update_job",
+  description: "Update fields on an existing job posting such as title, description, required skills, experience level, education, location, or remote policy. Use this when the recruiter asks to edit or change a job.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      jobId: { type: SchemaType.STRING, description: "The job's MongoDB _id." },
+      title: { type: SchemaType.STRING, description: "New job title (optional)." },
+      description: { type: SchemaType.STRING, description: "New job description (optional)." },
+      company: { type: SchemaType.STRING, description: "Company name (optional)." },
+      domain: { type: SchemaType.STRING, description: "Job domain e.g. engineering, product (optional)." },
+      mustHaveSkills: { type: SchemaType.ARRAY, description: "Updated list of required skills (optional).", items: { type: SchemaType.STRING } },
+      niceToHaveSkills: { type: SchemaType.ARRAY, description: "Updated list of nice-to-have skills (optional).", items: { type: SchemaType.STRING } },
+      minYearsExperience: { type: SchemaType.NUMBER, description: "Minimum years of experience (optional)." },
+      educationLevel: { type: SchemaType.STRING, description: "Education level: none, certificate, bachelor, master, or phd (optional).", enum: ["none", "certificate", "bachelor", "master", "phd"] },
+      location: { type: SchemaType.STRING, description: "Job location (optional)." },
+      remoteAllowed: { type: SchemaType.STRING, description: "Whether remote is allowed: yes or no (optional).", enum: ["yes", "no"] },
+    },
+    required: ["jobId"],
+  },
+});
+
+functionDeclarations.push({
+  name: "cancel_interview",
+  description: "Cancel a scheduled interview. Updates status to cancelled, removes the Google Calendar event if present, and sends a cancellation email to the candidate.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      interviewId: { type: SchemaType.STRING, description: "MongoDB _id of the Interview document." },
+      reason: { type: SchemaType.STRING, description: "Optional reason for cancellation to include in the candidate email." },
+    },
+    required: ["interviewId"],
+  },
+});
+
 const agentTools: Tool[] = [{ functionDeclarations }];
 
 /**
@@ -442,6 +503,101 @@ async function executeTool(
       };
     }
 
+    case "get_applicant_details": {
+      const applicantId = String(args.applicantId ?? "").trim();
+      if (!applicantId) return { error: "applicantId is required." };
+
+      const applicant = await ApplicantModel.findById(applicantId).lean();
+      if (!applicant) return { error: "Applicant not found." };
+
+      const job = await JobModel.findOne({ _id: applicant.jobId, recruiterId }).select("title").lean();
+      if (!job) return { error: "Access denied — this applicant is not in one of your jobs." };
+
+      const profile = (applicant.profile as Record<string, unknown> | null) ?? {};
+      const rawSkills = Array.isArray(profile.skills) ? profile.skills : [];
+      const skills = rawSkills.map((s: unknown) =>
+        typeof s === "string" ? s : typeof s === "object" && s !== null ? String((s as Record<string, unknown>).name ?? "") : ""
+      ).filter(Boolean);
+
+      let screeningScore: number | null = null;
+      let recommendation: string | null = null;
+      if (applicant.screeningId) {
+        const screening = await ScreeningModel.findById(applicant.screeningId).lean();
+        if (screening?.results) {
+          const results = screening.results as Record<string, unknown>;
+          const shortlist = Array.isArray(results.shortlist) ? results.shortlist : (results.ranked as unknown[] ?? []);
+          const entry = shortlist.find((c) => {
+            const cand = c as Record<string, unknown>;
+            return String(cand.candidateId ?? cand.id) === applicantId;
+          }) as Record<string, unknown> | undefined;
+          if (entry) {
+            screeningScore = Number(entry.totalScore ?? entry.score ?? null);
+            recommendation = entry.recommendation ? String(entry.recommendation) : null;
+          }
+        }
+      }
+
+      return {
+        id: String(applicant._id),
+        name: extractApplicantName(applicant.profile),
+        email: extractApplicantEmail(applicant.profile),
+        title: typeof profile.title === "string" ? profile.title : null,
+        status: applicant.status,
+        source: applicant.source,
+        jobId: String(applicant.jobId),
+        jobTitle: job.title,
+        skills,
+        experience: Array.isArray(profile.experience) ? profile.experience : [],
+        education: Array.isArray(profile.education) ? profile.education : [],
+        location: typeof profile.location === "string" ? profile.location : null,
+        screeningScore,
+        recommendation,
+        createdAt: applicant.createdAt,
+      };
+    }
+
+    case "search_applicants_by_skill": {
+      const skill = String(args.skill ?? "").trim();
+      if (!skill) return { error: "skill is required." };
+      const limit = Math.min(Number(args.limit ?? 30), 100);
+
+      const jobs = await JobModel.find({ recruiterId, ...(args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
+      const jobIds = jobs.map((j) => j._id);
+      const jobTitleById = new Map(jobs.map((j) => [String(j._id), j.title]));
+
+      const applicants = await ApplicantModel.find({ jobId: { $in: jobIds } }).lean().limit(500);
+      const skillRegex = new RegExp(skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+      const matches = applicants.filter((a) => {
+        const profile = (a.profile as Record<string, unknown> | null) ?? {};
+        const rawSkills = Array.isArray(profile.skills) ? profile.skills : [];
+        return rawSkills.some((s: unknown) => {
+          if (typeof s === "string") return skillRegex.test(s);
+          if (typeof s === "object" && s !== null) {
+            const sk = s as Record<string, unknown>;
+            return skillRegex.test(String(sk.name ?? "")) || skillRegex.test(String(sk.level ?? ""));
+          }
+          return false;
+        });
+      });
+
+      const limited = matches.slice(0, limit);
+      return {
+        skill,
+        found: matches.length,
+        returned: limited.length,
+        results: limited.map((a) => ({
+          id: String(a._id),
+          name: extractApplicantName(a.profile),
+          email: extractApplicantEmail(a.profile),
+          status: a.status,
+          source: a.source,
+          jobId: String(a.jobId),
+          jobTitle: jobTitleById.get(String(a.jobId)) ?? "Unknown job",
+        })),
+      };
+    }
+
     case "list_screenings": {
       const filter: Record<string, unknown> = { recruiterId };
       if (args.status) filter.status = args.status;
@@ -506,6 +662,12 @@ async function executeTool(
         confirmedSlot: i.confirmedSlot ?? null,
         createdAt: i.createdAt,
       }));
+    }
+
+    case "cancel_interview": {
+      const interviewId = String(args.interviewId ?? "").trim();
+      if (!interviewId) return { error: "interviewId is required." };
+      return cancelInterview(interviewId, recruiterId, args.reason ? String(args.reason) : undefined);
     }
 
     case "get_pipeline_summary": {
@@ -595,6 +757,39 @@ async function executeTool(
       ).lean();
       if (!job) return { error: "Job not found or access denied." };
       return { jobId: String(job._id), title: job.title, status: job.status, message: `Job "${job.title}" status updated to "${job.status}".` };
+    }
+
+    case "update_job": {
+      const jobId = String(args.jobId ?? "").trim();
+      if (!jobId) return { error: "jobId is required." };
+
+      const set: Record<string, unknown> = {};
+      if (args.title !== undefined) set.title = String(args.title);
+      if (args.description !== undefined) set.description = String(args.description);
+      if (args.company !== undefined) set.company = String(args.company);
+      if (args.domain !== undefined) set["requirements.domain"] = String(args.domain);
+      if (args.location !== undefined) set["requirements.location"] = String(args.location);
+      if (args.remoteAllowed !== undefined) set["requirements.remoteAllowed"] = args.remoteAllowed === "yes";
+      if (args.minYearsExperience !== undefined) set["requirements.minYearsExperience"] = Number(args.minYearsExperience);
+      if (args.educationLevel !== undefined) set["requirements.educationLevel"] = String(args.educationLevel);
+      if (Array.isArray(args.mustHaveSkills)) set["requirements.mustHaveSkills"] = args.mustHaveSkills.map(String);
+      if (Array.isArray(args.niceToHaveSkills)) set["requirements.niceToHaveSkills"] = args.niceToHaveSkills.map(String);
+
+      if (Object.keys(set).length === 0) return { error: "No fields provided to update." };
+
+      const job = await JobModel.findOneAndUpdate(
+        { _id: jobId, recruiterId },
+        { $set: set },
+        { new: true },
+      ).lean();
+      if (!job) return { error: "Job not found or access denied." };
+
+      return {
+        jobId: String(job._id),
+        title: job.title,
+        status: job.status,
+        message: `Job "${job.title}" updated successfully.`,
+      };
     }
 
     case "approve_candidate": {
