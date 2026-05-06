@@ -217,7 +217,7 @@ ${JSON.stringify(candidates.slice(0, 30), null, 2)}
 
 export const buildEnhanceProfilePrompt = (profile: unknown): string => `
 You are an expert recruiter. Improve this sparse profile using only realistic inferences.
-Return JSON only, maintaining same keys.
+Return JSON only, maintaining same keys. 
 Profile:
 ${JSON.stringify(profile, null, 2)}
 `;
