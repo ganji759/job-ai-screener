@@ -9,6 +9,7 @@
   html {
     @apply antialiased;
     color-scheme: light;
+    scroll-behavior: smooth;
   }
 
   html.dark {
