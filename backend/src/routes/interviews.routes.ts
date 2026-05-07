@@ -6,12 +6,17 @@ import {
   listInterviewsHandler,
   updateInterviewHandler,
 } from "../controllers/interview.controller";
+import { requireRole } from "../utils/rbac";
 
 export const interviewsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
-  app.get("/", listInterviewsHandler);
-  app.post("/", createInterviewHandler);
+
+  // viewer+
+  app.get("/",    listInterviewsHandler);
   app.get("/:id", getInterviewHandler);
-  app.patch("/:id", updateInterviewHandler);
-  app.delete("/:id", deleteInterviewHandler);
+
+  // recruiter+
+  app.post("/",    { preHandler: [requireRole("recruiter")] }, createInterviewHandler);
+  app.patch("/:id", { preHandler: [requireRole("recruiter")] }, updateInterviewHandler);
+  app.delete("/:id", { preHandler: [requireRole("recruiter")] }, deleteInterviewHandler);
 };

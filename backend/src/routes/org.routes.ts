@@ -8,13 +8,19 @@ import {
   updateMember,
   removeMember,
 } from "../controllers/org.controller";
+import { requireRole } from "../utils/rbac";
 
 export const orgRoutes = async (app: FastifyInstance): Promise<void> => {
-  app.get("/",              { preHandler: [app.authenticate] }, getOrg);
-  app.put("/",              { preHandler: [app.authenticate] }, updateOrg);
-  app.get("/members",       { preHandler: [app.authenticate] }, listMembers);
-  app.post("/invite",       { preHandler: [app.authenticate] }, inviteMember);
-  app.post("/accept-invite", acceptInvite); // public — no token yet
-  app.patch("/members/:memberId", { preHandler: [app.authenticate] }, updateMember);
-  app.delete("/members/:memberId", { preHandler: [app.authenticate] }, removeMember);
+  // public — invitee has no token yet
+  app.post("/accept-invite", acceptInvite);
+
+  // viewer+
+  app.get("/",        { preHandler: [app.authenticate] }, getOrg);
+  app.get("/members", { preHandler: [app.authenticate] }, listMembers);
+
+  // admin+
+  app.put("/",                      { preHandler: [app.authenticate, requireRole("admin")] }, updateOrg);
+  app.post("/invite",               { preHandler: [app.authenticate, requireRole("admin")] }, inviteMember);
+  app.patch("/members/:memberId",   { preHandler: [app.authenticate, requireRole("admin")] }, updateMember);
+  app.delete("/members/:memberId",  { preHandler: [app.authenticate, requireRole("admin")] }, removeMember);
 };

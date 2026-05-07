@@ -44,9 +44,7 @@ export const getOrg = async (request: FastifyRequest, reply: FastifyReply): Prom
 
 export const updateOrg = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const orgId = request.user?.orgId;
-  const orgRole = request.user?.orgRole;
   if (!orgId) return void reply.code(401).send({ error: "No organization context" });
-  if (!["owner", "admin"].includes(orgRole ?? "")) return void reply.code(403).send({ error: "Insufficient permissions" });
 
   const body = UpdateOrgSchema.parse(request.body);
   const update: Record<string, unknown> = {};
@@ -62,9 +60,7 @@ export const updateOrg = async (request: FastifyRequest, reply: FastifyReply): P
 
 export const inviteMember = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const orgId = request.user?.orgId;
-  const orgRole = request.user?.orgRole;
   if (!orgId) return void reply.code(401).send({ error: "No organization context" });
-  if (!["owner", "admin"].includes(orgRole ?? "")) return void reply.code(403).send({ error: "Insufficient permissions" });
 
   const body = InviteSchema.parse(request.body);
 
@@ -139,10 +135,8 @@ export const listMembers = async (request: FastifyRequest, reply: FastifyReply):
 
 export const updateMember = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const orgId = request.user?.orgId;
-  const orgRole = request.user?.orgRole;
   const { memberId } = request.params as { memberId: string };
   if (!orgId) return void reply.code(401).send({ error: "No organization context" });
-  if (!["owner", "admin"].includes(orgRole ?? "")) return void reply.code(403).send({ error: "Insufficient permissions" });
 
   const body = UpdateMemberSchema.parse(request.body);
   const member = await UserModel.findOneAndUpdate(
@@ -157,11 +151,9 @@ export const updateMember = async (request: FastifyRequest, reply: FastifyReply)
 
 export const removeMember = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const orgId = request.user?.orgId;
-  const orgRole = request.user?.orgRole;
   const userId = request.user?.userId;
   const { memberId } = request.params as { memberId: string };
   if (!orgId) return void reply.code(401).send({ error: "No organization context" });
-  if (!["owner", "admin"].includes(orgRole ?? "")) return void reply.code(403).send({ error: "Insufficient permissions" });
   if (memberId === userId) return void reply.code(400).send({ error: "Cannot remove yourself" });
 
   const deleted = await UserModel.findOneAndDelete({ _id: memberId, organizationId: orgId }).lean();
