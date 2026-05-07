@@ -29,9 +29,9 @@ const highlights: DemoFeature[] = [
 
 export default function DemoPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1c2331] via-[#1e2a3a] to-[#243040]">
-      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#5b7fa6]/20 blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 -right-20 w-80 h-80 rounded-full bg-[#9b8ec4]/15 blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-900">
+      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 -right-20 w-80 h-80 rounded-full bg-blue-400/15 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-6 pt-20 pb-24">
         <div className="text-center mb-12">
@@ -41,13 +41,13 @@ export default function DemoPage() {
           >
             ← Back to Home
           </a>
-          <div className="inline-flex items-center gap-2 bg-[#5b7fa6]/20 border border-[#5b7fa6]/40 text-[#a8c4d8] px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#a8c4d8] animate-pulse" />
+          <div className="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide mb-6">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
             Hiring Evaluation &amp; Ranking for Optimized Networks
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight mb-5">
             See{" "}
-            <span className="bg-gradient-to-r from-[#a8c4d8] via-[#c4b8d8] to-[#d4a898] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-sky-400 bg-clip-text text-transparent">
               HERON
             </span>{" "}
             in Action
@@ -73,8 +73,8 @@ export default function DemoPage() {
               <p className="text-white font-bold text-sm">HERON Full Walkthrough</p>
               <p className="text-white/45 text-xs mt-0.5">Resume ingestion → AI screening → interview scheduling</p>
             </div>
-            <span className="inline-flex items-center gap-1.5 bg-[#5b7fa6]/20 text-[#a8c4d8] text-xs font-semibold px-3 py-1 rounded-full border border-[#5b7fa6]/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#a8c4d8]" />
+            <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
               5 min demo
             </span>
           </div>
@@ -88,7 +88,7 @@ export default function DemoPage() {
             {highlights.map((h) => (
               <div
                 key={h.title}
-                className="bg-slate-900/60 border border-white/10 rounded-2xl p-7 hover:border-[#5b7fa6]/40 hover:-translate-y-0.5 transition-all"
+                className="bg-slate-900/60 border border-white/10 rounded-2xl p-7 hover:border-blue-500/40 hover:-translate-y-0.5 transition-all"
               >
                 <div className="text-2xl mb-3" aria-hidden="true">{h.emoji}</div>
                 <h3 className="text-white font-bold text-base mb-2">{h.title}</h3>
@@ -98,7 +98,7 @@ export default function DemoPage() {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-[#5b7fa6]/20 to-[#7b6fa6]/20 border border-[#5b7fa6]/30 rounded-3xl px-8 py-12 text-center">
+        <div className="bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border border-indigo-500/30 rounded-3xl px-8 py-12 text-center">
           <h2 className="text-3xl font-black text-white mb-3">Ready to try it yourself?</h2>
           <p className="text-white/60 text-base mb-8 max-w-md mx-auto">
             Start your free 14-day trial and go from job post to ranked shortlist in under five minutes.
@@ -106,7 +106,7 @@ export default function DemoPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
               href="/#pricing"
-              className="bg-white text-[#1c2331] font-bold px-9 py-4 rounded-xl hover:-translate-y-0.5 shadow-xl transition-all text-sm"
+              className="bg-white text-blue-800 font-bold px-9 py-4 rounded-xl hover:-translate-y-0.5 shadow-xl transition-all text-sm"
             >
               Start Free Trial →
             </a>

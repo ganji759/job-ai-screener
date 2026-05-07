@@ -15,7 +15,7 @@ export function Navbar() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 lg:px-12 h-16 bg-[#1c2331]/95 backdrop-blur-md border-b border-white/10"
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 lg:px-12 h-16 bg-slate-900/95 backdrop-blur-md border-b border-white/10"
     >
       <a href="#home" className="flex items-center gap-2 text-xl font-black text-white" aria-label="HERON home">
         🦢 <span className="text-white">HERON</span>
@@ -44,7 +44,7 @@ export function Navbar() {
         </a>
         <a
           href="#pricing"
-          className="px-6 py-2 rounded-xl bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white text-sm font-semibold shadow-lg shadow-[#5b7fa6]/40 hover:-translate-y-px transition-all"
+          className="px-6 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-blue-600/40 hover:-translate-y-px transition-all"
         >
           Start Free Trial
         </a>
@@ -64,7 +64,7 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="absolute top-16 left-0 right-0 bg-[#1c2331]/98 backdrop-blur-md border-b border-white/10 px-6 py-4 flex flex-col gap-4 lg:hidden">
+        <div className="absolute top-16 left-0 right-0 bg-slate-900/98 backdrop-blur-md border-b border-white/10 px-6 py-4 flex flex-col gap-4 lg:hidden">
           {navLinks.map((link) => (
             <a
               key={link.label}
@@ -86,7 +86,7 @@ export function Navbar() {
             <a
               href="#pricing"
               onClick={() => setMobileOpen(false)}
-              className="text-center py-2.5 rounded-xl bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white text-sm font-semibold"
+              className="text-center py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold"
             >
               Start Free Trial
             </a>

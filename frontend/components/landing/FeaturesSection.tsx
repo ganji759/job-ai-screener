@@ -50,7 +50,7 @@ export function FeaturesSection() {
     <section id="features" className="bg-slate-50 py-24 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-14">
-          <span className="inline-block bg-[#f0f4f8] text-[#5b7fa6] text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
+          <span className="inline-block bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
             Core Features
           </span>
           <h2 className="text-4xl font-extrabold text-slate-900 mb-4">
@@ -65,7 +65,7 @@ export function FeaturesSection() {
           {features.map((feature) => (
             <article
               key={feature.title}
-              className="bg-white border border-slate-200 rounded-2xl p-9 hover:-translate-y-1 hover:shadow-2xl hover:border-[#8fa3b8] transition-all cursor-default"
+              className="bg-white border border-slate-200 rounded-2xl p-9 hover:-translate-y-1 hover:shadow-2xl hover:border-blue-200 transition-all cursor-default"
             >
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-5 ${feature.iconBg}`}

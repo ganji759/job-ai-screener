@@ -57,10 +57,10 @@ const plans: PricingPlan[] = [
 
 function ctaClass(style: PricingPlan["ctaStyle"]) {
   if (style === "filled")
-    return "w-full py-3.5 rounded-xl bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white font-bold shadow-lg shadow-[#5b7fa6]/40 hover:shadow-[#5b7fa6]/60 transition-all text-center block";
+    return "w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-lg shadow-blue-600/40 hover:shadow-blue-600/60 transition-all text-center block";
   if (style === "dark")
     return "w-full py-3.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all text-center block";
-  return "w-full py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:border-[#5b7fa6] hover:text-[#5b7fa6] transition-all text-center block";
+  return "w-full py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:border-blue-600 hover:text-blue-600 transition-all text-center block";
 }
 
 export function PricingSection() {
@@ -68,7 +68,7 @@ export function PricingSection() {
     <section id="pricing" className="bg-slate-50 py-24 px-6">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-14">
-          <span className="inline-block bg-[#f0f4f8] text-[#5b7fa6] text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
+          <span className="inline-block bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
             Pricing
           </span>
           <h2 className="text-4xl font-extrabold text-slate-900 mb-4">
@@ -85,19 +85,19 @@ export function PricingSection() {
               key={plan.name}
               className={`bg-white border-2 rounded-3xl p-10 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-2xl ${
                 plan.featured
-                  ? "border-[#5b7fa6] shadow-[#5b7fa6]/20 shadow-xl scale-[1.03]"
+                  ? "border-blue-600 shadow-blue-600/20 shadow-xl scale-[1.03]"
                   : "border-slate-200"
               }`}
             >
               {plan.featured && (
-                <div className="absolute -top-px right-7 bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-b-xl">
+                <div className="absolute -top-px right-7 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-b-xl">
                   Most Popular
                 </div>
               )}
 
               <p
                 className={`text-xs font-bold uppercase tracking-widest mb-3 ${
-                  plan.featured ? "text-[#5b7fa6]" : "text-slate-500"
+                  plan.featured ? "text-blue-600" : "text-slate-500"
                 }`}
               >
                 {plan.name}
@@ -111,7 +111,7 @@ export function PricingSection() {
                   <li key={f.text} className="flex items-start gap-3">
                     <span
                       className={`shrink-0 font-bold text-base leading-5 ${
-                        f.included ? "text-[#6ba88a]" : "text-slate-300"
+                        f.included ? "text-green-500" : "text-slate-300"
                       }`}
                       aria-hidden="true"
                     >

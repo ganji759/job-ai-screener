@@ -100,7 +100,7 @@ export function LoginSection() {
   return (
     <section
       id="login"
-      className="bg-gradient-to-br from-[#1c2331] via-[#1e2a3a] to-[#243040] py-24 px-6 min-h-screen flex items-center"
+      className="bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-900 py-24 px-6 min-h-screen flex items-center"
     >
       <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center">
 
@@ -131,7 +131,7 @@ export function LoginSection() {
         {/* Right column — login card */}
         <div className="bg-white rounded-3xl p-10 sm:p-12 shadow-[0_40px_80px_rgba(0,0,0,0.4)]">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#5b7fa6] to-[#7b6fa6] flex items-center justify-center text-2xl mx-auto mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-2xl mx-auto mb-4">
               🤖
             </div>
             <h3 className="text-2xl font-black text-slate-900">Sign In</h3>
@@ -164,7 +164,7 @@ export function LoginSection() {
                   type="email"
                   {...register("email")}
                   placeholder="recruiter@company.com"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 text-sm outline-none focus:border-[#5b7fa6] focus:ring-2 focus:ring-[#5b7fa6]/20 transition placeholder:text-slate-400"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition placeholder:text-slate-400"
                 />
                 {errors.email && (
                   <span className="mt-1 block text-xs text-rose-600">{errors.email.message}</span>
@@ -176,7 +176,7 @@ export function LoginSection() {
                   <span className="text-sm font-medium text-slate-700">Password</span>
                   <a
                     href="/login"
-                    className="text-xs font-medium text-[#5b7fa6] hover:text-[#4a6d8f] underline underline-offset-2 transition"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 transition"
                   >
                     Forgot password?
                   </a>
@@ -185,7 +185,7 @@ export function LoginSection() {
                   type="password"
                   {...register("password")}
                   placeholder="Enter your password"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 text-sm outline-none focus:border-[#5b7fa6] focus:ring-2 focus:ring-[#5b7fa6]/20 transition placeholder:text-slate-400"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition placeholder:text-slate-400"
                 />
                 {errors.password && (
                   <span className="mt-1 block text-xs text-rose-600">{errors.password.message}</span>
@@ -195,7 +195,7 @@ export function LoginSection() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white font-bold shadow-lg shadow-[#5b7fa6]/30 hover:shadow-[#5b7fa6]/50 hover:-translate-y-px transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 hover:-translate-y-px transition-all disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {isLoading ? "Sending OTP..." : "Continue"}
                 {!isLoading && <ArrowRight className="h-4 w-4" />}
@@ -227,7 +227,7 @@ export function LoginSection() {
                 <input
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center tracking-[0.35em] text-slate-900 text-sm outline-none focus:border-[#5b7fa6] focus:ring-2 focus:ring-[#5b7fa6]/20 transition"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center tracking-[0.35em] text-slate-900 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
                   placeholder="000000"
                   inputMode="numeric"
                   aria-label="OTP code"
@@ -237,7 +237,7 @@ export function LoginSection() {
                 type="button"
                 onClick={() => void onVerifyOtp()}
                 disabled={isVerifyingOtp}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#5b7fa6] to-[#7b6fa6] text-white font-bold shadow-lg shadow-[#5b7fa6]/30 hover:-translate-y-px transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-lg shadow-blue-600/30 hover:-translate-y-px transition-all disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {isVerifyingOtp ? "Verifying..." : "Verify OTP"}
                 {!isVerifyingOtp && <ArrowRight className="h-4 w-4" />}
@@ -262,7 +262,7 @@ export function LoginSection() {
 
           <p className="mt-6 text-center text-sm text-slate-500">
             No account?{" "}
-            <a href="/register" className="font-semibold text-[#5b7fa6] hover:text-[#4a6d8f] transition underline underline-offset-2">
+            <a href="/register" className="font-semibold text-blue-600 hover:text-blue-700 transition underline underline-offset-2">
               Create one
             </a>
           </p>
