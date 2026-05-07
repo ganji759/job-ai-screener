@@ -8,6 +8,7 @@ import {
   Bell,
   Brain,
   Briefcase,
+  Building2,
   CalendarCheck,
   FileBarChart2,
   LayoutGrid,
@@ -34,8 +35,9 @@ const primaryLinks = [
 ] as const;
 
 const secondaryLinks = [
-  { href: "/notifications", label: "Notifications", icon: Bell, showBadge: true },
-  { href: "/settings", label: "Settings", icon: Settings, showBadge: false },
+  { href: "/notifications",  label: "Notifications", icon: Bell,      showBadge: true  },
+  { href: "/settings",       label: "Settings",      icon: Settings,  showBadge: false },
+  { href: "/settings/org",   label: "Organisation",  icon: Building2, showBadge: false },
 ] as const;
 
 const appleSans = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
