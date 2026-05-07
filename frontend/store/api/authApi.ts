@@ -53,7 +53,7 @@ export const authApi = baseApi.injectEndpoints({
     }),
     register: builder.mutation<
       { token: string; user: User; otpSent?: boolean; warning?: string },
-      { name: string; email: string; password: string }
+      { name: string; email: string; password: string; orgName?: string }
     >({
       query: (body) => ({ url: "/auth/register", method: "post", data: body }),
     }),

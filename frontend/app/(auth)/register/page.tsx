@@ -14,6 +14,7 @@ import { setToken } from "../../../lib/auth";
 
 const schema = z
   .object({
+    orgName: z.string().min(2, "Organisation name must be at least 2 characters"),
     name: z.string().min(2),
     email: z.email(),
     password: z.string().min(8),
@@ -32,7 +33,7 @@ export default function RegisterPage() {
   const onSubmit = async (values: FormValues) => {
     setFeedback(null);
     try {
-      const result = await registerUser({ name: values.name, email: values.email, password: values.password }).unwrap();
+      const result = await registerUser({ name: values.name, email: values.email, password: values.password, orgName: values.orgName }).unwrap();
       setToken(result.token);
       setFeedback({ type: "success", text: "Account created successfully. Redirecting to dashboard..." });
       toast.success("Registration successful.");
@@ -97,6 +98,15 @@ export default function RegisterPage() {
               </div>
             ) : null}
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-white/90">Organisation name</span>
+                <input
+                  {...register("orgName")}
+                  className="w-full rounded-full border border-white/35 bg-white/15 px-5 py-3 text-white outline-none transition placeholder:text-white/50 focus:border-white focus:ring-2 focus:ring-sky-300/50"
+                  placeholder="Acme Corp"
+                />
+                {errors.orgName?.message ? <span className="mt-1 block text-xs text-rose-200">{errors.orgName.message}</span> : null}
+              </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-white/90">Full name</span>
                 <input
