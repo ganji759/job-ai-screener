@@ -12,6 +12,7 @@ const InterviewSchema = new Schema(
     jobId:          { type: Schema.Types.ObjectId, ref: "Job", required: true },
     screeningId:    { type: Schema.Types.ObjectId, ref: "Screening", required: false },
     recruiterId:    { type: Schema.Types.ObjectId, ref: "User", required: true },
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization" },
     candidateName:  { type: String, required: true },
     candidateEmail: { type: String, required: true },
     jobTitle:       { type: String, required: true },
@@ -27,6 +28,7 @@ const InterviewSchema = new Schema(
   { timestamps: true },
 );
 
+InterviewSchema.index({ organizationId: 1, createdAt: -1 });
 InterviewSchema.index({ recruiterId: 1, createdAt: -1 });
 InterviewSchema.index({ screeningId: 1 });
 InterviewSchema.index({ applicantId: 1 });

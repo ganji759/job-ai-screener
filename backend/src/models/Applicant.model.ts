@@ -11,7 +11,8 @@
  * - **`csv_upload` / `pdf_upload`**: normalized **`UmuravaProfile`** from `normalizeProfile()` (legacy flat skills, etc.).
  */
 const ApplicantSchema = new Schema({
-  jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
+  jobId:          { type: Schema.Types.ObjectId, ref: "Job", required: true },
+  organizationId: { type: Schema.Types.ObjectId, ref: "Organization" },
   source: { type: String, enum: ["umurava_platform", "csv_upload", "pdf_upload"], required: true },
   profile: { type: Schema.Types.Mixed, required: true },
   rawText: String,
@@ -21,5 +22,6 @@ const ApplicantSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: false });
 
+ApplicantSchema.index({ organizationId: 1, status: 1 });
 ApplicantSchema.index({ jobId: 1, status: 1 });
 export const ApplicantModel = model("Applicant", ApplicantSchema);

@@ -36,8 +36,8 @@ const UpdateInterviewSchema = z.object({
   notes:         z.string().max(2000).optional(),
 });
 
-const userId = (req: FastifyRequest): string =>
-  (req.user as { userId: string }).userId;
+const userId  = (req: FastifyRequest): string => (req.user as { userId: string }).userId;
+const orgId   = (req: FastifyRequest): string => (req.user as { orgId: string }).orgId;
 
 export const createInterviewHandler = async (req: FastifyRequest, reply: FastifyReply) => {
   const parsed = CreateInterviewSchema.safeParse(req.body);
@@ -45,12 +45,16 @@ export const createInterviewHandler = async (req: FastifyRequest, reply: Fastify
     return reply.code(400).send({ data: null, error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message } });
   }
 
-  const recruiterId = userId(req);
+  const recruiterId     = userId(req);
+  const organizationId  = orgId(req);
+  if (!organizationId) return reply.code(401).send({ data: null, error: { code: "NO_ORG", message: "No organization context" } });
+
   const recruiter = await UserModel.findById(recruiterId).lean();
 
   const interview = await createInterview({
     ...parsed.data,
     recruiterId,
+    organizationId,
     recruiterName:  recruiter?.name ?? "Recruiter",
     recruiterEmail: recruiter?.email ?? "",
     meetingLink:    parsed.data.meetingLink ?? undefined,
@@ -63,7 +67,7 @@ export const createInterviewHandler = async (req: FastifyRequest, reply: Fastify
 export const listInterviewsHandler = async (req: FastifyRequest, reply: FastifyReply) => {
   const q = req.query as Record<string, string>;
   const result = await listInterviews({
-    recruiterId: userId(req),
+    organizationId: orgId(req),
     screeningId: q.screeningId,
     status:      q.status,
     page:        q.page ? Number(q.page) : 1,
@@ -74,7 +78,7 @@ export const listInterviewsHandler = async (req: FastifyRequest, reply: FastifyR
 
 export const getInterviewHandler = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
-  const interview = await getInterview(id, userId(req));
+  const interview = await getInterview(id, orgId(req));
   if (!interview) return reply.code(404).send({ data: null, error: { code: "NOT_FOUND", message: "Interview not found" } });
   return reply.send({ data: interview, error: null });
 };
@@ -85,7 +89,7 @@ export const updateInterviewHandler = async (req: FastifyRequest, reply: Fastify
   if (!parsed.success) {
     return reply.code(400).send({ data: null, error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message } });
   }
-  const updated = await updateInterview(id, userId(req), {
+  const updated = await updateInterview(id, orgId(req), {
     ...parsed.data,
     meetingLink: parsed.data.meetingLink ?? undefined,
   });
@@ -95,7 +99,7 @@ export const updateInterviewHandler = async (req: FastifyRequest, reply: Fastify
 
 export const deleteInterviewHandler = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
-  const deleted = await deleteInterview(id, userId(req));
+  const deleted = await deleteInterview(id, orgId(req), userId(req));
   if (!deleted) return reply.code(404).send({ data: null, error: { code: "NOT_FOUND", message: "Interview not found" } });
   return reply.send({ data: { deleted: true }, error: null });
 };

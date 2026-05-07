@@ -77,7 +77,7 @@ const buildWhyNotShortlisted = (profile: Record<string, unknown>, requiredSkills
 
 const buildScreeningExplanationsData = async (
   screeningId: string,
-  recruiterId: string | undefined,
+  orgId: string | undefined,
 ): Promise<{
   screeningId: string;
   jobId: string;
@@ -86,9 +86,9 @@ const buildScreeningExplanationsData = async (
   rejectedCandidateInsights: Array<Record<string, unknown>>;
   generatedAt: string;
 }> => {
-  const screening = await ScreeningModel.findOne({ _id: screeningId, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: screeningId, organizationId: orgId }).lean();
   if (!screening) {
-    throw new Error("Screening not found for this recruiter.");
+    throw new Error("Screening not found.");
   }
   if (!screening.results) {
     throw new Error("Screening results are not ready yet.");
@@ -158,14 +158,14 @@ const executeRunScreening = async (
   jobId: string,
   shortlistSize: 10 | 20,
 ): Promise<void> => {
-  const job = await JobModel.findOne({ _id: jobId, recruiterId: request.user?.userId }).lean();
+  const job = await JobModel.findOne({ _id: jobId, organizationId: request.user?.orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
   const count = await ApplicantModel.countDocuments({ jobId, status: "pending" });
   if (count < shortlistSize) return void reply.code(400).send({ error: "Not enough applicants" });
   const active = await ScreeningModel.findOne({ jobId, status: { $in: ["queued", "running"] } }).lean();
   if (active) return void reply.code(400).send({ error: "Active screening already exists" });
 
-  const screening = await ScreeningModel.create({ jobId, recruiterId: request.user?.userId, status: "queued", shortlistSize });
+  const screening = await ScreeningModel.create({ jobId, recruiterId: request.user?.userId, organizationId: request.user?.orgId, status: "queued", shortlistSize });
   const qJob = await addScreeningJob({ screeningId: String(screening._id), jobId, shortlistSize, recruiterId: request.user?.userId ?? "" });
   await ScreeningModel.findByIdAndUpdate(screening._id, { queueJobId: String(qJob.id) });
   if (request.user?.userId) {
@@ -211,10 +211,11 @@ const persistSyncScreening = async (
   reply: FastifyReply,
   opts: { jobId: string; shortlistSize: 10 | 20; applicantExtraFilter: Record<string, unknown> },
 ): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
-  const job = await JobModel.findOne({ _id: opts.jobId, recruiterId }).lean();
+  const job = await JobModel.findOne({ _id: opts.jobId, organizationId: orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
 
   const applicants = await ApplicantModel.find({ jobId: opts.jobId, ...opts.applicantExtraFilter }).lean();
@@ -241,6 +242,7 @@ const persistSyncScreening = async (
   const screeningDoc = await ScreeningModel.create({
     jobId: opts.jobId,
     recruiterId,
+    organizationId: orgId,
     status: "running",
     shortlistSize: opts.shortlistSize,
     pipeline: "external_upload_sync",
@@ -306,8 +308,9 @@ const persistUmuravaPlatformScreening = async (
   reply: FastifyReply,
   opts: { jobId: string; shortlistSize: 10 | 20 },
 ): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   const started = Date.now();
   let data: Awaited<ReturnType<typeof screenFromUmuravaPlatformJob>>;
@@ -502,9 +505,10 @@ export const syncExternalScreening = async (request: FastifyRequest, reply: Fast
 
 /** GET /api/v1/screenings — list screenings for the authenticated recruiter (newest first). */
 export const listScreenings = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
-  const list = await ScreeningModel.find({ recruiterId }).sort({ createdAt: -1 }).lean();
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
+  const list = await ScreeningModel.find({ organizationId: orgId }).sort({ createdAt: -1 }).lean();
   const jobIds = [...new Set(list.map((s) => String(s.jobId)))];
   const jobs = await JobModel.find({ _id: { $in: jobIds } }).lean();
   const jobById = new Map(jobs.map((j) => [String(j._id), j]));
@@ -554,10 +558,8 @@ export const listScreenings = async (request: FastifyRequest, reply: FastifyRepl
  * Body: `{ [applicantMongoId]: { decision, hrNote, decidedAt?, aiLabel? } }`
  */
 export const saveRecruiterDecisions = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId || !Types.ObjectId.isValid(recruiterId)) {
-    return void reply.code(401).send({ error: "Unauthorized" });
-  }
+  const orgId = request.user?.orgId;
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
   const { id } = request.params as { id: string };
   if (!Types.ObjectId.isValid(id)) {
     return void reply.code(400).send({ error: "Invalid screening id" });
@@ -568,8 +570,7 @@ export const saveRecruiterDecisions = async (request: FastifyRequest, reply: Fas
     const message = first ? `${String(first.path[0] ?? "body")}: ${first.message}` : "Invalid request body";
     return void reply.code(400).send({ error: "Invalid body", message, details: parsed.error.issues });
   }
-  // Match the same { _id, recruiterId } filter shape as getScreeningResults (string ids; let Mongoose cast to ObjectId).
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId });
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: orgId });
   if (!screening) {
     return void reply.code(404).send({ error: "Screening not found" });
   }
@@ -581,7 +582,7 @@ export const saveRecruiterDecisions = async (request: FastifyRequest, reply: Fas
   const merged = mergeRecruiterDecisionRecords(current, parsed.data);
   // Mixed fields are not always persisted by `save()`; `$set` always writes the document.
   const upd = await ScreeningModel.updateOne(
-    { _id: id, recruiterId },
+    { _id: id, organizationId: orgId },
     { $set: { recruiterDecisions: merged } },
   );
   if (upd.matchedCount === 0) {
@@ -608,10 +609,8 @@ export const saveRecruiterDecisions = async (request: FastifyRequest, reply: Fas
  * Body: `{ message: string, subject?: string }`
  */
 export const sendAcceptanceEmails = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId || !Types.ObjectId.isValid(recruiterId)) {
-    return void reply.code(401).send({ error: "Unauthorized" });
-  }
+  const recruiterId = request.user?.userId ?? "";
+  if (!request.user?.orgId) return void reply.code(401).send({ error: "No organization context" });
   const { id } = request.params as { id: string };
   if (!Types.ObjectId.isValid(id)) {
     return void reply.code(400).send({ error: "Invalid screening id" });
@@ -647,10 +646,11 @@ export const sendAcceptanceEmails = async (request: FastifyRequest, reply: Fasti
 /** GET /api/v1/screenings/:id/results — ranked shortlist shaped for the Next.js dashboard (`ranked`, legacy applicant envelope). */
 export const getScreeningResults = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { id } = request.params as { id: string };
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: request.user?.orgId }).lean();
   if (!screening) return void reply.code(404).send({ error: "Screening not found" });
   if (screening.status !== "completed") {
     return void reply.code(400).send({ error: "Screening not complete" });
@@ -866,13 +866,14 @@ const buildShortlistExportCsv = (
 
 export const exportScreening = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { id } = request.params as { id: string };
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   const body = (request.body as { format?: string } | undefined) ?? {};
   const format = String(body.format ?? "pdf").toLowerCase();
 
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: request.user?.orgId }).lean();
   if (!screening?.results) return void reply.code(404).send({ error: "Completed screening not found" });
   const job = await JobModel.findById(screening.jobId).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
@@ -997,8 +998,9 @@ const AiChatBodySchema = z.object({
  * HR decision) so the recruiter can interrogate a specific shortlisted candidate.
  */
 export const candidateAiChat = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   const { id } = request.params as { id: string };
   if (!Types.ObjectId.isValid(id)) return void reply.code(400).send({ error: "Invalid screening id" });
@@ -1010,7 +1012,7 @@ export const candidateAiChat = async (request: FastifyRequest, reply: FastifyRep
   }
   const { candidateId, message, history } = parsed.data;
 
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: request.user?.orgId }).lean();
   if (!screening || screening.status !== "completed") {
     return void reply.code(404).send({ error: "Screening not found or not completed" });
   }
@@ -1115,8 +1117,9 @@ const AdvisoryBodySchema = z.object({
  * recruiter can ask comparative questions (who to hire, common gaps, red flags, etc.).
  */
 export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  const recruiterId = request.user?.userId ?? "";
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   const { id } = request.params as { id: string };
   if (!Types.ObjectId.isValid(id)) return void reply.code(400).send({ error: "Invalid screening id" });
@@ -1128,7 +1131,7 @@ export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyRe
   }
   const { message, history } = parsed.data;
 
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: request.user?.orgId }).lean();
   if (!screening || screening.status !== "completed") {
     return void reply.code(404).send({ error: "Screening not found or not completed" });
   }
@@ -1220,9 +1223,9 @@ export const poolAdvisoryChat = async (request: FastifyRequest, reply: FastifyRe
 
 export const getAcceptedCandidates = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { id } = req.params as { id: string };
-  const recruiterId = (req.user as { userId: string }).userId;
+  const orgId = (req.user as { orgId?: string }).orgId;
 
-  const screening = await ScreeningModel.findOne({ _id: id, recruiterId }).lean();
+  const screening = await ScreeningModel.findOne({ _id: id, organizationId: orgId }).lean();
   if (!screening) {
     void reply.code(404).send({ data: null, error: { code: "NOT_FOUND", message: "Screening not found" } });
     return;

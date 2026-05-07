@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { Schema, model, type HydratedDocument } from "mongoose";
+import { Schema, model, type HydratedDocument, type Types } from "mongoose";
 
 export interface IGoogleTokens {
   accessToken: string;  // AES-256-GCM encrypted
@@ -12,6 +12,8 @@ export interface IUser {
   password: string;
   name: string;
   role: "recruiter" | "admin";
+  organizationId?: Types.ObjectId | string;
+  orgRole: "owner" | "admin" | "recruiter" | "viewer";
   googleTokens?: IGoogleTokens;
   comparePassword(plain: string): Promise<boolean>;
 }
@@ -29,11 +31,13 @@ const GoogleTokensSchema = new Schema<IGoogleTokens>(
 
 const UserSchema = new Schema<IUser>(
   {
-    email:        { type: String, required: true, unique: true, trim: true, lowercase: true },
-    password:     { type: String, required: true },
-    name:         { type: String, required: true, trim: true },
-    role:         { type: String, enum: ["recruiter", "admin"], default: "recruiter" },
-    googleTokens: { type: GoogleTokensSchema, required: false },
+    email:          { type: String, required: true, unique: true, trim: true, lowercase: true },
+    password:       { type: String, required: true },
+    name:           { type: String, required: true, trim: true },
+    role:           { type: String, enum: ["recruiter", "admin"], default: "recruiter" },
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
+    orgRole:        { type: String, enum: ["owner", "admin", "recruiter", "viewer"], default: "owner" },
+    googleTokens:   { type: GoogleTokensSchema, required: false },
   },
   { timestamps: true },
 );

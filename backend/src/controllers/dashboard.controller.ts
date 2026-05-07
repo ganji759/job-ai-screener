@@ -79,11 +79,11 @@ const normSkill = (s: unknown): string | null => {
 };
 
 export const dashboardAnalytics = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   // 1. Jobs owned by this recruiter --------------------------------------------------------------
-  const jobs = await JobModel.find({ recruiterId })
+  const jobs = await JobModel.find({ organizationId: orgId })
     .select("_id title status requirements createdAt")
     .lean();
   const jobIds = jobs.map((j) => j._id as Types.ObjectId);
@@ -182,7 +182,7 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
   const totalScreened = totalShortlisted + totalRejected + (statusMap.get("screened") ?? 0);
 
   // 3. Screenings --------------------------------------------------------------------------------
-  const screenings = await ScreeningModel.find({ recruiterId })
+  const screenings = await ScreeningModel.find({ organizationId: orgId })
     .sort({ createdAt: -1 })
     .select("_id jobId status results durationMs createdAt updatedAt")
     .lean();
@@ -323,7 +323,7 @@ export const dashboardAnalytics = async (request: FastifyRequest, reply: Fastify
   });
 
   // 7. HR vs AI confusion matrix ----------------------------------------------------------------
-  const screeningsWithDecisions = await ScreeningModel.find({ recruiterId, status: "completed" })
+  const screeningsWithDecisions = await ScreeningModel.find({ organizationId: orgId, status: "completed" })
     .select("_id jobId results recruiterDecisions")
     .lean();
 

@@ -19,7 +19,8 @@ const JobSchema = new Schema({
   company: { type: String, trim: true },
   description: { type: String, required: true },
   requirements: { type: JobRequirementsSchema, required: true },
-  recruiterId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  recruiterId:    { type: Schema.Types.ObjectId, ref: "User", required: true },
+  organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true },
   status: { type: String, enum: ["draft", "active", "closed"], default: "active" },
 }, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
@@ -30,5 +31,6 @@ JobSchema.virtual("applicantCount", {
   count: true,
 });
 
-JobSchema.index({ recruiterId: 1, status: 1 });
+JobSchema.index({ organizationId: 1, status: 1 });
+JobSchema.index({ recruiterId: 1 });
 export const JobModel = model("Job", JobSchema);

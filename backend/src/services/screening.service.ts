@@ -231,6 +231,7 @@ export interface AgentShortlistCandidate extends CandidateResult {
 export async function runScreeningForJobAgent(params: {
   jobId: string;
   recruiterId: string;
+  organizationId?: string;
   shortlistSize?: 10 | 20;
 }): Promise<{
   screeningId: string;
@@ -242,7 +243,10 @@ export async function runScreeningForJobAgent(params: {
   shortlist: AgentShortlistCandidate[];
 }> {
   const shortlistSize = params.shortlistSize ?? 10;
-  const job = await JobModel.findOne({ _id: params.jobId, recruiterId: params.recruiterId }).lean();
+  const jobFilter: Record<string, unknown> = { _id: params.jobId };
+  if (params.organizationId) jobFilter.organizationId = params.organizationId;
+  else jobFilter.recruiterId = params.recruiterId;
+  const job = await JobModel.findOne(jobFilter).lean();
   if (!job) throw new Error("Job not found or access denied.");
 
   const applicants = await ApplicantModel.find({

@@ -24,13 +24,16 @@ export async function agentChatHandler(req: FastifyRequest, reply: FastifyReply)
   }
 
   const { message, history } = parsed.data;
-  const recruiterId = String((req as unknown as { user: { userId: string } }).user.userId);
+  const user = (req as unknown as { user: { userId: string; orgId: string } }).user;
+  const recruiterId    = String(user.userId);
+  const organizationId = String(user.orgId ?? "");
 
   try {
     const { reply: agentReply, toolCalls } = await runAgentChat(
       message,
       history as AgentMessage[],
       recruiterId,
+      organizationId,
     );
     return reply.send({ reply: agentReply, toolCalls });
   } catch (err) {

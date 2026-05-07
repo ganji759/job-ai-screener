@@ -69,7 +69,7 @@ const ExternalIngestSchema = z
 
 export const ingestApplicants = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const body = IngestSchema.parse(request.body);
-  const job = await JobModel.findOne({ _id: body.jobId, recruiterId: request.user?.userId }).lean();
+  const job = await JobModel.findOne({ _id: body.jobId, organizationId: request.user?.orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
   const errors: Array<{ index: number; message: string }> = [];
   const validProfiles: unknown[] = [];
@@ -116,7 +116,7 @@ export const uploadApplicants = async (request: FastifyRequest, reply: FastifyRe
     if (!["pdf", "csv", "excel"].includes(fileType)) {
       return void sendUploadError(reply, 400, "fileType must be pdf, csv, or excel");
     }
-    const job = await JobModel.findOne({ _id: jobId, recruiterId: request.user?.userId }).lean();
+    const job = await JobModel.findOne({ _id: jobId, organizationId: request.user?.orgId }).lean();
     if (!job) return void sendUploadError(reply, 404, "Job not found");
     const parsed =
       fileType === "pdf" ? [await parsePDF(buffer)] : fileType === "excel" ? await parseExcel(buffer) : await parseCSV(buffer);
@@ -152,7 +152,7 @@ export const uploadApplicants = async (request: FastifyRequest, reply: FastifyRe
 
 export const externalIngestApplicants = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const body = ExternalIngestSchema.parse(request.body);
-  const job = await JobModel.findOne({ _id: body.jobId, recruiterId: request.user?.userId }).lean();
+  const job = await JobModel.findOne({ _id: body.jobId, organizationId: request.user?.orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
 
   const fromSheet = (body.spreadsheetRows ?? []).map((row) => normalizeProfile(row));
@@ -191,8 +191,8 @@ export const externalIngestApplicants = async (request: FastifyRequest, reply: F
 };
 
 export const listApplicants = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const recruiterId = request.user?.userId;
-  if (!recruiterId) return void reply.code(401).send({ error: "Unauthorized" });
+  const orgId = request.user?.orgId;
+  if (!orgId) return void reply.code(401).send({ error: "No organization context" });
 
   const qs = request.query as Record<string, string>;
   const jobIdRaw = qs.jobId?.trim();
@@ -206,14 +206,9 @@ export const listApplicants = async (request: FastifyRequest, reply: FastifyRepl
 
   let filter: Record<string, unknown>;
   if (!jobIdRaw || jobIdRaw === "all") {
-    const owned = await JobModel.find({ recruiterId }).select("_id").lean();
-    const ids = owned.map((j) => j._id);
-    if (ids.length === 0) {
-      return void reply.send({ applicants: [], total: 0, page: 1, totalPages: 0 });
-    }
-    filter = { jobId: { $in: ids } };
+    filter = { organizationId: orgId };
   } else {
-    const job = await JobModel.findOne({ _id: jobIdRaw, recruiterId }).lean();
+    const job = await JobModel.findOne({ _id: jobIdRaw, organizationId: orgId }).lean();
     if (!job) return void reply.code(404).send({ error: "Job not found" });
     filter = { jobId: jobIdRaw };
   }
@@ -241,13 +236,13 @@ export const listApplicants = async (request: FastifyRequest, reply: FastifyRepl
   reply.send({ applicants: formatted, total, page: p, totalPages: Math.ceil(total / l) });
 };
 
-const assertJobOwned = async (jobId: string, recruiterId: string | undefined) =>
-  JobModel.findOne({ _id: jobId, recruiterId }).lean();
+const assertJobOwned = async (jobId: string, orgId: string | undefined) =>
+  JobModel.findOne({ _id: jobId, organizationId: orgId }).lean();
 
 /** GET /api/v1/jobs/:jobId/applicants — same list payload as GET /applicants?jobId=…; supports offset (frontend) or page. */
 export const listApplicantsForJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { jobId } = request.params as { jobId: string };
-  const job = await assertJobOwned(jobId, request.user?.userId);
+  const job = await assertJobOwned(jobId, request.user?.orgId);
   if (!job) return void reply.code(404).send({ error: "Job not found" });
 
   const q = request.query as Record<string, string>;
@@ -274,7 +269,7 @@ const IngestForJobSchema = z.object({ profiles: z.array(z.record(z.string(), z.u
 /** POST /api/v1/jobs/:jobId/applicants — body is `{ profiles }` only; job id comes from the URL. */
 export const ingestApplicantsForJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const { jobId } = request.params as { jobId: string };
-  const job = await assertJobOwned(jobId, request.user?.userId);
+  const job = await assertJobOwned(jobId, request.user?.orgId);
   if (!job) return void reply.code(404).send({ error: "Job not found" });
 
   const body = IngestForJobSchema.parse(request.body);
@@ -325,7 +320,7 @@ export const uploadApplicantsForJob = async (request: FastifyRequest, reply: Fas
     if (!["pdf", "csv", "excel"].includes(fileType)) {
       return void sendUploadError(reply, 400, "fileType must be pdf, csv, or excel");
     }
-    const job = await JobModel.findOne({ _id: jobId, recruiterId: request.user?.userId }).lean();
+    const job = await JobModel.findOne({ _id: jobId, organizationId: request.user?.orgId }).lean();
     if (!job) return void sendUploadError(reply, 404, "Job not found");
     const parsed =
       fileType === "pdf" ? [await parsePDF(buffer)] : fileType === "excel" ? await parseExcel(buffer) : await parseCSV(buffer);

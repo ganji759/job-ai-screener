@@ -10,20 +10,37 @@ import { notifyUser } from "../services/notification.service";
 const JobSchema = z.object({ title: z.string(), company: z.string().optional(), description: z.string(), requirements: z.record(z.string(), z.unknown()) }).strip();
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const userId = request.user?.userId;
-  if (!userId || !Types.ObjectId.isValid(userId)) {
-    return void reply.code(401).send({ error: "Unauthorized" });
+const assertOrgId = (request: FastifyRequest, reply: FastifyReply): string | null => {
+  const orgId = request.user?.orgId;
+  if (!orgId || !Types.ObjectId.isValid(orgId)) {
+    void reply.code(401).send({ error: "No organization context" });
+    return null;
   }
+  return orgId;
+};
+
+const assertJobObjectId = (id: string, reply: FastifyReply): Types.ObjectId | null => {
+  if (!Types.ObjectId.isValid(id)) {
+    void reply.code(400).send({ error: "Invalid job id" });
+    return null;
+  }
+  return new Types.ObjectId(id);
+};
+
+export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const orgId = assertOrgId(request, reply);
+  if (!orgId) return;
 
   const queryParams = request.query as Record<string, unknown>;
   const status = typeof queryParams.status === "string" ? queryParams.status : undefined;
   const search = typeof queryParams.search === "string" ? queryParams.search.trim() : "";
   const pageRaw = typeof queryParams.page === "string" ? queryParams.page : undefined;
   const limitRaw = typeof queryParams.limit === "string" ? queryParams.limit : undefined;
-  const query: Record<string, unknown> = { recruiterId: new Types.ObjectId(userId) };
+
+  const query: Record<string, unknown> = { organizationId: new Types.ObjectId(orgId) };
   if (status) query.status = status;
   if (search) query.title = { $regex: escapeRegex(search), $options: "i" };
+
   const p = Math.max(1, Math.floor(Number(pageRaw)) || 1);
   const l = Math.min(100, Math.max(1, Math.floor(Number(limitRaw)) || 20));
   const [jobs, total] = await Promise.all([
@@ -38,23 +55,27 @@ export const listJobs = async (request: FastifyRequest, reply: FastifyReply): Pr
       { $match: { jobId: { $in: jobIds } } },
       { $group: { _id: "$jobId", n: { $sum: 1 } } },
     ]);
-    for (const row of rows) {
-      countByJobId.set(String(row._id), row.n);
-    }
+    for (const row of rows) countByJobId.set(String(row._id), row.n);
   }
 
-  const jobsWithCounts = jobs.map((job) => ({
-    ...job,
-    applicantCount: countByJobId.get(String(job._id)) ?? 0,
-  }));
-
-  reply.send({ jobs: jobsWithCounts, total, page: p, totalPages: Math.ceil(total / l) });
+  reply.send({
+    jobs: jobs.map((job) => ({ ...job, applicantCount: countByJobId.get(String(job._id)) ?? 0 })),
+    total,
+    page: p,
+    totalPages: Math.ceil(total / l),
+  });
 };
 
 export const createJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const orgId = assertOrgId(request, reply);
+  if (!orgId) return;
   const body = JobSchema.parse(request.body);
-  /** New jobs from the "Create job" flow are open for applicants and screening — not a draft. */
-  const job = await JobModel.create({ ...body, recruiterId: request.user?.userId, status: "active" });
+  const job = await JobModel.create({
+    ...body,
+    recruiterId:    request.user!.userId,
+    organizationId: orgId,
+    status: "active",
+  });
   if (request.user?.userId) {
     await notifyUser({
       userId: request.user.userId,
@@ -67,38 +88,21 @@ export const createJob = async (request: FastifyRequest, reply: FastifyReply): P
   reply.code(201).send(job);
 };
 
-const assertRecruiterId = (request: FastifyRequest, reply: FastifyReply): Types.ObjectId | null => {
-  const userId = request.user?.userId;
-  if (!userId || !Types.ObjectId.isValid(userId)) {
-    void reply.code(401).send({ error: "Unauthorized" });
-    return null;
-  }
-  return new Types.ObjectId(userId);
-};
-
-const assertJobObjectId = (id: string, reply: FastifyReply): Types.ObjectId | null => {
-  if (!Types.ObjectId.isValid(id)) {
-    void reply.code(400).send({ error: "Invalid job id" });
-    return null;
-  }
-  return new Types.ObjectId(id);
-};
-
 export const getJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const rid = assertRecruiterId(request, reply);
-  if (!rid) return;
+  const orgId = assertOrgId(request, reply);
+  if (!orgId) return;
   const { id } = request.params as { id: string };
   const jobOid = assertJobObjectId(id, reply);
   if (!jobOid) return;
-  const job = await JobModel.findOne({ _id: jobOid, recruiterId: rid }).lean();
+  const job = await JobModel.findOne({ _id: jobOid, organizationId: orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
   const applicantCount = await ApplicantModel.countDocuments({ jobId: id });
   reply.send({ ...job, applicantCount });
 };
 
 export const updateJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const rid = assertRecruiterId(request, reply);
-  if (!rid) return;
+  const orgId = assertOrgId(request, reply);
+  if (!orgId) return;
   const { id } = request.params as { id: string };
   const jobOid = assertJobObjectId(id, reply);
   if (!jobOid) return;
@@ -111,25 +115,24 @@ export const updateJob = async (request: FastifyRequest, reply: FastifyReply): P
     })
     .strip()
     .parse(request.body);
-  const updated = await JobModel.findOneAndUpdate({ _id: jobOid, recruiterId: rid }, patch, { new: true }).lean();
+  const updated = await JobModel.findOneAndUpdate({ _id: jobOid, organizationId: orgId }, patch, { new: true }).lean();
   if (!updated) return void reply.code(404).send({ error: "Job not found" });
   reply.send(updated);
 };
 
 export const deleteJob = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-  const rid = assertRecruiterId(request, reply);
-  if (!rid) return;
+  const orgId = assertOrgId(request, reply);
+  if (!orgId) return;
   const { id } = request.params as { id: string };
   const jobOid = assertJobObjectId(id, reply);
   if (!jobOid) return;
 
-  const job = await JobModel.findOne({ _id: jobOid, recruiterId: rid }).lean();
+  const job = await JobModel.findOne({ _id: jobOid, organizationId: orgId }).lean();
   if (!job) return void reply.code(404).send({ error: "Job not found" });
 
   const activeScreening = await ScreeningModel.findOne({ jobId: jobOid, status: "running" }).lean();
-  if (activeScreening) return void reply.code(409).send({ error: "Cannot delete a job while a screening is actively running. Wait for it to complete or fail first." });
+  if (activeScreening) return void reply.code(409).send({ error: "Cannot delete a job while a screening is actively running." });
 
-  // Cascade delete: interviews → applicants → screenings → job
   const [interviews, applicants, screenings] = await Promise.all([
     InterviewModel.deleteMany({ jobId: jobOid }),
     ApplicantModel.deleteMany({ jobId: jobOid }),
@@ -137,14 +140,7 @@ export const deleteJob = async (request: FastifyRequest, reply: FastifyReply): P
   ]);
   await JobModel.deleteOne({ _id: jobOid });
 
-  reply.send({
-    success: true,
-    deleted: {
-      interviews: interviews.deletedCount,
-      applicants: applicants.deletedCount,
-      screenings: screenings.deletedCount,
-    },
-  });
+  reply.send({ success: true, deleted: { interviews: interviews.deletedCount, applicants: applicants.deletedCount, screenings: screenings.deletedCount } });
 };
 
 export const jobStats = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {

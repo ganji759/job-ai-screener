@@ -65,6 +65,7 @@ export type CreateInterviewInput = {
   jobId: string;
   screeningId?: string;
   recruiterId: string;
+  organizationId: string;
   candidateName: string;
   candidateEmail: string;
   jobTitle: string;
@@ -84,11 +85,12 @@ export const createInterview = async (input: CreateInterviewInput) => {
   }));
 
   const interview = await InterviewModel.create({
-    candidateId:    input.candidateId,
-    applicantId:    new Types.ObjectId(input.applicantId),
-    jobId:          new Types.ObjectId(input.jobId),
+    candidateId:     input.candidateId,
+    applicantId:     new Types.ObjectId(input.applicantId),
+    jobId:           new Types.ObjectId(input.jobId),
     ...(input.screeningId ? { screeningId: new Types.ObjectId(input.screeningId) } : {}),
-    recruiterId:    new Types.ObjectId(input.recruiterId),
+    recruiterId:     new Types.ObjectId(input.recruiterId),
+    organizationId:  new Types.ObjectId(input.organizationId),
     candidateName:  input.candidateName,
     candidateEmail: input.candidateEmail,
     jobTitle:       input.jobTitle,
@@ -176,14 +178,14 @@ export const createInterview = async (input: CreateInterviewInput) => {
 };
 
 export const listInterviews = async (params: {
-  recruiterId: string;
+  organizationId: string;
   screeningId?: string;
   status?: string;
   page?: number;
   limit?: number;
 }) => {
-  const { recruiterId, screeningId, status, page = 1, limit = 20 } = params;
-  const filter: Record<string, unknown> = { recruiterId: new Types.ObjectId(recruiterId) };
+  const { organizationId, screeningId, status, page = 1, limit = 20 } = params;
+  const filter: Record<string, unknown> = { organizationId: new Types.ObjectId(organizationId) };
   if (screeningId) filter.screeningId = new Types.ObjectId(screeningId);
   if (status) filter.status = status;
 
@@ -199,12 +201,12 @@ export const listInterviews = async (params: {
   return { interviews, total, page, limit };
 };
 
-export const getInterview = async (id: string, recruiterId: string) =>
-  InterviewModel.findOne({ _id: id, recruiterId: new Types.ObjectId(recruiterId) }).lean();
+export const getInterview = async (id: string, organizationId: string) =>
+  InterviewModel.findOne({ _id: id, organizationId: new Types.ObjectId(organizationId) }).lean();
 
 export const updateInterview = async (
   id: string,
-  recruiterId: string,
+  organizationId: string,
   patch: {
     status?: "pending" | "confirmed" | "cancelled" | "completed";
     confirmedSlot?: { start: string; end: string };
@@ -224,34 +226,34 @@ export const updateInterview = async (
     if (!patch.status) update.status = "confirmed";
   }
   return InterviewModel.findOneAndUpdate(
-    { _id: id, recruiterId: new Types.ObjectId(recruiterId) },
+    { _id: id, organizationId: new Types.ObjectId(organizationId) },
     { $set: update },
     { new: true },
   ).lean();
 };
 
-export const deleteInterview = async (id: string, recruiterId: string) => {
-  // Remove the Google Calendar event first (non-fatal)
+export const deleteInterview = async (id: string, organizationId: string, recruiterId: string) => {
   const interview = await InterviewModel.findOne({
     _id: id,
-    recruiterId: new Types.ObjectId(recruiterId),
+    organizationId: new Types.ObjectId(organizationId),
   }).lean() as { googleCalendarEventId?: string } | null;
 
   if (interview?.googleCalendarEventId && isGoogleConfigured()) {
     await deleteCalendarEvent(recruiterId, interview.googleCalendarEventId);
   }
 
-  const res = await InterviewModel.deleteOne({ _id: id, recruiterId: new Types.ObjectId(recruiterId) });
+  const res = await InterviewModel.deleteOne({ _id: id, organizationId: new Types.ObjectId(organizationId) });
   return res.deletedCount > 0;
 };
 
 export const cancelInterview = async (
   id: string,
+  organizationId: string,
   recruiterId: string,
   reason?: string,
 ): Promise<{ success: boolean; message: string }> => {
   const interview = await InterviewModel.findOneAndUpdate(
-    { _id: id, recruiterId: new Types.ObjectId(recruiterId) },
+    { _id: id, organizationId: new Types.ObjectId(organizationId) },
     { $set: { status: "cancelled" } },
     { new: true },
   ).lean() as { candidateName: string; candidateEmail: string; jobTitle: string; googleCalendarEventId?: string } | null;

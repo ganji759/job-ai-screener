@@ -1,8 +1,9 @@
 ﻿import { Schema, model } from "mongoose";
 
 const ScreeningSchema = new Schema({
-  jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
-  recruiterId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  jobId:          { type: Schema.Types.ObjectId, ref: "Job", required: true },
+  recruiterId:    { type: Schema.Types.ObjectId, ref: "User", required: true },
+  organizationId: { type: Schema.Types.ObjectId, ref: "Organization" },
   status: { type: String, enum: ["queued", "running", "completed", "failed"], default: "queued" },
   shortlistSize: { type: Number, enum: [10, 20], required: true },
   /** How this screening was produced (optional; legacy queued worker may omit). */
@@ -22,5 +23,6 @@ const ScreeningSchema = new Schema({
   recruiterDecisions: { type: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 
+ScreeningSchema.index({ organizationId: 1, status: 1 });
 ScreeningSchema.index({ jobId: 1, status: 1 });
 export const ScreeningModel = model("Screening", ScreeningSchema);

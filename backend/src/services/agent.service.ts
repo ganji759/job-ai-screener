@@ -411,11 +411,12 @@ async function executeTool(
   name: string,
   args: Record<string, unknown>,
   recruiterId: string,
+  organizationId: string,
   sessionCache: Map<string, unknown> = new Map(),
 ): Promise<unknown> {
   switch (name) {
     case "list_jobs": {
-      const filter: Record<string, unknown> = { recruiterId };
+      const filter: Record<string, unknown> = { organizationId };
       if (args.status) filter.status = args.status;
       const limit = Math.min(Number(args.limit ?? 10), 50);
       const jobs = await JobModel.find(filter).lean().limit(limit).sort({ createdAt: -1 });
@@ -430,7 +431,7 @@ async function executeTool(
     }
 
     case "get_job_details": {
-      const job = await JobModel.findOne({ _id: args.jobId, recruiterId }).lean();
+      const job = await JobModel.findOne({ _id: args.jobId, organizationId }).lean();
       if (!job) return { error: "Job not found or access denied." };
       const applicantCount = await ApplicantModel.countDocuments({ jobId: job._id });
       return {
@@ -470,15 +471,7 @@ async function executeTool(
       const nameQuery = String(args.name ?? "").trim();
       if (!nameQuery) return { error: "name is required for search_applicants." };
 
-      // Find all jobs for this recruiter
-      const jobFilter: Record<string, unknown> = {};
-      if (args.jobId) {
-        jobFilter._id = String(args.jobId);
-      } else {
-        const jobs = await JobModel.find({ recruiterId }).select("_id").lean();
-        jobFilter._id = { $in: jobs.map((j) => j._id) };
-      }
-      const jobs = await JobModel.find({ recruiterId, ...( args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
+      const jobs = await JobModel.find({ organizationId, ...(args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
       const jobIds = jobs.map((j) => j._id);
       const jobTitleById = new Map(jobs.map((j) => [String(j._id), j.title]));
 
@@ -510,7 +503,7 @@ async function executeTool(
       const applicant = await ApplicantModel.findById(applicantId).lean();
       if (!applicant) return { error: "Applicant not found." };
 
-      const job = await JobModel.findOne({ _id: applicant.jobId, recruiterId }).select("title").lean();
+      const job = await JobModel.findOne({ _id: applicant.jobId, organizationId }).select("title").lean();
       if (!job) return { error: "Access denied — this applicant is not in one of your jobs." };
 
       const profile = (applicant.profile as Record<string, unknown> | null) ?? {};
@@ -561,7 +554,7 @@ async function executeTool(
       if (!skill) return { error: "skill is required." };
       const limit = Math.min(Number(args.limit ?? 30), 100);
 
-      const jobs = await JobModel.find({ recruiterId, ...(args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
+      const jobs = await JobModel.find({ organizationId, ...(args.jobId ? { _id: String(args.jobId) } : {}) }).select("_id title").lean();
       const jobIds = jobs.map((j) => j._id);
       const jobTitleById = new Map(jobs.map((j) => [String(j._id), j.title]));
 
@@ -599,7 +592,7 @@ async function executeTool(
     }
 
     case "list_screenings": {
-      const filter: Record<string, unknown> = { recruiterId };
+      const filter: Record<string, unknown> = { organizationId };
       if (args.status) filter.status = args.status;
       if (args.jobId) filter.jobId = args.jobId;
       const limit = Math.min(Number(args.limit ?? 10), 50);
@@ -616,7 +609,7 @@ async function executeTool(
     }
 
     case "get_screening_results": {
-      const screening = await ScreeningModel.findOne({ _id: args.screeningId, recruiterId }).lean();
+      const screening = await ScreeningModel.findOne({ _id: args.screeningId, organizationId }).lean();
       if (!screening) return { error: "Screening not found or access denied." };
       if (screening.status !== "completed") return { error: `Screening is not completed yet (status: ${screening.status}).` };
 
@@ -647,7 +640,7 @@ async function executeTool(
     }
 
     case "list_interviews": {
-      const filter: Record<string, unknown> = { recruiterId };
+      const filter: Record<string, unknown> = { organizationId };
       if (args.status) filter.status = args.status;
       const limit = Math.min(Number(args.limit ?? 10), 50);
       const interviews = await InterviewModel.find(filter).lean().limit(limit).sort({ createdAt: -1 });
@@ -667,22 +660,22 @@ async function executeTool(
     case "cancel_interview": {
       const interviewId = String(args.interviewId ?? "").trim();
       if (!interviewId) return { error: "interviewId is required." };
-      return cancelInterview(interviewId, recruiterId, args.reason ? String(args.reason) : undefined);
+      return cancelInterview(interviewId, organizationId, recruiterId, args.reason ? String(args.reason) : undefined);
     }
 
     case "get_pipeline_summary": {
       const [activeJobs, totalJobs, totalApplicants, pendingScreenings, completedScreenings, upcomingInterviews] =
         await Promise.all([
-          JobModel.countDocuments({ recruiterId, status: "active" }),
-          JobModel.countDocuments({ recruiterId }),
+          JobModel.countDocuments({ organizationId, status: "active" }),
+          JobModel.countDocuments({ organizationId }),
           (async () => {
-            const jobs = await JobModel.find({ recruiterId }).select("_id").lean();
+            const jobs = await JobModel.find({ organizationId }).select("_id").lean();
             const jobIds = jobs.map((j) => j._id);
             return ApplicantModel.countDocuments({ jobId: { $in: jobIds } });
           })(),
-          ScreeningModel.countDocuments({ recruiterId, status: { $in: ["queued", "running"] } }),
-          ScreeningModel.countDocuments({ recruiterId, status: "completed" }),
-          InterviewModel.countDocuments({ recruiterId, status: { $in: ["pending", "confirmed"] } }),
+          ScreeningModel.countDocuments({ organizationId, status: { $in: ["queued", "running"] } }),
+          ScreeningModel.countDocuments({ organizationId, status: "completed" }),
+          InterviewModel.countDocuments({ organizationId, status: { $in: ["pending", "confirmed"] } }),
         ]);
       return {
         jobs: { active: activeJobs, total: totalJobs },
@@ -698,6 +691,7 @@ async function executeTool(
       const applicantId = String(args.applicantId);
       const interview = await createInterview({
         recruiterId,
+        organizationId,
         candidateId: applicantId,
         applicantId,
         candidateName: String(args.candidateName),
@@ -728,6 +722,7 @@ async function executeTool(
         description: String(args.description),
         status: (args.status as "draft" | "active" | "closed" | undefined) ?? "active",
         recruiterId,
+        organizationId,
         requirements: {
           title: String(args.title),
           description: String(args.description),
@@ -751,7 +746,7 @@ async function executeTool(
 
     case "update_job_status": {
       const job = await JobModel.findOneAndUpdate(
-        { _id: String(args.jobId), recruiterId },
+        { _id: String(args.jobId), organizationId },
         { $set: { status: args.status as "draft" | "active" | "closed" } },
         { new: true },
       ).lean();
@@ -778,7 +773,7 @@ async function executeTool(
       if (Object.keys(set).length === 0) return { error: "No fields provided to update." };
 
       const job = await JobModel.findOneAndUpdate(
-        { _id: jobId, recruiterId },
+        { _id: jobId, organizationId },
         { $set: set },
         { new: true },
       ).lean();
@@ -793,7 +788,7 @@ async function executeTool(
     }
 
     case "approve_candidate": {
-      const screening = await ScreeningModel.findOne({ _id: String(args.screeningId), recruiterId }).lean();
+      const screening = await ScreeningModel.findOne({ _id: String(args.screeningId), organizationId }).lean();
       if (!screening) return { error: "Screening not found or access denied." };
 
       const applicantId = String(args.applicantId);
@@ -829,7 +824,7 @@ async function executeTool(
       const ingestCacheKey = `ingest_resume:${jobId}:${resumeText.slice(0, 200)}`;
       if (sessionCache.has(ingestCacheKey)) return sessionCache.get(ingestCacheKey);
 
-      const job = await JobModel.findOne({ _id: jobId, recruiterId }).lean();
+      const job = await JobModel.findOne({ _id: jobId, organizationId }).lean();
       if (!job) return { error: "Job not found or access denied." };
 
       // Tier 1: pre-parsed profile cached by extractTextHandler (pdfplumber quality, no re-parse needed)
@@ -872,6 +867,7 @@ async function executeTool(
 
       const applicant = await ApplicantModel.create({
         jobId,
+        organizationId,
         source: "pdf_upload",
         profile,
         rawText: resumeText.slice(0, 10000),
@@ -898,7 +894,7 @@ async function executeTool(
       const screeningCacheKey = `run_screening:${jobId}`;
       if (sessionCache.has(screeningCacheKey)) return sessionCache.get(screeningCacheKey);
       try {
-        const result = await runScreeningForJobAgent({ jobId, recruiterId, shortlistSize });
+        const result = await runScreeningForJobAgent({ jobId, recruiterId, organizationId, shortlistSize });
         const payload = {
           screeningId: result.screeningId,
           jobTitle: result.jobTitle,
@@ -957,6 +953,7 @@ async function runAgentChatViaPython(
   message: string,
   history: AgentMessage[],
   recruiterId: string,
+  organizationId: string,
 ): Promise<{ reply: string; toolCalls: ToolCall[] }> {
   const contents: AgentContent[] = history.map((m) => ({
     role: m.role,
@@ -1005,7 +1002,7 @@ async function runAgentChatViaPython(
       turn.calls.map(async (fc) => {
         let result: unknown;
         try {
-          result = await executeTool(fc.name, fc.args, recruiterId, sessionCache);
+          result = await executeTool(fc.name, fc.args, recruiterId, organizationId, sessionCache);
         } catch (toolErr) {
           result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
         }
@@ -1037,6 +1034,7 @@ async function runAgentChatInProcess(
   message: string,
   history: AgentMessage[],
   recruiterId: string,
+  organizationId: string,
 ): Promise<{ reply: string; toolCalls: ToolCall[] }> {
   // Use only models known to support function calling with the v1 API.
   // gemini-2.5-flash-lite does NOT support tools/systemInstruction in v1 — skip it.
@@ -1089,7 +1087,7 @@ async function runAgentChatInProcess(
         const args = (fc.args ?? {}) as Record<string, unknown>;
         let result: unknown;
         try {
-          result = await executeTool(fc.name, args, recruiterId, sessionCache);
+          result = await executeTool(fc.name, args, recruiterId, organizationId, sessionCache);
         } catch (toolErr) {
           result = { error: toolErr instanceof Error ? toolErr.message : String(toolErr) };
         }
@@ -1125,10 +1123,11 @@ export async function runAgentChat(
   message: string,
   history: AgentMessage[],
   recruiterId: string,
+  organizationId: string,
 ): Promise<{ reply: string; toolCalls: ToolCall[] }> {
   if (env.AI_SERVICE_URL) {
     try {
-      return await runAgentChatViaPython(message, history, recruiterId);
+      return await runAgentChatViaPython(message, history, recruiterId, organizationId);
     } catch (err) {
       // If the Python service is down, fall back to in-process SDK
       if (err instanceof AiServiceError && err.code === "AI_SERVICE_UNCONFIGURED") throw err;
@@ -1137,7 +1136,7 @@ export async function runAgentChat(
     }
   }
   try {
-    return await runAgentChatInProcess(message, history, recruiterId);
+    return await runAgentChatInProcess(message, history, recruiterId, organizationId);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.error(`[runAgentChat] In-process SDK also failed: ${reason}`);
