@@ -1,5 +1,6 @@
 /* Custom variables + keyframes first (Tailwind: @import before @tailwind) */
 @import "../src/styles/globals.css";
+@import "../src/styles/heron-landing.css";
 
 @tailwind base;
 @tailwind components;

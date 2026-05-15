@@ -1,17 +1,39 @@
-export function TrustBar() {
-  const companies = ["ANDELA", "TECHBRIDGE", "RECRUIT PRO", "TALENT HUB", "KIGALI TECH", "HR CONNECT"];
+const LOGOS = [
+  "ANDELA",
+  "TECHBRIDGE",
+  "RECRUIT·PRO",
+  "TALENT HUB",
+  "KIGALI TECH",
+  "HR CONNECT",
+  "LATTICE",
+  "PALOMA",
+];
 
+export function TrustBar() {
   return (
-    <section className="bg-white border-y border-slate-100 py-12 px-6">
-      <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 mb-7">
-        Trusted by leading companies across Africa &amp; beyond
-      </p>
-      <div className="flex flex-wrap items-center justify-center gap-10 sm:gap-16 max-w-4xl mx-auto">
-        {companies.map((name) => (
-          <span key={name} className="text-base font-black text-slate-300 tracking-tight">
-            {name}
-          </span>
-        ))}
+    <section className="section-pad-sm" style={{ paddingTop: 30, paddingBottom: 60 }}>
+      <div className="container">
+        <div className="eyebrow" style={{ textAlign: "center", marginBottom: 24 }}>
+          Trusted by hiring teams across Africa &amp; beyond
+        </div>
+        <div className="hl-trust-row">
+          {LOGOS.map((l) => (
+            <div
+              key={l}
+              style={{
+                textAlign: "center",
+                fontFamily: "var(--hl-display)",
+                fontWeight: 700,
+                letterSpacing: ".04em",
+                fontSize: 15,
+                color: "var(--hl-ink-4)",
+                opacity: 0.9,
+              }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

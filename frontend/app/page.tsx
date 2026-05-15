@@ -4,26 +4,31 @@ import {
   TrustBar,
   FeaturesSection,
   HowItWorksSection,
+  ProductTourSection,
   PricingSection,
   TestimonialsSection,
   CtaSection,
-  LoginSection,
   Footer,
+  WatchDemoBar,
 } from "../components/landing";
 
 export default function LandingPage() {
   return (
-    <main>
+    <div className="heron-landing">
+      <div className="page-bg" aria-hidden="true" />
       <Navbar />
-      <HeroSection />
-      <TrustBar />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <PricingSection />
-      <TestimonialsSection />
-      <CtaSection />
-      <LoginSection />
+      <main>
+        <HeroSection />
+        <TrustBar />
+        <FeaturesSection />
+        <HowItWorksSection />
+        <ProductTourSection />
+        <PricingSection />
+        <TestimonialsSection />
+        <CtaSection />
+      </main>
       <Footer />
-    </main>
+      <WatchDemoBar />
+    </div>
   );
 }
