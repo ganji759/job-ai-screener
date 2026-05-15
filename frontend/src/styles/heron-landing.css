@@ -15,6 +15,31 @@ html:has(.heron-landing) {
   color-scheme: dark;
 }
 
+/* ---------- aurora drift (used by /login) ---------- */
+.heron-landing .aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background:
+    radial-gradient(500px 400px at var(--ax, 30%) var(--ay, 40%), rgba(168, 85, 247, 0.18), transparent 60%),
+    radial-gradient(600px 500px at var(--bx, 70%) var(--by, 60%), rgba(34, 211, 238, 0.12), transparent 60%);
+  animation: hl-drift 22s ease-in-out infinite alternate;
+}
+@keyframes hl-drift {
+  0%   { --ax: 22%; --ay: 30%; --bx: 75%; --by: 70%; }
+  100% { --ax: 60%; --ay: 65%; --bx: 30%; --by: 35%; }
+}
+@property --ax { syntax: "<percentage>"; initial-value: 30%; inherits: false; }
+@property --ay { syntax: "<percentage>"; initial-value: 40%; inherits: false; }
+@property --bx { syntax: "<percentage>"; initial-value: 70%; inherits: false; }
+@property --by { syntax: "<percentage>"; initial-value: 60%; inherits: false; }
+
+/* ---------- conic gradient border spin (login card) ---------- */
+@keyframes hl-spinHue { to { --ang: 360deg; } }
+@property --ang { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+
 /* ---------- variables ---------- */
 .heron-landing {
   --hl-bg: #07070d;
@@ -333,6 +358,9 @@ html:has(.heron-landing) {
   0%   { transform: scale(0.9); opacity: 0.6; }
   100% { transform: scale(1.6); opacity: 0; }
 }
+@keyframes hl-spin {
+  to { transform: rotate(360deg); }
+}
 .heron-landing .caret {
   animation: hl-blink 1.05s steps(2) infinite;
 }
@@ -440,6 +468,28 @@ html:has(.heron-landing) {
     grid-template-columns: 1fr;
   }
   .heron-landing .hl-tour-body > div:first-child {
+    display: none;
+  }
+}
+
+/* ---------- login grid ---------- */
+.heron-landing .hl-login-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 80px;
+  align-items: center;
+}
+@media (max-width: 980px) {
+  .heron-landing .hl-login-grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .heron-landing .hl-login-grid > div:last-child {
+    justify-self: stretch !important;
+  }
+}
+@media (max-width: 700px) {
+  .heron-landing .hl-login-nav-right > span {
     display: none;
   }
 }
