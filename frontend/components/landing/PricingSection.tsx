@@ -1,6 +1,11 @@
+"use client";
+
+import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
+import { LeadCaptureModal, type LeadTier } from "./LeadCaptureModal";
 
 type Tier = {
+  id: LeadTier;
   name: string;
   price: string;
   sub: string;
@@ -13,6 +18,7 @@ type Tier = {
 
 const TIERS: Tier[] = [
   {
+    id: "starter",
     name: "Starter",
     price: "$0",
     sub: "Free forever",
@@ -31,6 +37,7 @@ const TIERS: Tier[] = [
     ],
   },
   {
+    id: "professional",
     name: "Professional",
     price: "$79",
     sub: "per month, billed annually",
@@ -49,6 +56,7 @@ const TIERS: Tier[] = [
     ],
   },
   {
+    id: "enterprise",
     name: "Enterprise",
     price: "Custom",
     sub: "tailored to your scale",
@@ -68,10 +76,18 @@ const TIERS: Tier[] = [
 ];
 
 export function PricingSection() {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<LeadTier>("professional");
+
+  const openModal = (tier: LeadTier) => {
+    setSelectedTier(tier);
+    setModalOpen(true);
+  };
+
   return (
     <section className="section-pad" id="pricing">
       <div className="container">
-        <div style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 56px" }}>
+        <div style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 36px" }}>
           <div className="eyebrow" style={{ color: "#34d399" }}>
             PRICING
           </div>
@@ -90,12 +106,26 @@ export function PricingSection() {
           </p>
         </div>
 
+        <p
+          style={{
+            textAlign: "center",
+            color: "var(--hl-ink-3)",
+            fontSize: 14,
+            lineHeight: 1.55,
+            margin: "0 auto 40px",
+            maxWidth: 640,
+          }}
+        >
+          Launching soon. Join early access to get founding customer pricing and priority
+          onboarding.
+        </p>
+
         <div className="hl-pricing-grid">
           {TIERS.map((t) => {
             const hl = t.highlight;
             return (
               <div
-                key={t.name}
+                key={t.id}
                 style={{
                   position: "relative",
                   borderRadius: 22,
@@ -210,6 +240,7 @@ export function PricingSection() {
                 </ul>
                 <button
                   type="button"
+                  onClick={() => openModal(t.id)}
                   className={hl ? "btn btn-primary" : "btn btn-ghost"}
                   style={{ width: "100%", justifyContent: "center", marginTop: 28 }}
                 >
@@ -220,6 +251,12 @@ export function PricingSection() {
           })}
         </div>
       </div>
+
+      <LeadCaptureModal
+        open={modalOpen}
+        tier={selectedTier}
+        onClose={() => setModalOpen(false)}
+      />
     </section>
   );
 }
