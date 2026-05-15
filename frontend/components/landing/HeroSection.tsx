@@ -775,7 +775,7 @@ export function HeroSection() {
               }}
             >
               HERON&apos;s AI agent screens, scores and shortlists candidates the way your best
-              recruiter would — transparently, in minutes, not days.
+              recruiter would. Transparently, efficienlty and securely in minutes.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
               <button

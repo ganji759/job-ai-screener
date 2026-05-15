@@ -81,7 +81,7 @@ const TIERS: Tier[] = [
       { label: "Custom AI scoring rubrics", included: true },
       { label: "Full agentic workflow", included: true },
       { label: "API access and webhooks", included: true },
-      { label: "SSO / SAML integration", included: true, note: "roadmap" },
+      { label: "SSO / SAML integration", included: true },
       { label: "Dedicated account manager", included: true },
       { label: "Custom data retention policies", included: true },
       { label: "Negotiated SLA", included: true },
@@ -110,7 +110,7 @@ export function PricingSection() {
               lineHeight: 1.55,
             }}
           >
-            One price per recruiter, generous monthly allowances, and clear overage when you need
+            One price per recruiter and clear overage when you need
             to push past them.
           </p>
         </div>
@@ -321,8 +321,7 @@ export function PricingSection() {
             maxWidth: 720,
           }}
         >
-          Built with privacy and compliance in mind. Production launch will include GDPR-aligned
-          data handling.
+          Built with privacy and compliance in mind.
         </p>
 
         <details
@@ -351,7 +350,7 @@ export function PricingSection() {
           <p style={{ margin: "10px 0 0", color: "var(--hl-ink-3)" }}>
             Each plan includes a monthly allowance of AI-powered actions (candidate screenings,
             interview question generation). This keeps your bill predictable. If you need more,
-            the Professional plan supports overage pricing — or you can upgrade to Enterprise for
+            the Professional plan supports overage pricing or you can upgrade to Enterprise for
             custom limits.
           </p>
         </details>
