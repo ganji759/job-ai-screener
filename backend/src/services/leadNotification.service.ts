@@ -6,19 +6,19 @@ import type { ILead } from "../models/Lead.model";
 /** Lazy singleton — reused so googleapis can manage its own access-token refresh cycle. */
 let cachedClient: Auth.OAuth2Client | null = null;
 
+/** Prefer dedicated Gmail Desktop OAuth client; fall back to the shared Web one. */
+const gmailClientId = (): string | undefined => env.GMAIL_CLIENT_ID ?? env.GOOGLE_CLIENT_ID;
+const gmailClientSecret = (): string | undefined => env.GMAIL_CLIENT_SECRET ?? env.GOOGLE_CLIENT_SECRET;
+
 const isConfigured = (): boolean =>
-  !!(
-    env.GOOGLE_CLIENT_ID &&
-    env.GOOGLE_CLIENT_SECRET &&
-    env.FOUNDER_GMAIL_REFRESH_TOKEN
-  );
+  !!(gmailClientId() && gmailClientSecret() && env.FOUNDER_GMAIL_REFRESH_TOKEN);
 
 const getClient = (): Auth.OAuth2Client | null => {
   if (!isConfigured()) return null;
   if (cachedClient) return cachedClient;
   const client = new google.auth.OAuth2(
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
+    gmailClientId(),
+    gmailClientSecret(),
     env.GMAIL_OAUTH_REDIRECT_URI,
   );
   client.setCredentials({ refresh_token: env.FOUNDER_GMAIL_REFRESH_TOKEN });

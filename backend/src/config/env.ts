@@ -71,6 +71,19 @@ const envSchema = z.object({
    * Required when GOOGLE_CLIENT_ID is set.
    */
   ENCRYPTION_KEY: z.string().length(64).optional(),
+  /**
+   * Separate OAuth client (Desktop type) used for the founder's Gmail send flow.
+   * Falls back to GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET if unset, but the recommended setup is a
+   * dedicated Desktop OAuth client (Web-type clients reject the localhost loopback redirect on newer projects).
+   */
+  GMAIL_CLIENT_ID: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  GMAIL_CLIENT_SECRET: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
   /** Long-lived refresh token for the founder's Gmail account (scope: gmail.send). Obtain with `npm run gmail-token`. */
   FOUNDER_GMAIL_REFRESH_TOKEN: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),

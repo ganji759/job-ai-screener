@@ -5,10 +5,11 @@
  *   npm run gmail-token
  *
  * Prerequisites:
- *   1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET set in backend/.env
- *   2. In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 Client,
- *      add an Authorized Redirect URI exactly matching GMAIL_OAUTH_REDIRECT_URI
- *      (default: http://localhost:53682/oauth2callback).
+ *   1. Create a DESKTOP-type OAuth 2.0 client in Google Cloud Console → APIs & Services →
+ *      Credentials → Create Credentials → OAuth client ID → Application type: "Desktop app".
+ *      Desktop clients accept localhost loopback redirects natively — no URI registration needed.
+ *   2. Put its id/secret in backend/.env as GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET
+ *      (or reuse GOOGLE_CLIENT_ID/SECRET if those already point to a Desktop client).
  *   3. Gmail API enabled for the project.
  *
  * The script will:
@@ -38,9 +39,12 @@ const openBrowser = (url: string): void => {
 };
 
 const main = async (): Promise<void> => {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+  const clientId = env.GMAIL_CLIENT_ID ?? env.GOOGLE_CLIENT_ID;
+  const clientSecret = env.GMAIL_CLIENT_SECRET ?? env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
     console.error(
-      "ERROR: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in backend/.env before running this script.",
+      "ERROR: Set GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET (recommended: a Desktop-type OAuth client)\n" +
+        "       — or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — in backend/.env first.",
     );
     process.exit(1);
   }
@@ -50,8 +54,8 @@ const main = async (): Promise<void> => {
   const callbackPath = redirectUrl.pathname || "/oauth2callback";
 
   const client = new google.auth.OAuth2(
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     env.GMAIL_OAUTH_REDIRECT_URI,
   );
 
