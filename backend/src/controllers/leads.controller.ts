@@ -1,6 +1,12 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { LEAD_TIERS, LeadModel, TEAM_SIZES } from "../models/Lead.model";
+import {
+  HIRING_VOLUMES,
+  LEAD_TIERS,
+  LeadModel,
+  RECRUITER_COUNTS,
+  TEAM_SIZES,
+} from "../models/Lead.model";
 import { logger } from "../utils/logger";
 
 const LeadCreateSchema = z
@@ -10,13 +16,31 @@ const LeadCreateSchema = z
     company: z.string().min(1).max(200),
     role: z.string().min(1).max(200),
     team_size: z.enum(TEAM_SIZES),
+    recruiter_count: z.enum(RECRUITER_COUNTS),
     tier_of_interest: z.enum(LEAD_TIERS),
-    message: z.string().max(2000).nullish(),
+    monthly_hiring_volume: z.enum(HIRING_VOLUMES).nullish(),
+    message: z.string().max(500).nullish(),
     source: z.string().max(50).optional(),
     user_agent: z.string().max(500).optional(),
     referrer: z.string().max(2000).nullish(),
   })
   .strip();
+
+/** Derive caller's ISO-3166 country code from edge headers (Vercel / Cloudflare / generic). */
+const resolveIpCountry = (request: FastifyRequest): string | null => {
+  const h = request.headers;
+  const pick = (v: string | string[] | undefined): string | null => {
+    if (!v) return null;
+    const s = Array.isArray(v) ? v[0] : v;
+    return typeof s === "string" && s.trim() ? s.trim().slice(0, 4).toUpperCase() : null;
+  };
+  return (
+    pick(h["x-vercel-ip-country"]) ||
+    pick(h["cf-ipcountry"]) ||
+    pick(h["x-country-code"]) ||
+    null
+  );
+};
 
 export const createLead = async (
   request: FastifyRequest,
@@ -29,11 +53,14 @@ export const createLead = async (
     company: body.company,
     role: body.role,
     team_size: body.team_size,
+    recruiter_count: body.recruiter_count,
     tier_of_interest: body.tier_of_interest,
+    monthly_hiring_volume: body.monthly_hiring_volume ?? null,
     message: body.message ?? null,
-    source: body.source ?? "landing_page",
+    source: body.source ?? "landing_pricing",
     user_agent: body.user_agent ?? "",
     referrer: body.referrer ?? null,
+    ip_country: resolveIpCountry(request),
   });
   logger.info(
     { leadId: String(lead._id), tier: lead.tier_of_interest, email: lead.work_email },

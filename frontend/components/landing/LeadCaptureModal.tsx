@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import { resolveApiBaseUrl } from "../../lib/resolveApiBaseUrl";
 
 export type LeadTier = "starter" | "professional" | "enterprise";
 type TeamSize = "1-10" | "11-50" | "51-200" | "201-1000" | "1000+";
+type RecruiterCount = "1" | "2-5" | "6-10" | "11-25" | "25+";
+type HiringVolume = "Under 10" | "10-50" | "50-200" | "200+";
 
 const TIER_LABEL: Record<LeadTier, string> = {
   starter: "Starter",
@@ -13,7 +15,28 @@ const TIER_LABEL: Record<LeadTier, string> = {
   enterprise: "Enterprise",
 };
 
+const TIER_HEADLINE: Record<LeadTier, string> = {
+  starter: "Join the Starter waitlist.",
+  professional: "Get founding-customer pricing.",
+  enterprise: "Let's talk Enterprise.",
+};
+
 const TEAM_SIZES: TeamSize[] = ["1-10", "11-50", "51-200", "201-1000", "1000+"];
+const RECRUITER_COUNTS: RecruiterCount[] = ["1", "2-5", "6-10", "11-25", "25+"];
+const HIRING_VOLUMES: HiringVolume[] = ["Under 10", "10-50", "50-200", "200+"];
+
+const FREEMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "icloud.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+]);
 
 type Props = {
   open: boolean;
@@ -27,16 +50,15 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [teamSize, setTeamSize] = useState<TeamSize>("11-50");
-  const [tierOfInterest, setTierOfInterest] = useState<LeadTier>(tier);
+  const [recruiterCount, setRecruiterCount] = useState<RecruiterCount>("2-5");
+  const [hiringVolume, setHiringVolume] = useState<HiringVolume | "">("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync selected tier when the trigger button changes
-  useEffect(() => {
-    if (open) setTierOfInterest(tier);
-  }, [open, tier]);
+  // tier is locked in for the lifetime of this modal opening (captured from the CTA clicked).
+  const tierOfInterest = tier;
 
   // Reset state when reopened after a successful submit
   useEffect(() => {
@@ -47,6 +69,8 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
       setCompany("");
       setRole("");
       setTeamSize("11-50");
+      setRecruiterCount("2-5");
+      setHiringVolume("");
       setMessage("");
       setError(null);
     }
@@ -69,6 +93,15 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
     };
   }, [open, onClose]);
 
+  const freemailWarning = useMemo(() => {
+    const at = workEmail.lastIndexOf("@");
+    if (at < 0) return null;
+    const domain = workEmail.slice(at + 1).trim().toLowerCase();
+    return domain && FREEMAIL_DOMAINS.has(domain)
+      ? "Heads up — we strongly prefer a work email so we can verify your team."
+      : null;
+  }, [workEmail]);
+
   if (!open) return null;
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -81,9 +114,11 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
       company: company.trim(),
       role: role.trim(),
       team_size: teamSize,
+      recruiter_count: recruiterCount,
       tier_of_interest: tierOfInterest,
-      message: message.trim() || null,
-      source: "landing_page",
+      monthly_hiring_volume: hiringVolume || null,
+      message: message.trim().slice(0, 500) || null,
+      source: "landing_pricing",
       user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "",
       referrer: typeof document !== "undefined" ? document.referrer || null : null,
     };
@@ -130,7 +165,7 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
         style={{
           position: "relative",
           width: "100%",
-          maxWidth: 520,
+          maxWidth: 540,
           maxHeight: "calc(100vh - 40px)",
           overflowY: "auto",
           borderRadius: 22,
@@ -173,7 +208,7 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
           </button>
 
           {done ? (
-            <SuccessState onClose={onClose} tierLabel={TIER_LABEL[tierOfInterest]} />
+            <SuccessState onClose={onClose} />
           ) : (
             <>
               <div
@@ -184,12 +219,12 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
               </div>
               <h3
                 className="display"
-                style={{ fontSize: 26, margin: "0 0 6px", lineHeight: 1.1 }}
+                style={{ fontSize: 26, margin: "0 0 6px", lineHeight: 1.15 }}
               >
-                Get <span className="gradient-text-warm">founding-customer</span> pricing.
+                {TIER_HEADLINE[tierOfInterest]}
               </h3>
               <p style={{ fontSize: 13.5, color: "var(--hl-ink-3)", margin: "0 0 18px" }}>
-                Tell us a bit about you and we&apos;ll reach out with onboarding details.
+                Tell us a bit about you and we&apos;ll be in touch within 24 hours.
               </p>
 
               {error && (
@@ -226,11 +261,12 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
                   onChange={setWorkEmail}
                   placeholder="you@company.com"
                   required
+                  hint={freemailWarning}
                 />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <ModalField
                     id="lead-company"
-                    label="Company"
+                    label="Company name"
                     value={company}
                     onChange={setCompany}
                     placeholder="Acme Corp"
@@ -238,7 +274,7 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
                   />
                   <ModalField
                     id="lead-role"
-                    label="Your role"
+                    label="Role / job title"
                     value={role}
                     onChange={setRole}
                     placeholder="Head of Talent"
@@ -254,22 +290,30 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
                     options={TEAM_SIZES.map((s) => ({ value: s, label: s }))}
                   />
                   <ModalSelect
-                    id="lead-tier"
-                    label="Plan of interest"
-                    value={tierOfInterest}
-                    onChange={(v) => setTierOfInterest(v as LeadTier)}
-                    options={(Object.keys(TIER_LABEL) as LeadTier[]).map((k) => ({
-                      value: k,
-                      label: TIER_LABEL[k],
-                    }))}
+                    id="lead-recruiters"
+                    label="Recruiters"
+                    value={recruiterCount}
+                    onChange={(v) => setRecruiterCount(v as RecruiterCount)}
+                    options={RECRUITER_COUNTS.map((s) => ({ value: s, label: s }))}
                   />
                 </div>
+                <ModalSelect
+                  id="lead-volume"
+                  label="Monthly hiring volume (optional)"
+                  value={hiringVolume}
+                  onChange={(v) => setHiringVolume(v as HiringVolume | "")}
+                  options={[
+                    { value: "", label: "Prefer not to say" },
+                    ...HIRING_VOLUMES.map((s) => ({ value: s, label: s })),
+                  ]}
+                />
                 <ModalTextarea
                   id="lead-message"
-                  label="Anything we should know? (optional)"
+                  label="Use case / message (optional)"
                   value={message}
-                  onChange={setMessage}
+                  onChange={(v) => setMessage(v.slice(0, 500))}
                   placeholder="What roles are you hiring for, current pain points, etc."
+                  maxLength={500}
                 />
 
                 <button
@@ -304,7 +348,7 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
                     </>
                   ) : (
                     <>
-                      Request early access <ArrowRight size={14} />
+                      Send request <ArrowRight size={14} />
                     </>
                   )}
                 </button>
@@ -317,7 +361,7 @@ export function LeadCaptureModal({ open, tier, onClose }: Props) {
   );
 }
 
-function SuccessState({ onClose, tierLabel }: { onClose: () => void; tierLabel: string }) {
+function SuccessState({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ padding: "16px 4px", textAlign: "center" }}>
       <div
@@ -336,12 +380,10 @@ function SuccessState({ onClose, tierLabel }: { onClose: () => void; tierLabel: 
         <Check size={28} />
       </div>
       <h3 className="display" style={{ fontSize: 26, margin: "0 0 8px" }}>
-        You&apos;re on the list.
+        Thanks.
       </h3>
       <p style={{ fontSize: 14, color: "var(--hl-ink-2)", lineHeight: 1.55, margin: "0 0 22px" }}>
-        Thanks — we&apos;ve recorded your interest in the{" "}
-        <strong style={{ color: "#fff" }}>{tierLabel}</strong> plan. A founding-team member
-        will reach out within one business day.
+        We&apos;ll be in touch within 24 hours.
       </p>
       <button
         type="button"
@@ -364,6 +406,7 @@ function ModalField({
   placeholder,
   required,
   autoFocus,
+  hint,
 }: {
   id: string;
   label: string;
@@ -373,6 +416,7 @@ function ModalField({
   placeholder?: string;
   required?: boolean;
   autoFocus?: boolean;
+  hint?: string | null;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -436,6 +480,11 @@ function ModalField({
           />
         </div>
       </div>
+      {hint && (
+        <div style={{ marginTop: 6, fontSize: 11.5, color: "#fbbf24", lineHeight: 1.4 }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -531,31 +580,38 @@ function ModalTextarea({
   value,
   onChange,
   placeholder,
+  maxLength,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  maxLength?: number;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom: 14 }}>
-      <label
-        htmlFor={id}
-        style={{
-          display: "block",
-          fontFamily: "var(--hl-mono)",
-          fontSize: 10.5,
-          letterSpacing: ".14em",
-          textTransform: "uppercase",
-          color: focused ? "#c7d2fe" : "var(--hl-ink-3)",
-          transition: "color .2s ease",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </label>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <label
+          htmlFor={id}
+          style={{
+            fontFamily: "var(--hl-mono)",
+            fontSize: 10.5,
+            letterSpacing: ".14em",
+            textTransform: "uppercase",
+            color: focused ? "#c7d2fe" : "var(--hl-ink-3)",
+            transition: "color .2s ease",
+          }}
+        >
+          {label}
+        </label>
+        {maxLength != null && (
+          <span style={{ fontFamily: "var(--hl-mono)", fontSize: 10, color: "var(--hl-ink-4)" }}>
+            {value.length}/{maxLength}
+          </span>
+        )}
+      </div>
       <div
         style={{
           borderRadius: 10,
@@ -581,6 +637,7 @@ function ModalTextarea({
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
             rows={3}
+            maxLength={maxLength}
             style={{
               width: "100%",
               background: "transparent",
