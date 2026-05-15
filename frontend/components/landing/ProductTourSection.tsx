@@ -937,7 +937,7 @@ export function ProductTourSection() {
             }}
           >
             From posting jobs and uploading CVs to AI screening, shortlisting, and interview
-            scheduling — click through every screen below.
+            scheduling. Click through every screen below.
           </p>
         </div>
 
