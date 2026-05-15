@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowRight, Bolt, Bot, Check, Mic, Play, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Bolt, Bot, Check, Mic, Play, Plus, Sparkles } from "lucide-react";
 
 // ============================================================
 // AgentDemo — auto-playing 16s pipeline showing the AI agent
@@ -791,8 +791,6 @@ export function HeroSection() {
             <div className="pill" style={{ marginBottom: 22 }}>
               <span className="dot" />
               <span style={{ color: "#fff" }}>AI-Powered Talent Intelligence</span>
-              <span style={{ color: "var(--hl-ink-4)" }}>·</span>
-              <span>v3.2 just shipped</span>
             </div>
             <h1 className="display" style={{ fontSize: "clamp(48px, 6.4vw, 86px)", margin: 0 }}>
               Hire smarter,
@@ -815,7 +813,7 @@ export function HeroSection() {
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
               <a className="btn btn-primary" href="/register">
-                Start Free 14-Day Trial <ArrowRight size={14} />
+                Request Early Access <ArrowRight size={14} />
               </a>
               <a className="btn btn-ghost" href="#product">
                 <Play size={14} fill="currentColor" /> Watch the AI agent work
@@ -832,12 +830,6 @@ export function HeroSection() {
                 flexWrap: "wrap",
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <ShieldCheck size={14} /> SOC2 Type II
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Check size={14} /> No credit card required
-              </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Bolt size={14} /> 4-minute setup
               </span>

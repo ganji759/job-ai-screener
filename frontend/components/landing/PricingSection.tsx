@@ -35,7 +35,7 @@ const TIERS: Tier[] = [
     price: "$79",
     sub: "per month, billed annually",
     desc: "For growing teams that need more power, more insights, and faster hiring.",
-    cta: "Start 14-Day Free Trial",
+    cta: "Request Early Access",
     highlight: true,
     color: "#d946ef",
     features: [
@@ -44,7 +44,7 @@ const TIERS: Tier[] = [
       ["Advanced AI scoring + insights", true],
       ["Full analytics dashboard", true],
       ["Automated candidate outreach", true],
-      ["Priority support (24h SLA)", true],
+      ["Priority support", true],
       ["API access", false],
     ],
   },
@@ -62,7 +62,6 @@ const TIERS: Tier[] = [
       ["Full API access & webhooks", true],
       ["SSO / SAML integration", true],
       ["Dedicated account manager", true],
-      ["SLA-backed uptime (99.9%)", true],
       ["Custom data retention policy", true],
     ],
   },
@@ -219,19 +218,6 @@ export function PricingSection() {
               </div>
             );
           })}
-        </div>
-
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: 32,
-            fontSize: 13,
-            color: "var(--hl-ink-3)",
-          }}
-        >
-          All plans include <strong style={{ color: "#fff" }}>SOC2 Type II compliance</strong> ·{" "}
-          <strong style={{ color: "#fff" }}>GDPR ready</strong> ·{" "}
-          <strong style={{ color: "#fff" }}>EU + Africa data residency</strong>
         </div>
       </div>
     </section>

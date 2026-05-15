@@ -10,7 +10,7 @@ const COLS: { h: string; l: string[] }[] = [
     h: "Resources",
     l: ["Documentation", "API Reference", "Help Center", "Guides", "Community", "Templates"],
   },
-  { h: "Legal", l: ["Privacy", "Terms", "Security", "GDPR", "DPA", "Cookies"] },
+  { h: "Legal", l: ["Privacy", "Terms", "Security", "Cookies"] },
 ];
 
 function HeronFooterLogo() {

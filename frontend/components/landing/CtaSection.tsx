@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export function CtaSection() {
   return (
@@ -72,32 +72,11 @@ export function CtaSection() {
               }}
             >
               <Link className="btn btn-light" href="/register">
-                Start Your Free Trial <ArrowRight size={14} />
+                Request Early Access <ArrowRight size={14} />
               </Link>
               <Link className="btn btn-ghost" href="/login">
                 Sign In to Dashboard
               </Link>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: 32,
-                marginTop: 32,
-                fontSize: 13,
-                color: "var(--hl-ink-3)",
-                flexWrap: "wrap",
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Check size={14} /> 14-day free trial
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Check size={14} /> No credit card required
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Check size={14} /> Cancel anytime
-              </span>
             </div>
           </div>
         </div>

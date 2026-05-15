@@ -1,11 +1,9 @@
 export { Navbar } from "./Navbar";
 export { HeroSection } from "./HeroSection";
-export { TrustBar } from "./TrustBar";
 export { FeaturesSection } from "./FeaturesSection";
 export { HowItWorksSection } from "./HowItWorksSection";
 export { ProductTourSection } from "./ProductTourSection";
 export { PricingSection } from "./PricingSection";
-export { TestimonialsSection } from "./TestimonialsSection";
 export { CtaSection } from "./CtaSection";
 export { LoginSection } from "./LoginSection";
 export { Footer } from "./Footer";

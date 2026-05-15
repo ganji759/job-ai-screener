@@ -114,7 +114,7 @@ export function Navbar() {
             className="btn btn-primary"
             style={{ height: 40, padding: "0 18px", fontSize: 14 }}
           >
-            Start Free Trial <ArrowRight size={14} strokeWidth={2} />
+            Request Early Access <ArrowRight size={14} strokeWidth={2} />
           </Link>
         </div>
 
@@ -178,7 +178,7 @@ export function Navbar() {
               className="btn btn-primary"
               style={{ flex: 1, justifyContent: "center", height: 42, fontSize: 13 }}
             >
-              Start Trial
+              Join Waitlist
             </Link>
           </div>
         </div>

@@ -1,12 +1,10 @@
 import {
   Navbar,
   HeroSection,
-  TrustBar,
   FeaturesSection,
   HowItWorksSection,
   ProductTourSection,
   PricingSection,
-  TestimonialsSection,
   CtaSection,
   Footer,
   WatchDemoBar,
@@ -19,12 +17,10 @@ export default function LandingPage() {
       <Navbar />
       <main>
         <HeroSection />
-        <TrustBar />
         <FeaturesSection />
         <HowItWorksSection />
         <ProductTourSection />
         <PricingSection />
-        <TestimonialsSection />
         <CtaSection />
       </main>
       <Footer />
