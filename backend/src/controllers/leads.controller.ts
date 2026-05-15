@@ -8,6 +8,7 @@ import {
   TEAM_SIZES,
 } from "../models/Lead.model";
 import { logger } from "../utils/logger";
+import { sendLeadNotification } from "../services/leadNotification.service";
 
 const LeadCreateSchema = z
   .object({
@@ -65,6 +66,10 @@ export const createLead = async (
   logger.info(
     { leadId: String(lead._id), tier: lead.tier_of_interest, email: lead.work_email },
     "lead captured",
+  );
+  // Fire-and-forget founder notification: never block the 201 response on Gmail latency or failures.
+  void sendLeadNotification(lead.toObject()).catch((err: unknown) =>
+    logger.error({ err }, "lead notification dispatch failed unexpectedly"),
   );
   reply.code(201).send({
     id: String(lead._id),

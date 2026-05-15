@@ -10,7 +10,8 @@
     "test": "vitest",
     "lint": "eslint src --ext .ts",
     "seed": "tsx src/scripts/seedApplicants.ts",
-    "check-seed": "tsx src/scripts/checkSeed.ts"
+    "check-seed": "tsx src/scripts/checkSeed.ts",
+    "gmail-token": "tsx src/scripts/getGmailRefreshToken.ts"
   },
   "dependencies": {
     "@fastify/cors": "latest",

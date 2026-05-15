@@ -71,6 +71,17 @@ const envSchema = z.object({
    * Required when GOOGLE_CLIENT_ID is set.
    */
   ENCRYPTION_KEY: z.string().length(64).optional(),
+  /** Long-lived refresh token for the founder's Gmail account (scope: gmail.send). Obtain with `npm run gmail-token`. */
+  FOUNDER_GMAIL_REFRESH_TOKEN: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /** From: address used when sending lead-capture notifications. Must match the Gmail account whose refresh token is set above. */
+  FOUNDER_NOTIFY_FROM: z.string().email().default("pacymugisho@gmail.com"),
+  /** To: address that receives lead-capture notifications. */
+  FOUNDER_NOTIFY_TO: z.string().email().default("pacymugisho@gmail.com"),
+  /** Redirect URI used ONLY by the one-time `gmail-token` script. Must be added as an Authorized Redirect URI in Google Cloud Console. */
+  GMAIL_OAUTH_REDIRECT_URI: z.string().url().default("http://localhost:53682/oauth2callback"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
