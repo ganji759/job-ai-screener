@@ -46,15 +46,18 @@ function SSOButton({ provider }: { provider: "google" | "github" }) {
       onClick={onClick}
       className="btn btn-ghost"
       style={{
-        height: 48,
+        height: 38,
+        padding: "0 10px",
+        gap: 6,
         justifyContent: "center",
-        borderRadius: 12,
-        fontSize: 14,
+        borderRadius: 10,
+        fontSize: 12.5,
         fontWeight: 500,
+        minWidth: 0,
       }}
     >
       {provider === "google" ? (
-        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
           <path
             fill="#EA4335"
             d="M12 5.04c1.77 0 3.36.61 4.6 1.8l3.43-3.43C17.94 1.5 15.21.5 12 .5 7.34.5 3.32 3.21 1.38 7.18l3.99 3.1C6.31 7.5 8.93 5.04 12 5.04z"
@@ -73,11 +76,11 @@ function SSOButton({ provider }: { provider: "google" | "github" }) {
           />
         </svg>
       ) : (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
           <path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.3v3.4c0 .3.2.7.8.6A12 12 0 0 0 12 .5z" />
         </svg>
       )}
-      <span style={{ marginLeft: 4 }}>Continue with {provider === "google" ? "Google" : "GitHub"}</span>
+      <span>{provider === "google" ? "Google" : "GitHub"}</span>
     </button>
   );
 }
