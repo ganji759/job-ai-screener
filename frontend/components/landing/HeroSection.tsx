@@ -6,7 +6,7 @@ import { useLeadModal } from "./LeadModalContext";
 
 // ============================================================
 // AgentDemo — auto-playing 16s pipeline showing the AI agent
-//   1. Voice listening (mic + waveform + Web Audio chirp)
+//   1. Voice listening (mic + waveform)
 //   2. Transcribing → typed user message reveal
 //   3. Tool chain stream
 //   4. Candidate cards reveal w/ animated score bars
@@ -57,35 +57,6 @@ const TIMELINE: TimelineEvent[] = [
   { t: 13500 + VOICE_OFFSET, kind: "reset" },
 ];
 
-// Synthesized voice chirp via Web Audio API. Silently no-ops on autoplay block.
-let __heronAC: AudioContext | null = null;
-function playVoiceChirp() {
-  try {
-    type WindowWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
-    const W = window as WindowWithWebkit;
-    const Ctor = window.AudioContext || W.webkitAudioContext;
-    if (!Ctor) return;
-    if (!__heronAC) __heronAC = new Ctor();
-    if (__heronAC.state === "suspended") void __heronAC.resume();
-    const ctx = __heronAC;
-    const now = ctx.currentTime;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(420, now);
-    o.frequency.exponentialRampToValueAtTime(680, now + 0.18);
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.06, now + 0.05);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start(now);
-    o.stop(now + 0.4);
-  } catch {
-    /* no-op */
-  }
-}
-
 type VoicePhase = "listening" | "transcribing" | "done";
 
 function AgentDemo() {
@@ -96,11 +67,9 @@ function AgentDemo() {
   const [voiceMs, setVoiceMs] = useState(0);
   const logRef = useRef<HTMLDivElement | null>(null);
   const startRef = useRef<number>(Date.now());
-  const lastChirpedAt = useRef<number>(-1);
 
   useEffect(() => {
     startRef.current = Date.now();
-    lastChirpedAt.current = -1;
     let raf = 0;
     const loop = () => {
       const elapsed = Date.now() - startRef.current;
@@ -108,10 +77,6 @@ function AgentDemo() {
       if (elapsed < VOICE_LISTEN_MS) {
         setVoicePhase("listening");
         setVoiceMs(elapsed);
-        if (lastChirpedAt.current < 0 || lastChirpedAt.current > elapsed) {
-          playVoiceChirp();
-          lastChirpedAt.current = elapsed;
-        }
       } else if (elapsed < VOICE_TRANS_MS) {
         setVoicePhase("transcribing");
         setVoiceMs(VOICE_LISTEN_MS);
@@ -134,7 +99,6 @@ function AgentDemo() {
       }
       if (reset) {
         startRef.current = Date.now();
-        lastChirpedAt.current = -1;
         setRevealed(0);
         setShowSummary(false);
         setTick(0);
