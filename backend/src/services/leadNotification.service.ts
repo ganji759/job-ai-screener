@@ -1,30 +1,9 @@
-import { google, type Auth } from "googleapis";
+import { google } from "googleapis";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
 import type { ILead } from "../models/Lead.model";
-
-/** Lazy singleton — reused so googleapis can manage its own access-token refresh cycle. */
-let cachedClient: Auth.OAuth2Client | null = null;
-
-/** Prefer dedicated Gmail Desktop OAuth client; fall back to the shared Web one. */
-const gmailClientId = (): string | undefined => env.GMAIL_CLIENT_ID ?? env.GOOGLE_CLIENT_ID;
-const gmailClientSecret = (): string | undefined => env.GMAIL_CLIENT_SECRET ?? env.GOOGLE_CLIENT_SECRET;
-
-const isConfigured = (): boolean =>
-  !!(gmailClientId() && gmailClientSecret() && env.FOUNDER_GMAIL_REFRESH_TOKEN);
-
-const getClient = (): Auth.OAuth2Client | null => {
-  if (!isConfigured()) return null;
-  if (cachedClient) return cachedClient;
-  const client = new google.auth.OAuth2(
-    gmailClientId(),
-    gmailClientSecret(),
-    env.GMAIL_OAUTH_REDIRECT_URI,
-  );
-  client.setCredentials({ refresh_token: env.FOUNDER_GMAIL_REFRESH_TOKEN });
-  cachedClient = client;
-  return client;
-};
+import { UserModel } from "../models/User.model";
+import { getGoogleClientForUser } from "./googleCalendar.service";
 
 const escapeHtml = (s: string): string =>
   s
@@ -128,14 +107,35 @@ const renderHtml = (lead: ILead): string => {
 </body></html>`;
 };
 
-/** Fire-and-forget: send a notification email for a newly captured lead. Resolves to `true` when delivered. */
+/**
+ * Fire-and-forget: send a notification email for a newly captured lead.
+ *
+ * Uses the founder's already-connected Google account (the same per-user OAuth used for Calendar).
+ * Identified by matching FOUNDER_NOTIFY_FROM against the User document's `email`. Founder must have
+ * reconnected Google after the gmail.send scope was added (one-click in Settings → Integrations).
+ */
 export const sendLeadNotification = async (lead: ILead): Promise<boolean> => {
-  const auth = getClient();
-  if (!auth) {
-    logger.debug("leadNotification: skipped — Gmail OAuth not configured (set FOUNDER_GMAIL_REFRESH_TOKEN to enable)");
-    return false;
-  }
   try {
+    const founder = await UserModel.findOne({
+      email: env.FOUNDER_NOTIFY_FROM.toLowerCase(),
+    })
+      .select("_id googleTokens")
+      .lean();
+
+    if (!founder) {
+      logger.debug(
+        { email: env.FOUNDER_NOTIFY_FROM },
+        "leadNotification: skipped — no User found matching FOUNDER_NOTIFY_FROM",
+      );
+      return false;
+    }
+    const hasTokens = !!(founder as { googleTokens?: unknown }).googleTokens;
+    if (!hasTokens) {
+      logger.debug("leadNotification: skipped — founder hasn't connected Google yet");
+      return false;
+    }
+
+    const auth = await getGoogleClientForUser(String(founder._id));
     const gmail = google.gmail({ version: "v1", auth });
     const raw = buildRawMessage({
       from: env.FOUNDER_NOTIFY_FROM,

@@ -48,7 +48,12 @@ export function getAuthUrl(userJwt: string): string {
   const client = createOAuthClient();
   return client.generateAuthUrl({
     access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/calendar.events"],
+    // gmail.send is requested for ALL connecting users so the founder's own connection can send
+    // lead notifications. Non-founder users simply never have those scopes invoked.
+    scope: [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/gmail.send",
+    ],
     prompt: "consent",
     state: userJwt,
   });
@@ -99,6 +104,9 @@ export async function isCalendarConnected(userId: string): Promise<boolean> {
 }
 
 // ── Authorized client (with auto-refresh) ────────────────────────────────────
+
+/** Public re-export — used by other services (e.g. lead-notification Gmail send) that need a user's authorized Google client. */
+export const getGoogleClientForUser = (userId: string) => getAuthorizedClient(userId);
 
 async function getAuthorizedClient(userId: string) {
   const user = await UserModel.findById(userId).select("googleTokens").lean();

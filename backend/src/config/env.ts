@@ -72,29 +72,13 @@ const envSchema = z.object({
    */
   ENCRYPTION_KEY: z.string().length(64).optional(),
   /**
-   * Separate OAuth client (Desktop type) used for the founder's Gmail send flow.
-   * Falls back to GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET if unset, but the recommended setup is a
-   * dedicated Desktop OAuth client (Web-type clients reject the localhost loopback redirect on newer projects).
+   * Founder's email — used by the lead-capture flow to find the User document whose Google tokens
+   * should be used to send notification emails (gmail.send scope is granted via the existing
+   * Settings → Integrations → Connect Google flow, same OAuth client as Calendar).
    */
-  GMAIL_CLIENT_ID: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().optional(),
-  ),
-  GMAIL_CLIENT_SECRET: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().optional(),
-  ),
-  /** Long-lived refresh token for the founder's Gmail account (scope: gmail.send). Obtain with `npm run gmail-token`. */
-  FOUNDER_GMAIL_REFRESH_TOKEN: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().optional(),
-  ),
-  /** From: address used when sending lead-capture notifications. Must match the Gmail account whose refresh token is set above. */
   FOUNDER_NOTIFY_FROM: z.string().email().default("pacymugisho@gmail.com"),
   /** To: address that receives lead-capture notifications. */
   FOUNDER_NOTIFY_TO: z.string().email().default("pacymugisho@gmail.com"),
-  /** Redirect URI used ONLY by the one-time `gmail-token` script. Must be added as an Authorized Redirect URI in Google Cloud Console. */
-  GMAIL_OAUTH_REDIRECT_URI: z.string().url().default("http://localhost:53682/oauth2callback"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
