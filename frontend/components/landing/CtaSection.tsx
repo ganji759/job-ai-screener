@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { useLeadModal } from "./LeadModalContext";
 
 export function CtaSection() {
+  const { open: openLeadModal } = useLeadModal();
   return (
     <section className="section-pad" id="trial">
       <div className="container">
@@ -71,9 +75,13 @@ export function CtaSection() {
                 flexWrap: "wrap",
               }}
             >
-              <Link className="btn btn-light" href="/register">
+              <button
+                type="button"
+                className="btn btn-light"
+                onClick={() => openLeadModal("professional")}
+              >
                 Request Early Access <ArrowRight size={14} />
-              </Link>
+              </button>
               <Link className="btn btn-ghost" href="/login">
                 Sign In to Dashboard
               </Link>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight, Bolt, Bot, Check, Mic, Play, Plus, Sparkles } from "lucide-react";
+import { useLeadModal } from "./LeadModalContext";
 
 // ============================================================
 // AgentDemo — auto-playing 16s pipeline showing the AI agent
@@ -776,6 +777,7 @@ function CandidateCard({ c, idx, visible }: { c: Candidate; idx: number; visible
 // Hero
 // ============================================================
 export function HeroSection() {
+  const { open: openLeadModal } = useLeadModal();
   const stats = [
     { n: "10×", l: "Faster screening", g: ["#fbbf24", "#f472b6"] as const },
     { n: "94%", l: "Placement accuracy", g: ["#22d3ee", "#6366f1"] as const },
@@ -812,9 +814,13 @@ export function HeroSection() {
               recruiter would — transparently, in minutes, not days.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
-              <a className="btn btn-primary" href="/register">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => openLeadModal("professional")}
+              >
                 Request Early Access <ArrowRight size={14} />
-              </a>
+              </button>
               <a className="btn btn-ghost" href="#product">
                 <Play size={14} fill="currentColor" /> Watch the AI agent work
               </a>

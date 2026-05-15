@@ -9,3 +9,4 @@ export { LoginSection } from "./LoginSection";
 export { Footer } from "./Footer";
 export { WatchDemoBar } from "./WatchDemoBar";
 export { LiveCalendar } from "./LiveCalendar";
+export { LeadModalProvider, useLeadModal } from "./LeadModalContext";

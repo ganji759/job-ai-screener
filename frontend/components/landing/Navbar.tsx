@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
+import { useLeadModal } from "./LeadModalContext";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -36,6 +37,7 @@ function HeronLogo({ size = 28 }: { size?: number }) {
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { open: openLeadModal } = useLeadModal();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -109,13 +111,14 @@ export function Navbar() {
           <Link href="/login" className="btn btn-ghost" style={{ height: 40, padding: "0 16px", fontSize: 14 }}>
             Sign In
           </Link>
-          <Link
-            href="/register"
+          <button
+            type="button"
+            onClick={() => openLeadModal("professional")}
             className="btn btn-primary"
             style={{ height: 40, padding: "0 18px", fontSize: 14 }}
           >
             Request Early Access <ArrowRight size={14} strokeWidth={2} />
-          </Link>
+          </button>
         </div>
 
         {/* mobile hamburger */}
@@ -172,14 +175,17 @@ export function Navbar() {
             >
               Sign In
             </Link>
-            <Link
-              href="/register"
-              onClick={() => setMobileOpen(false)}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                openLeadModal("professional");
+              }}
               className="btn btn-primary"
               style={{ flex: 1, justifyContent: "center", height: 42, fontSize: 13 }}
             >
               Join Waitlist
-            </Link>
+            </button>
           </div>
         </div>
       )}

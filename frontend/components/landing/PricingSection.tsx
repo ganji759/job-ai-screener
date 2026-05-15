@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
-import { LeadCaptureModal, type LeadTier } from "./LeadCaptureModal";
+import type { LeadTier } from "./LeadCaptureModal";
+import { useLeadModal } from "./LeadModalContext";
 
 type Tier = {
   id: LeadTier;
@@ -76,13 +76,7 @@ const TIERS: Tier[] = [
 ];
 
 export function PricingSection() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<LeadTier>("professional");
-
-  const openModal = (tier: LeadTier) => {
-    setSelectedTier(tier);
-    setModalOpen(true);
-  };
+  const { open: openModal } = useLeadModal();
 
   return (
     <section className="section-pad" id="pricing">
@@ -251,12 +245,6 @@ export function PricingSection() {
           })}
         </div>
       </div>
-
-      <LeadCaptureModal
-        open={modalOpen}
-        tier={selectedTier}
-        onClose={() => setModalOpen(false)}
-      />
     </section>
   );
 }
