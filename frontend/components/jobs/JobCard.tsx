@@ -1,27 +1,42 @@
+"use client";
+
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
-import { Card } from "../ui/Card";
+import { Briefcase, Eye, MapPin, Pencil, Sparkles, Trash2 } from "lucide-react";
 import type { Job } from "../../types";
-import { CalendarDays, MapPin, Users, Building2, Trash2 } from "lucide-react";
 import { useDeleteJobMutation } from "../../store/api/jobsApi";
 import { getRtkQueryErrorMessage } from "../../lib/rtkError";
 
 const empLabel = (t: Job["employmentType"]) =>
   ({ full_time: "Full-time", part_time: "Part-time", contract: "Contract", remote: "Remote" })[t];
 
-export const JobCard = ({ job }: { job: Job }) => {
+const STATUS_PILL: Record<Job["status"], string> = {
+  active: "pill pill-mint",
+  draft: "pill pill-amber",
+  closed: "pill",
+};
+
+export const JobCard = ({
+  job,
+  screened = 0,
+  shortlisted = 0,
+}: {
+  job: Job;
+  screened?: number;
+  shortlisted?: number;
+}) => {
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
-  const statusAccent = job.status === "active" ? "border-l-emerald-500" : job.status === "draft" ? "border-l-amber-500" : "border-l-slate-400";
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirmDelete) { setConfirmDelete(true); return; }
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     try {
       const result = await deleteJob(job._id).unwrap();
       const { applicants, screenings, interviews } = result.deleted;
@@ -38,15 +53,22 @@ export const JobCard = ({ job }: { job: Job }) => {
     }
   };
 
-  const accentColor =
-    job.status === "active" ? "#34d399" : job.status === "draft" ? "#fbbf24" : "rgba(255,255,255,.16)";
+  const applied = job.applicantCount ?? 0;
+  // The prototype uses fillPct = (shortlisted / applicants) * 100 * 6; clamp to 100.
+  const fillPct = Math.min(100, applied > 0 ? Math.round((shortlisted / applied) * 100 * 6) : 0);
+
+  const shortId = job._id.slice(-6).toUpperCase();
+  const postedDate = new Date(job.createdAt).toLocaleDateString();
+  const isUrgent = (job as unknown as { priority?: string }).priority === "high";
 
   return (
-    <Card
-      className="lift cursor-pointer space-y-4 transition"
-      style={{ borderLeft: `3px solid ${accentColor}` }}
+    <div
+      className="panel lift cursor-pointer"
+      style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14, minHeight: 240 }}
       onMouseEnter={() => router.prefetch(`/jobs/${job._id}`)}
-      onClick={() => { if (!confirmDelete) router.push(`/jobs/${job._id}`); }}
+      onClick={() => {
+        if (!confirmDelete) router.push(`/jobs/${job._id}`);
+      }}
       role="link"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -56,72 +78,160 @@ export const JobCard = ({ job }: { job: Job }) => {
         }
       }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-lg font-bold" style={{ color: "#fff" }}>{job.title}</h3>
-          {job.company ? <p className="text-sm" style={{ color: "var(--ink-3)" }}>{job.company}</p> : null}
+          <div
+            className="mono mb-[6px]"
+            style={{ fontSize: 10.5, color: "var(--ink-4)", letterSpacing: "0.14em" }}
+          >
+            {shortId}
+          </div>
+          <h3 className="display m-0" style={{ fontSize: 20, lineHeight: 1.15 }}>
+            {job.title}
+          </h3>
+          <div
+            className="mt-2 flex flex-wrap items-center gap-[10px] text-[12.5px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            <span className="inline-flex items-center gap-1">
+              <Briefcase className="h-3 w-3" />
+              {job.requirements?.domain || "—"}
+            </span>
+            <span style={{ color: "var(--ink-4)" }}>·</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {job.location || "—"}
+            </span>
+          </div>
         </div>
-        <Badge variant={job.status === "active" ? "success" : job.status === "draft" ? "warning" : "neutral"}>{job.status}</Badge>
+        <span className={STATUS_PILL[job.status]}>{job.status}</span>
       </div>
-      <div className="flex flex-wrap items-center gap-4 text-sm" style={{ color: "var(--ink-2)" }}>
-        <span className="inline-flex items-center gap-1.5"><Building2 className="h-4 w-4" style={{ color: "var(--ink-3)" }} />{job.requirements?.domain || "Department N/A"}</span>
-        <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" style={{ color: "var(--ink-3)" }} />{job.location || "Location N/A"}</span>
+
+      <div className="flex flex-wrap gap-1.5">
+        <span className="pill" style={{ height: 22, fontSize: 10.5 }}>
+          {empLabel(job.employmentType)}
+        </span>
+        {isUrgent ? (
+          <span className="pill pill-rose" style={{ height: 22, fontSize: 10.5 }}>
+            ● Urgent
+          </span>
+        ) : null}
+        <span className="pill" style={{ height: 22, fontSize: 10.5 }}>
+          Posted {postedDate}
+        </span>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <span className="pill pill-indigo">{empLabel(job.employmentType)}</span>
+
+      <div className="mt-1 grid grid-cols-3 gap-[10px]">
+        {(
+          [
+            { label: "Applied", v: applied, color: "#6366f1" },
+            { label: "Screened", v: screened, color: "#22d3ee" },
+            { label: "Shortlisted", v: shortlisted, color: "#34d399" },
+          ] as const
+        ).map((m) => (
+          <div
+            key={m.label}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,.025)",
+              border: "1px solid var(--line)",
+            }}
+          >
+            <div className="eyebrow mb-1" style={{ fontSize: 9.5 }}>
+              {m.label}
+            </div>
+            <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: m.color }}>
+              {m.v}
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="flex flex-wrap items-center gap-4 text-xs" style={{ color: "var(--ink-3)" }}>
-        <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" />{job.applicantCount ?? 0} applicants</span>
-        <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{new Date(job.createdAt).toLocaleDateString()}</span>
+
+      <div>
+        <div
+          className="mb-[6px] flex justify-between text-[11px]"
+          style={{ color: "var(--ink-3)" }}
+        >
+          <span>Pipeline progress</span>
+          <span className="mono" style={{ color: "#fff" }}>
+            {fillPct}%
+          </span>
+        </div>
+        <div className="mini-bar">
+          <span style={{ width: `${fillPct}%` }} />
+        </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-4" onClick={(e) => e.stopPropagation()}>
-        <Link href={`/jobs/${job._id}`} className="w-full" onClick={(e) => e.stopPropagation()}>
-          <Button className="w-full rounded-lg" size="sm" variant="secondary">
-            View
-          </Button>
+
+      <div className="mt-auto flex gap-2" onClick={(e) => e.stopPropagation()}>
+        <Link
+          href={`/jobs/${job._id}`}
+          className="btn btn-ghost flex-1 justify-center"
+          style={{ height: 34, fontSize: 12 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Eye className="h-3 w-3" /> View
         </Link>
-        <Link href={`/jobs/${job._id}`} className="w-full" onClick={(e) => e.stopPropagation()}>
-          <Button className="w-full rounded-lg" size="sm" variant="secondary">
-            Edit
-          </Button>
+        <Link
+          href={`/jobs/${job._id}`}
+          className="btn btn-ghost flex-1 justify-center"
+          style={{ height: 34, fontSize: 12 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Pencil className="h-3 w-3" /> Edit
         </Link>
-        <Link href={`/jobs/${job._id}/screenings`} className="w-full" onClick={(e) => e.stopPropagation()}>
-          <Button className="w-full rounded-lg" size="sm">
-            Screen
-          </Button>
+        <Link
+          href={`/jobs/${job._id}/screenings`}
+          className="btn btn-primary justify-center"
+          style={{ flex: 1.2, height: 34, fontSize: 12 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Sparkles className="h-3 w-3" /> Screen
         </Link>
         {confirmDelete ? (
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button
-              className="flex-1 rounded-lg"
-              size="sm"
-              variant="danger"
-              loading={deleting}
-              onClick={(e) => void handleDelete(e)}
-            >
-              Confirm
-            </Button>
-            <Button
-              className="rounded-lg px-2"
-              size="sm"
-              variant="secondary"
+            <button
+              type="button"
               disabled={deleting}
-              onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+              onClick={(e) => void handleDelete(e)}
+              className="btn"
+              style={{
+                height: 34,
+                paddingLeft: 10,
+                paddingRight: 10,
+                background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                color: "#fff",
+                fontSize: 12,
+              }}
+            >
+              {deleting ? "…" : "Confirm"}
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirmDelete(false);
+              }}
+              className="btn-icon"
+              style={{ width: 34, height: 34 }}
+              title="Cancel"
             >
               ✕
-            </Button>
+            </button>
           </div>
         ) : (
-          <Button
-            className="w-full rounded-lg"
-            size="sm"
-            variant="secondary"
+          <button
+            type="button"
             onClick={(e) => void handleDelete(e)}
+            className="btn-icon"
+            style={{ width: 34, height: 34, color: "#fb7185" }}
+            title="Delete job"
           >
             <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         )}
       </div>
-    </Card>
+    </div>
   );
 };
