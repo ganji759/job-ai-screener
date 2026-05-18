@@ -3,8 +3,21 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Briefcase, Download, FileSpreadsheet, Search } from "lucide-react";
-import { PageHeader } from "../../../components/layout/PageHeader";
+import {
+  BarChart3 as BarChartIcon,
+  Briefcase,
+  Clock,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Filter,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Upload,
+  Users,
+} from "lucide-react";
 import { useGetApplicantsQuery } from "../../../store/api/applicantsApi";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { useGetDashboardAnalyticsQuery, useGetScreeningsQuery } from "../../../store/api/screeningsApi";
@@ -49,16 +62,37 @@ const mockJobs: JobStat[] = [
 ];
 
 function statusPill(status: CandidateStatus): string {
-  if (status === "shortlisted") return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
-  if (status === "rejected") return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
-  return "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200";
+  if (status === "shortlisted") return "pill pill-mint";
+  if (status === "rejected") return "pill pill-rose";
+  return "pill pill-amber";
 }
 
-function scorePill(score: number): string {
-  if (score >= 80) return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
-  if (score >= 60) return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
-  return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+function scorePillColor(score: number): string {
+  if (score >= 80) return "#34d399";
+  if (score >= 60) return "#fbbf24";
+  return "#fb7185";
 }
+
+const SAVED_REPORTS: Array<{ name: string; by: string; updated: string; kind: string; shares: number }> = [
+  { name: "Quarterly hiring scorecard", by: "James Davidson", updated: "2h ago", kind: "Scorecard", shares: 4 },
+  { name: "Source attribution · 90 days", by: "Auto · HERON", updated: "Yesterday", kind: "Attribution", shares: 0 },
+  { name: "Diversity & inclusion summary", by: "Aisha M.", updated: "2d ago", kind: "D&I", shares: 12 },
+  { name: "Engineering pipeline health", by: "James Davidson", updated: "4d ago", kind: "Pipeline", shares: 2 },
+  { name: "Recruiter throughput", by: "Auto · HERON", updated: "1w ago", kind: "Operations", shares: 1 },
+];
+
+const TEMPLATES: Array<{
+  name: string;
+  desc: string;
+  color: string;
+  icon: typeof FileText;
+  tab: ReportTab;
+}> = [
+  { name: "Weekly recap", desc: "Hiring activity by role", icon: FileText, color: "#6366f1", tab: "overview" },
+  { name: "Funnel breakdown", desc: "Stage-by-stage rates", icon: BarChartIcon, color: "#d946ef", tab: "screenings" },
+  { name: "Time-to-hire", desc: "Median + p90 cycle time", icon: Clock, color: "#22d3ee", tab: "screenings" },
+  { name: "D&I snapshot", desc: "Diversity through stages", icon: Users, color: "#34d399", tab: "candidates" },
+];
 
 function formatDuration(ms: number): string {
   if (!ms) return "N/A";
@@ -478,199 +512,449 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="fade-up space-y-6">
-      <PageHeader
-        eyebrow="Workspace · Stakeholders"
-        title="Reports"
-        subtitle="Candidate, job and screening reports — export-ready insights."
-      />
-
-      <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
-        <p className="text-sm" style={{ color: "var(--ink-3)" }}>Pick a template or export a saved view.</p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={exportToPDF}
-            className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-            disabled={isExportingPdf}
-          >
-            <Download className="h-4 w-4" />
-            {isExportingPdf ? "Exporting..." : "Export as PDF"}
+    <div className="fade-up">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-6">
+        <div className="min-w-0">
+          <div className="eyebrow mb-[10px]">Workspace · Reports</div>
+          <h1 className="display m-0" style={{ fontSize: 32 }}>
+            Reports.
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--ink-3)", margin: "8px 0 0", maxWidth: 720 }}>
+            Custom dashboards and saved reports — for stakeholders, leadership, and audits.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <button type="button" onClick={exportToPDF} disabled={isExportingPdf} className="btn btn-ghost">
+            <Download className="h-3 w-3" /> {isExportingPdf ? "Exporting…" : "Export PDF"}
           </button>
-          <button
-            type="button"
-            onClick={exportToExcel}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            disabled={isExportingExcel}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            {isExportingExcel ? "Exporting..." : "Export as Excel"}
+          <button type="button" onClick={exportToExcel} disabled={isExportingExcel} className="btn btn-ghost">
+            <FileSpreadsheet className="h-3 w-3" /> {isExportingExcel ? "Exporting…" : "Export Excel"}
+          </button>
+          <button type="button" className="btn btn-primary">
+            <Plus className="h-3 w-3" /> New report
           </button>
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-7 dark:border-slate-700 dark:bg-slate-900">
-        <label className="relative md:col-span-2">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={searchDraft} onChange={(e) => setSearchDraft(e.target.value)} placeholder="Search candidate name..." className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
-        </label>
-        <select value={jobDraft} onChange={(e) => setJobDraft(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+      {/* Templates */}
+      <div className="eyebrow mb-3">Templates</div>
+      <div
+        className="mb-[26px] grid gap-[14px]"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
+      >
+        {TEMPLATES.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.name}
+              type="button"
+              onClick={() => {
+                setTab(t.tab);
+                document.getElementById("report-content")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="panel lift text-left"
+              style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              <span
+                className="flex items-center justify-center"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: `linear-gradient(135deg, ${t.color}33, ${t.color}1a)`,
+                  border: `1px solid ${t.color}55`,
+                  color: t.color,
+                }}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </span>
+              <div className="text-sm font-semibold" style={{ color: "#fff" }}>
+                {t.name}
+              </div>
+              <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+                {t.desc}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Saved reports */}
+      <div className="eyebrow mb-3">Saved reports</div>
+      <div className="panel mb-[26px] overflow-hidden" style={{ padding: 0 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Report</th>
+              <th>Type</th>
+              <th>Last updated</th>
+              <th>Owner</th>
+              <th>Shared with</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {SAVED_REPORTS.map((r) => (
+              <tr key={r.name}>
+                <td>
+                  <div className="flex items-center gap-[10px]">
+                    <span
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        background: "rgba(99,102,241,.12)",
+                        border: "1px solid rgba(99,102,241,.28)",
+                        color: "#c7d2fe",
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="font-medium" style={{ color: "#fff" }}>
+                      {r.name}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <span className="pill pill-indigo">{r.kind}</span>
+                </td>
+                <td className="mono text-[12px]" style={{ color: "var(--ink-3)" }}>
+                  {r.updated}
+                </td>
+                <td>{r.by}</td>
+                <td>
+                  <span className="mono" style={{ color: "#fff" }}>
+                    {r.shares}
+                  </span>{" "}
+                  <span style={{ color: "var(--ink-3)" }}>recipients</span>
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  <div className="inline-flex gap-1">
+                    <button type="button" className="btn-icon" style={{ width: 28, height: 28 }} title="View">
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    <button type="button" className="btn-icon" style={{ width: 28, height: 28 }} title="Share">
+                      <Upload className="h-3 w-3" />
+                    </button>
+                    <button type="button" className="btn-icon" style={{ width: 28, height: 28 }} title="More">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Custom builder */}
+      <div className="eyebrow mb-3">Custom report builder</div>
+
+      <div className="panel mb-[18px] flex flex-wrap items-center gap-3" style={{ padding: 14 }}>
+        <div className="relative" style={{ flex: "1 1 240px", minWidth: 220 }}>
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+            style={{ color: "var(--ink-4)" }}
+          />
+          <input
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder="Search candidate name…"
+            className="input"
+            style={{ paddingLeft: 38 }}
+          />
+        </div>
+        <select value={jobDraft} onChange={(e) => setJobDraft(e.target.value)} className="input" style={{ width: "auto" }}>
           <option value="all">All Jobs</option>
           {jobs.map((job) => (
-            <option key={job._id} value={job._id}>{job.title}</option>
+            <option key={job._id} value={job._id}>
+              {job.title}
+            </option>
           ))}
         </select>
-        <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+        <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)} className="input" style={{ width: "auto" }}>
           <option value="all">All Statuses</option>
           <option value="shortlisted">Shortlisted</option>
           <option value="rejected">Rejected</option>
           <option value="pending">Pending</option>
         </select>
-        <select value={yearDraft} onChange={(e) => setYearDraft(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+        <select value={yearDraft} onChange={(e) => setYearDraft(e.target.value)} className="input" style={{ width: "auto" }}>
           <option value="all">Year</option>
           <option value="2024">2024</option>
           <option value="2025">2025</option>
           <option value="2026">2026</option>
         </select>
-        <input type="date" value={fromDraft} onChange={(e) => setFromDraft(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
-        <input type="date" value={toDraft} onChange={(e) => setToDraft(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+        <input
+          type="date"
+          value={fromDraft}
+          onChange={(e) => setFromDraft(e.target.value)}
+          className="input"
+          style={{ width: "auto" }}
+        />
+        <input
+          type="date"
+          value={toDraft}
+          onChange={(e) => setToDraft(e.target.value)}
+          className="input"
+          style={{ width: "auto" }}
+        />
         <button
           type="button"
-          onClick={() => setFilters({ search: searchDraft, job: jobDraft, status: statusDraft, year: yearDraft, from: fromDraft, to: toDraft })}
-          className="h-10 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 md:col-span-7 md:justify-self-end"
+          onClick={() =>
+            setFilters({
+              search: searchDraft,
+              job: jobDraft,
+              status: statusDraft,
+              year: yearDraft,
+              from: fromDraft,
+              to: toDraft,
+            })
+          }
+          className="btn btn-primary ml-auto"
         >
-          Apply Filters
+          <Filter className="h-3 w-3" /> Apply
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="mb-[18px] flex flex-wrap gap-2">
         {(["candidates", "jobs", "screenings", "overview"] as ReportTab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              tab === t ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
-            }`}
+            className={`btn ${tab === t ? "btn-primary" : "btn-ghost"}`}
+            style={{ height: 32, fontSize: 12 }}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
-      <div id="report-content" className="space-y-6">
+      <div id="report-content" className="space-y-5">
         {tab === "candidates" ? (
-          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Candidates Report</h2>
+          <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
             {filteredCandidates.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 px-4 py-12 text-center dark:border-slate-600">
-                <p className="text-lg font-semibold text-slate-700 dark:text-slate-100">No candidates yet. Run a screening to generate data.</p>
-                <Link href="/screenings" className="mt-4 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              <div
+                className="px-4 py-12 text-center"
+                style={{ color: "var(--ink-3)" }}
+              >
+                <p className="display" style={{ fontSize: 18, color: "#fff" }}>
+                  No candidates yet
+                </p>
+                <p className="mt-1 text-sm">Run a screening to generate data.</p>
+                <Link href="/screenings" className="btn btn-primary mt-4">
                   Go to Screenings
                 </Link>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800">
-                    <tr className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">
-                      <th className="px-4 py-3">Rank</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Job Applied</th>
-                      <th className="px-4 py-3">Match Score</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Screening Date</th><th className="px-4 py-3">Actions</th>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Name</th>
+                    <th>Job Applied</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCandidates.map((c) => (
+                    <tr key={c.id}>
+                      <td className="mono" style={{ color: "var(--ink-3)" }}>
+                        #{c.rank}
+                      </td>
+                      <td className="font-medium" style={{ color: "#fff" }}>
+                        {c.name}
+                      </td>
+                      <td style={{ color: "var(--ink-2)" }}>{c.job}</td>
+                      <td>
+                        <span className="mono font-semibold" style={{ color: scorePillColor(c.score) }}>
+                          {c.score}/100
+                        </span>
+                      </td>
+                      <td>
+                        <span className={statusPill(c.status)}>{c.status}</span>
+                      </td>
+                      <td className="mono text-[12px]" style={{ color: "var(--ink-3)" }}>
+                        {new Date(c.date).toLocaleDateString()}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          type="button"
+                          onClick={() => setProfileApplicantId(c.id)}
+                          className="btn btn-ghost"
+                          style={{ height: 26, fontSize: 11 }}
+                        >
+                          View
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCandidates.map((c) => (
-                      <tr key={c.id} className="border-t border-slate-200 dark:border-slate-700">
-                        <td className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">#{c.rank}</td>
-                        <td className="px-4 py-3 text-slate-900 dark:text-slate-100">{c.name}</td>
-                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{c.job}</td>
-                        <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${scorePill(c.score)}`}>{c.score}/100</span></td>
-                        <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusPill(c.status)}`}>{c.status}</span></td>
-                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{new Date(c.date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setProfileApplicantId(c.id)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
-                          >
-                            View Profile
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </section>
+          </div>
         ) : null}
 
         {tab === "jobs" ? (
-          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Jobs Report</h2>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {(jobStats.length ? jobStats : mockJobs).map((job) => (
-                <article key={job.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-lg bg-brand-100 p-2 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300"><Briefcase className="h-4 w-4" /></span>
-                    <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{job.title}</h3>
+          <div
+            className="grid gap-[14px]"
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
+          >
+            {(jobStats.length ? jobStats : mockJobs).map((job) => (
+              <div key={job.title} className="panel panel-tight">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 8,
+                      background: "rgba(99,102,241,.14)",
+                      border: "1px solid rgba(99,102,241,.28)",
+                      color: "#c7d2fe",
+                    }}
+                  >
+                    <Briefcase className="h-3.5 w-3.5" />
+                  </span>
+                  <h3 className="truncate text-sm font-semibold" style={{ color: "#fff" }}>
+                    {job.title}
+                  </h3>
+                </div>
+                <p className="mt-2 text-xs" style={{ color: "var(--ink-3)" }}>
+                  Applicants · {job.applicants} · Top {job.topCandidate}
+                </p>
+                <div className="mt-3">
+                  <div className="mb-1 flex justify-between text-[11px]" style={{ color: "var(--ink-3)" }}>
+                    <span>Avg match score</span>
+                    <span className="mono" style={{ color: "#fff" }}>{job.avgScore}/100</span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Total Applicants: {job.applicants}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Top Candidate: {job.topCandidate}</p>
-                  <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Avg Match Score: {job.avgScore}/100</p>
-                  <div className="mt-1 h-2 rounded-full bg-slate-200 dark:bg-slate-700"><div className="h-2 rounded-full bg-violet-500" style={{ width: `${Math.min(100, job.avgScore)}%` }} /></div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border-4 border-brand-300 text-xs font-bold text-brand-700 dark:border-brand-700 dark:text-brand-300">{job.shortlistRate}%</span>
-                    <button type="button" className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">View Candidates</button>
+                  <div className="mini-bar">
+                    <span style={{ width: `${Math.min(100, job.avgScore)}%` }} />
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="pill pill-mint">
+                    <span className="mono">{job.shortlistRate}%</span> shortlist
+                  </span>
+                  <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 11 }}>
+                    View Candidates
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : null}
 
         {tab === "screenings" ? (
-          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Screenings Report</h2>
-            <div className="mb-4 grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Total Screenings Run</p><p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{screeningTotal}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Avg Time to Screen</p><p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{formatDuration(averageTime)}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Completion Rate</p><p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{completionRate}%</p></div>
+          <div className="panel panel-lg">
+            <div className="mb-4 grid gap-[14px] sm:grid-cols-3">
+              {[
+                { label: "Total Screenings", value: String(screeningTotal), color: "#6366f1" },
+                { label: "Avg Time to Screen", value: formatDuration(averageTime), color: "#22d3ee" },
+                { label: "Completion Rate", value: `${completionRate}%`, color: "#34d399" },
+              ].map((tile) => (
+                <div
+                  key={tile.label}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,.025)",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  <div className="eyebrow">{tile.label}</div>
+                  <p className="display mt-1" style={{ fontSize: 24, color: tile.color }}>
+                    {tile.value}
+                  </p>
+                </div>
+              ))}
             </div>
-            <div className="h-[250px] rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+            <div
+              className="h-[260px]"
+              style={{
+                background: "rgba(255,255,255,.02)",
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="range" />
-                  <YAxis allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.06)" />
+                  <XAxis dataKey="range" tick={{ fill: "#8a8aa3", fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: "#8a8aa3", fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#7C3AED" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="count" fill="#818cf8" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </section>
+          </div>
         ) : null}
 
         {tab === "overview" ? (
-          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Overview</h2>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Total candidates screened</p><p className="mt-1 text-2xl font-bold">{filteredCandidates.length}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Total jobs with applicants</p><p className="mt-1 text-2xl font-bold">{jobStats.length}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Best performing job</p><p className="mt-1 text-sm font-semibold">{bestJob?.title ?? "N/A"} ({bestJob?.shortlistRate ?? 0}%)</p></div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"><p className="text-xs text-slate-500">Worst match score job</p><p className="mt-1 text-sm font-semibold">{worstJob?.title ?? "N/A"} ({worstJob?.avgScore ?? 0}/100)</p></div>
+          <div className="panel panel-lg">
+            <div className="mb-4 grid gap-[14px] sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: "Candidates screened", value: String(filteredCandidates.length), color: "#6366f1" },
+                { label: "Jobs with applicants", value: String(jobStats.length), color: "#d946ef" },
+                { label: "Best performing", value: `${bestJob?.title ?? "—"}`, color: "#34d399", sub: `${bestJob?.shortlistRate ?? 0}%` },
+                { label: "Weakest match", value: `${worstJob?.title ?? "—"}`, color: "#fbbf24", sub: `${worstJob?.avgScore ?? 0}/100` },
+              ].map((tile) => (
+                <div
+                  key={tile.label}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,.025)",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  <div className="eyebrow">{tile.label}</div>
+                  <p
+                    className={tile.value.length > 10 ? "text-sm font-semibold" : "display"}
+                    style={{ fontSize: tile.value.length > 10 ? 14 : 22, color: tile.color, lineHeight: 1.2, marginTop: 4 }}
+                  >
+                    {tile.value}
+                  </p>
+                  {"sub" in tile && tile.sub ? (
+                    <p className="mono mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>
+                      {tile.sub}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
             </div>
-            <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-4 py-2">Month</th><th className="px-4 py-2">Candidates</th></tr></thead>
+            <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)" }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Candidates</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {monthlyRows.length ? monthlyRows.map((m) => (
-                    <tr key={m.month} className="border-t border-slate-200 dark:border-slate-700"><td className="px-4 py-2">{m.month}</td><td className="px-4 py-2">{m.count}</td></tr>
-                  )) : <tr><td className="px-4 py-4 text-slate-500" colSpan={2}>No monthly data yet.</td></tr>}
+                  {monthlyRows.length ? (
+                    monthlyRows.map((m) => (
+                      <tr key={m.month}>
+                        <td className="mono" style={{ color: "var(--ink-2)" }}>{m.month}</td>
+                        <td className="mono" style={{ color: "#fff" }}>{m.count}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={2} className="py-6 text-center" style={{ color: "var(--ink-3)" }}>
+                        No monthly data yet.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          </section>
+          </div>
         ) : null}
       </div>
 
