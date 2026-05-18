@@ -9,9 +9,7 @@ import {
   ChevronDown,
   Loader2,
   Menu,
-  Moon,
   Search,
-  Sun,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -21,12 +19,8 @@ import { useGetNotificationsQuery } from "../../store/api/notificationsApi";
 import { useGlobalSearchQuery } from "../../store/api/searchApi";
 import { NotificationPanel } from "./NotificationPanel";
 import { UserAccountDropdown } from "./UserAccountDropdown";
-import { useTheme } from "../../hooks/useTheme";
 import { getLocalReadIds, getLocalUnreadIds, subscribeLocalReadUpdates } from "../../lib/notificationReadState";
 import { useDebounce } from "../../hooks/useDebounce";
-
-const iconBtn =
-  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-all duration-200 ease-out hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:text-slate-300 dark:hover:bg-slate-800";
 
 function useIsMdUp() {
   return useSyncExternalStore(
@@ -42,9 +36,9 @@ function useIsMdUp() {
 
 function jobStatusClass(status: string): string {
   const s = status?.toLowerCase();
-  if (s === "active") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
-  if (s === "closed") return "bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-100";
-  return "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
+  if (s === "active") return "pill pill-mint";
+  if (s === "closed") return "pill";
+  return "pill pill-amber";
 }
 
 function applicantInitials(profile: { firstName?: string; lastName?: string }): string {
@@ -74,7 +68,6 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
   const [localUnreadIds, setLocalUnreadIds] = useState<Set<string>>(new Set());
-  const { theme, toggleTheme } = useTheme();
   const { data: notificationsData } = useGetNotificationsQuery({ page: 1, limit: 50 });
 
   const debouncedSearch = useDebounce(searchTerm, 250);
@@ -191,7 +184,6 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
     .map((s) => s.charAt(0).toUpperCase())
     .join("");
 
-  const dark = theme === "dark";
   const avatarUrl = user?.avatarUrl ?? null;
 
   const jobs = globalSearchData?.jobs ?? [];
@@ -258,23 +250,23 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 4 }}
       transition={{ duration: 0.15 }}
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(70vh,420px)] overflow-hidden rounded-xl border border-white/60 bg-white/95 shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95"
+      className="panel absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(70vh,420px)] overflow-hidden"
     >
       <div className="max-h-[min(70vh,420px)] overflow-y-auto p-2">
         {isFetching && qOk ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
-            <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+          <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: "var(--ink-3)" }}>
+            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--indigo-2)" }} />
             Searching…
           </div>
         ) : showEmpty ? (
-          <div className="px-4 py-8 text-center text-sm text-slate-500">
+          <div className="px-4 py-8 text-center text-sm" style={{ color: "var(--ink-3)" }}>
             No results found for &quot;{debouncedSearch.trim()}&quot;
           </div>
         ) : (
           <>
             {jobs.length ? (
               <div className="mb-3">
-                <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Jobs</p>
+                <p className="mono px-2 py-1.5 text-[10.5px] uppercase tracking-[0.14em]" style={{ color: "var(--ink-4)" }}>Jobs</p>
                 <ul className="space-y-0.5">
                   {jobs.map((job) => {
                     const i = flatHits.findIndex((h) => h.id === `job-${job._id}`);
@@ -286,15 +278,15 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
                           onClick={() => openSearchResult(`/jobs/${job._id}`)}
                           onMouseEnter={() => setActiveHit(i)}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition duration-200 ease-out",
-                            active ? "bg-brand-50 dark:bg-slate-700" : "hover:bg-slate-50 dark:hover:bg-slate-700/80",
+                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-150",
                           )}
+                          style={{
+                            background: active ? "rgba(99,102,241,0.12)" : "transparent",
+                          }}
                         >
-                          <Briefcase className="h-4 w-4 shrink-0 text-brand-600" />
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{job.title}</span>
-                          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold capitalize", jobStatusClass(job.status))}>
-                            {job.status}
-                          </span>
+                          <Briefcase className="h-4 w-4 shrink-0" style={{ color: "var(--indigo-2)" }} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: "#fff" }}>{job.title}</span>
+                          <span className={jobStatusClass(job.status)}>{job.status}</span>
                         </button>
                       </li>
                     );
@@ -304,7 +296,7 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
             ) : null}
             {applicants.length ? (
               <div className="mb-3">
-                <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Applicants</p>
+                <p className="mono px-2 py-1.5 text-[10.5px] uppercase tracking-[0.14em]" style={{ color: "var(--ink-4)" }}>Applicants</p>
                 <ul className="space-y-0.5">
                   {applicants.map((applicant) => {
                     const i = flatHits.findIndex((h) => h.id === `app-${applicant._id}`);
@@ -318,16 +310,18 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
                           onClick={() => openSearchResult(`/applicants?highlightApplicant=${applicant._id}`)}
                           onMouseEnter={() => setActiveHit(i)}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition duration-200 ease-out",
-                            active ? "bg-brand-50 dark:bg-slate-700" : "hover:bg-slate-50 dark:hover:bg-slate-700/80",
+                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-150",
                           )}
+                          style={{
+                            background: active ? "rgba(99,102,241,0.12)" : "transparent",
+                          }}
                         >
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-800 dark:bg-brand-950/50 dark:text-brand-200">
+                          <span className="avatar" style={{ width: 32, height: 32, fontSize: 11 }}>
                             {applicantInitials(applicant.profile)}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
-                            <span className="block truncate text-xs text-slate-500">
+                            <span className="block truncate text-sm font-semibold" style={{ color: "#fff" }}>{name}</span>
+                            <span className="block truncate text-xs" style={{ color: "var(--ink-3)" }}>
                               {applicant.jobTitle ? `Applied: ${applicant.jobTitle}` : "Applicant"}
                             </span>
                           </span>
@@ -340,7 +334,7 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
             ) : null}
             {screenings.length ? (
               <div>
-                <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Screenings</p>
+                <p className="mono px-2 py-1.5 text-[10.5px] uppercase tracking-[0.14em]" style={{ color: "var(--ink-4)" }}>Screenings</p>
                 <ul className="space-y-0.5">
                   {screenings.map((screening) => {
                     const i = flatHits.findIndex((h) => h.id === `scr-${screening._id}`);
@@ -355,16 +349,18 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
                           onClick={() => openSearchResult(`/screenings/${screening._id}`)}
                           onMouseEnter={() => setActiveHit(i)}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition duration-200 ease-out",
-                            active ? "bg-brand-50 dark:bg-slate-700" : "hover:bg-slate-50 dark:hover:bg-slate-700/80",
+                            "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-150",
                           )}
+                          style={{
+                            background: active ? "rgba(99,102,241,0.12)" : "transparent",
+                          }}
                         >
-                          <Brain className="h-4 w-4 shrink-0 text-violet-600" />
+                          <Brain className="h-4 w-4 shrink-0" style={{ color: "#f0abfc" }} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            <span className="block truncate text-sm font-semibold" style={{ color: "#fff" }}>
                               Screening · {String(screening.status ?? "")}
                             </span>
-                            <span className="block truncate text-xs text-slate-500">{when}</span>
+                            <span className="block truncate text-xs" style={{ color: "var(--ink-3)" }}>{when}</span>
                           </span>
                         </button>
                       </li>
@@ -381,10 +377,20 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
 
   const renderSearchField = (wide: boolean) => (
     <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <Search
+        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+        style={{ color: "var(--ink-4)" }}
+      />
       {isFetching && qOk ? (
-        <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-600" />
-      ) : null}
+        <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin" style={{ color: "var(--indigo-2)" }} />
+      ) : (
+        <span
+          className="mono pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-[2px] text-[10px]"
+          style={{ border: "1px solid var(--line)", color: "var(--ink-4)" }}
+        >
+          ⌘K
+        </span>
+      )}
       <input
         value={searchTerm}
         onFocus={() => {
@@ -397,11 +403,8 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
           if (!isMdUp) setMobileSearchOpen(true);
         }}
         onKeyDown={onSearchKeyDown}
-        placeholder="Search for jobs, applicants, screenings..."
-        className={cn(
-          "h-10 w-full rounded-full border border-slate-200 bg-slate-50/80 pl-10 pr-10 text-sm text-slate-800 shadow-sm outline-none transition-all duration-200 ease-out placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500",
-          wide ? "max-w-2xl" : "max-w-md md:focus-within:max-w-2xl",
-        )}
+        placeholder="Search jobs, applicants, screenings…"
+        className={cn("input pl-10 pr-12", wide ? "max-w-2xl" : "max-w-md md:focus-within:max-w-2xl")}
       />
     </div>
   );
@@ -409,139 +412,132 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
   return (
     <>
       <header
-        className={cn(
-          "sticky top-0 z-50 w-full border-b backdrop-blur-xl transition-all duration-200 ease-out",
-          scrolled
-            ? "border-white/30 bg-white/85 shadow-header dark:border-white/[0.06] dark:bg-[#0d1117]/90"
-            : "border-white/40 bg-white/65 dark:border-white/[0.04] dark:bg-[#0d1117]/75",
-        )}
+        className="topbar"
+        style={{
+          boxShadow: scrolled ? "0 8px 24px -16px rgba(0,0,0,0.6)" : "none",
+        }}
       >
-        <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-3 md:gap-4 md:px-4">
-          <div className="flex min-w-0 flex-shrink-0 items-center gap-2 md:gap-3">
-            <button type="button" aria-label="Toggle sidebar" onClick={onToggleSidebar} className={iconBtn}>
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="hidden min-w-0 md:block">
-              <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{title}</p>
-            </div>
+        <button type="button" aria-label="Toggle sidebar" onClick={onToggleSidebar} className="btn-icon">
+          <Menu className="h-[18px] w-[18px]" />
+        </button>
+        <div className="hidden min-w-0 md:block">
+          <p className="truncate text-[14.5px] font-semibold" style={{ color: "#fff" }}>{title}</p>
+        </div>
+
+        {isMdUp ? (
+          <div ref={searchContainerRef} className="relative mx-auto min-w-0 flex-1" style={{ maxWidth: 560 }}>
+            {renderSearchField(false)}
+            <AnimatePresence>{searchOpen && searchDropdownVisible ? renderResultsPanel() : null}</AnimatePresence>
           </div>
+        ) : !mobileSearchOpen ? (
+          <div className="min-w-0 flex-1" />
+        ) : (
+          <div ref={searchContainerRef} className="relative min-w-0 flex-1">
+            {renderSearchField(true)}
+            <AnimatePresence>{mobileSearchOpen && searchDropdownVisible ? renderResultsPanel() : null}</AnimatePresence>
+          </div>
+        )}
 
-          {isMdUp ? (
-            <div ref={searchContainerRef} className="relative min-w-0 flex-1 px-2">
-              <div className="mx-auto w-full max-w-xl transition-[max-width] duration-200 ease-out focus-within:max-w-2xl">
-                {renderSearchField(false)}
-                <AnimatePresence>{searchOpen && searchDropdownVisible ? renderResultsPanel() : null}</AnimatePresence>
-              </div>
-            </div>
-          ) : (
-            <>
-              {!mobileSearchOpen ? (
-                <div className="min-w-0 flex-1" />
-              ) : (
-                <div ref={searchContainerRef} className="relative min-w-0 flex-1 px-1">
-                  {renderSearchField(true)}
-                  <AnimatePresence>{mobileSearchOpen && searchDropdownVisible ? renderResultsPanel() : null}</AnimatePresence>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="flex shrink-0 items-center gap-1 md:gap-2">
-            {!isMdUp && !mobileSearchOpen ? (
-              <button
-                type="button"
-                aria-label="Open search"
-                className={iconBtn}
-                onClick={() => {
-                  setMobileSearchOpen(true);
-                  setSearchOpen(true);
-                }}
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            ) : null}
-            {!isMdUp && mobileSearchOpen ? (
-              <button
-                type="button"
-                aria-label="Close search"
-                className={iconBtn}
-                onClick={() => {
-                  setMobileSearchOpen(false);
-                  setSearchOpen(false);
-                  setSearchTerm("");
-                }}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-            ) : null}
-
+        <div className="flex shrink-0 items-center gap-2">
+          {!isMdUp && !mobileSearchOpen ? (
             <button
               type="button"
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-              title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
-              className={iconBtn}
+              aria-label="Open search"
+              className="btn-icon"
+              onClick={() => {
+                setMobileSearchOpen(true);
+                setSearchOpen(true);
+              }}
             >
-              <motion.span animate={{ rotate: dark ? 180 : 0 }} transition={{ duration: 0.2 }} className="block">
-                {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </motion.span>
+              <Search className="h-4 w-4" />
             </button>
+          ) : null}
+          {!isMdUp && mobileSearchOpen ? (
+            <button
+              type="button"
+              aria-label="Close search"
+              className="btn-icon"
+              onClick={() => {
+                setMobileSearchOpen(false);
+                setSearchOpen(false);
+                setSearchTerm("");
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : null}
 
-            <div ref={notifContainerRef} className="relative">
-              <button
-                type="button"
-                aria-label="Notifications"
-                aria-expanded={showNotif}
-                onClick={() => setShowNotif((v) => !v)}
-                className={iconBtn}
-              >
-                <Bell className="h-5 w-5" />
-                {unread > 0 ? (
-                  <span className="absolute right-0.5 top-0.5 z-10 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                ) : null}
-              </button>
-              <AnimatePresence>
-                {showNotif ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
-                    className="absolute right-0 top-12 z-[90] origin-top-right"
-                  >
-                    <NotificationPanel onClose={() => setShowNotif(false)} />
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-
-            <UserAccountDropdown align="end" side="bottom">
-              <button
-                type="button"
-                className="flex max-w-[200px] items-center gap-2 rounded-full border-0 bg-transparent py-1 pl-1 pr-2 transition-colors duration-200 ease-out hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                {avatarUrl && !avatarLoadError ? (
-                  <img
-                    src={avatarUrl}
-                    alt=""
-                    className="h-9 w-9 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-600"
-                    onError={() => setAvatarLoadError(true)}
-                  />
-                ) : (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white ring-2 ring-indigo-500/20">
-                    {initials}
-                  </span>
-                )}
-                <div className="hidden min-w-0 text-left sm:block">
-                  <p className="truncate text-sm font-bold text-[#1d1d1f] dark:text-slate-100">{user?.name ?? "Recruiter"}</p>
-                  <p className="truncate text-xs text-[#8e8e93] dark:text-slate-400">{user?.email ?? "…"}</p>
-                </div>
-                <ChevronDown className="hidden h-4 w-4 shrink-0 text-slate-500 sm:block" />
-              </button>
-            </UserAccountDropdown>
+          <div ref={notifContainerRef} className="relative">
+            <button
+              type="button"
+              aria-label="Notifications"
+              aria-expanded={showNotif}
+              onClick={() => setShowNotif((v) => !v)}
+              className="btn-icon relative"
+            >
+              <Bell className="h-4 w-4" />
+              {unread > 0 ? (
+                <span
+                  className="mono absolute -right-[3px] -top-[3px] inline-flex items-center justify-center rounded-full text-white"
+                  style={{
+                    background: "#ef4444",
+                    fontSize: 9,
+                    fontWeight: 700,
+                    minWidth: 16,
+                    height: 16,
+                    padding: "0 4px",
+                    border: "2px solid #0c0c18",
+                  }}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </button>
+            <AnimatePresence>
+              {showNotif ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="absolute right-0 top-11 z-[90] origin-top-right"
+                >
+                  <NotificationPanel onClose={() => setShowNotif(false)} />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
+
+          <UserAccountDropdown align="end" side="bottom">
+            <button
+              type="button"
+              className="flex max-w-[220px] items-center gap-[10px] transition-colors duration-150"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid var(--line)",
+                borderRadius: 999,
+                padding: "4px 12px 4px 4px",
+              }}
+            >
+              {avatarUrl && !avatarLoadError ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-[30px] w-[30px] rounded-full object-cover"
+                  onError={() => setAvatarLoadError(true)}
+                />
+              ) : (
+                <span className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>
+                  {initials}
+                </span>
+              )}
+              <div className="hidden min-w-0 text-left sm:block" style={{ lineHeight: 1.15 }}>
+                <p className="truncate text-[12.5px] font-semibold" style={{ color: "#fff" }}>{user?.name ?? "Recruiter"}</p>
+                <p className="truncate text-[10.5px]" style={{ color: "var(--ink-3)" }}>{user?.email ?? "…"}</p>
+              </div>
+              <ChevronDown className="hidden h-[14px] w-[14px] shrink-0 sm:block" style={{ color: "var(--ink-3)" }} />
+            </button>
+          </UserAccountDropdown>
         </div>
       </header>
 
@@ -553,10 +549,10 @@ export const Header = ({ onToggleSidebar }: { onToggleSidebar: () => void }) => 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2 }}
-            className="pointer-events-none fixed right-4 top-20 z-[60] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border border-white/60 bg-white/90 px-4 py-3 shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-slate-800/90"
+            className="panel pointer-events-none fixed right-4 top-20 z-[60] w-[360px] max-w-[calc(100vw-2rem)] px-4 py-3"
           >
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{banner.title}</p>
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{banner.message}</p>
+            <p className="text-sm font-semibold" style={{ color: "#fff" }}>{banner.title}</p>
+            <p className="mt-0.5 text-xs" style={{ color: "var(--ink-3)" }}>{banner.message}</p>
           </motion.div>
         ) : null}
       </AnimatePresence>
