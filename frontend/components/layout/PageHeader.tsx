@@ -1,6 +1,25 @@
-﻿export const PageHeader = ({ title, subtitle }: { title: string; subtitle?: string }) => (
-  <div className="mb-1">
-    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-[1.75rem]">{title}</h1>
-    {subtitle ? <p className="mt-1.5 max-w-2xl text-sm text-slate-600 dark:text-slate-400">{subtitle}</p> : null}
+import type { ReactNode } from "react";
+
+type PageHeaderProps = {
+  title: string;
+  subtitle?: string;
+  eyebrow?: string;
+  right?: ReactNode;
+};
+
+export const PageHeader = ({ title, subtitle, eyebrow, right }: PageHeaderProps) => (
+  <div className="mb-6 flex flex-wrap items-end justify-between gap-6">
+    <div className="min-w-0">
+      {eyebrow ? <div className="eyebrow mb-[10px]">{eyebrow}</div> : null}
+      <h1 className="display m-0" style={{ fontSize: 32 }}>
+        {title}
+      </h1>
+      {subtitle ? (
+        <p className="mt-2 max-w-[720px]" style={{ color: "var(--ink-3)", fontSize: 14.5, margin: "8px 0 0" }}>
+          {subtitle}
+        </p>
+      ) : null}
+    </div>
+    {right ? <div className="flex flex-wrap items-center gap-[10px]">{right}</div> : null}
   </div>
 );

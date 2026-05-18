@@ -60,10 +60,17 @@ export const SettingsPageClient = () => {
   })();
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_4px_24px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800/40 dark:shadow-none">
+    <div className="fade-up mx-auto max-w-6xl">
+      <div className="mb-6">
+        <div className="eyebrow mb-[10px]">Workspace · Account</div>
+        <h1 className="display m-0" style={{ fontSize: 32 }}>Settings</h1>
+        <p className="mt-2 text-sm" style={{ color: "var(--ink-3)" }}>
+          Workspace preferences, security, integrations.
+        </p>
+      </div>
+      <div className="panel overflow-hidden">
         {/* Mobile horizontal tabs */}
-        <div className="border-b border-slate-200 bg-white px-2 py-2 md:hidden dark:border-slate-700 dark:bg-slate-800">
+        <div className="md:hidden" style={{ borderBottom: "1px solid var(--line)", padding: "8px" }}>
           <div className="flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((item) => {
               const Icon = item.icon;
@@ -73,10 +80,8 @@ export const SettingsPageClient = () => {
                   key={item.id}
                   type="button"
                   onClick={() => setSection(item.id)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition",
-                    active ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700",
-                  )}
+                  className={cn("btn shrink-0", active ? "btn-primary" : "btn-ghost")}
+                  style={{ height: 32, fontSize: 12 }}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="whitespace-nowrap">{item.label}</span>
@@ -88,7 +93,10 @@ export const SettingsPageClient = () => {
 
         <div className="flex flex-col md:flex-row">
           {/* Desktop nav */}
-          <nav className="hidden w-[240px] shrink-0 flex-col border-r border-slate-200 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/30 md:flex">
+          <nav
+            className="hidden w-[240px] shrink-0 flex-col p-3 md:flex"
+            style={{ borderRight: "1px solid var(--line)", background: "rgba(0,0,0,.18)" }}
+          >
             {NAV.map((item) => {
               const Icon = item.icon;
               const active = section === item.id;
@@ -97,14 +105,10 @@ export const SettingsPageClient = () => {
                   key={item.id}
                   type="button"
                   onClick={() => setSection(item.id)}
-                  className={cn(
-                    "mb-1 flex h-11 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
-                    active
-                      ? "bg-brand-600 font-bold text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
-                  )}
+                  className={cn("nav-item mb-1", active && "active")}
+                  style={{ height: 40, paddingLeft: 12, paddingRight: 12 }}
                 >
-                  <Icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-brand-600 dark:text-brand-400")} />
+                  <Icon className="h-4 w-4 shrink-0" style={{ color: active ? "#fff" : "var(--ink-3)" }} />
                   <span className="truncate">{item.label}</span>
                 </button>
               );

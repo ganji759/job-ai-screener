@@ -231,74 +231,113 @@ export default function ApplicantsPage() {
     );
   }
 
+  const statTiles: Array<{
+    key: "total" | "pending" | "shortlisted" | "rejected";
+    label: string;
+    icon: typeof Users;
+    count: number;
+    tone: [string, string];
+  }> = [
+    { key: "total", label: "Total", icon: Users, count: stats.total, tone: ["#6366f1", "#818cf8"] },
+    { key: "pending", label: "Pending", icon: Clock3, count: stats.pending, tone: ["#fbbf24", "#fde68a"] },
+    { key: "shortlisted", label: "Shortlisted", icon: Star, count: stats.shortlisted, tone: ["#10b981", "#34d399"] },
+    { key: "rejected", label: "Rejected", icon: XCircle, count: stats.rejected, tone: ["#f43f5e", "#fb7185"] },
+  ];
+
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="Applicants" subtitle="Manage applicants and ingestion workflows from all sources." />
-        <div className="flex gap-2">
-          <select
-            value={jobId}
-            onChange={(e) => {
-              setJobId(e.target.value);
-              setPage(1);
-            }}
-            className={cn(compactSelectClassName, "px-4 py-2 text-sm")}
-            aria-label="Select job for applicants"
-            disabled={!jobs.length}
-          >
-            <option value="">All Jobs</option>
-            {jobs.map((job) => (
-              <option key={job._id} value={job._id}>
-                {job.title}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => openUploadModal()}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white outline-none transition hover:bg-brand-700"
-          >
-            <Upload className="h-4 w-4" />
-            Upload Applicants
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpenFilterDrawer(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-          >
-            <Filter className="h-4 w-4" />
-            Filter
-          </button>
-        </div>
-      </div>
-      <div className="grid gap-3 md:grid-cols-4">
-        {[
-          { key: "total", label: "Total", icon: Users, count: stats.total, accent: "text-blue-600", bg: "bg-blue-50", activeBg: "bg-blue-600 text-white" },
-          { key: "pending", label: "Pending", icon: Clock3, count: stats.pending, accent: "text-amber-600", bg: "bg-amber-50", activeBg: "bg-amber-500 text-white" },
-          { key: "shortlisted", label: "Shortlisted", icon: Star, count: stats.shortlisted, accent: "text-emerald-600", bg: "bg-emerald-50", activeBg: "bg-emerald-600 text-white" },
-          { key: "rejected", label: "Rejected", icon: XCircle, count: stats.rejected, accent: "text-red-600", bg: "bg-red-50", activeBg: "bg-red-600 text-white" },
-        ].map((item) => {
+    <div className="fade-up space-y-6">
+      <PageHeader
+        eyebrow="Workspace · Pipeline"
+        title="Applicants"
+        subtitle="Every candidate across your pipeline, ranked."
+        right={
+          <>
+            <select
+              value={jobId}
+              onChange={(e) => {
+                setJobId(e.target.value);
+                setPage(1);
+              }}
+              className={compactSelectClassName}
+              aria-label="Select job for applicants"
+              disabled={!jobs.length}
+            >
+              <option value="">All Jobs</option>
+              {jobs.map((job) => (
+                <option key={job._id} value={job._id}>
+                  {job.title}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={openUploadModal} className="btn btn-primary">
+              <Upload className="h-4 w-4" />
+              Upload
+            </button>
+            <button type="button" onClick={() => setOpenFilterDrawer(true)} className="btn btn-ghost">
+              <Filter className="h-4 w-4" />
+              Filter
+            </button>
+          </>
+        }
+      />
+      <div className="grid gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+        {statTiles.map((item) => {
           const Icon = item.icon;
           const active =
             (item.key === "total" && statusFilter === "all") ||
             (item.key !== "total" && statusFilter === item.key);
+          const [c1, c2] = item.tone;
           return (
             <button
               key={item.key}
               type="button"
               onClick={() => {
-                setStatusFilter(item.key === "total" ? "all" : (item.key as "pending" | "shortlisted" | "rejected"));
+                setStatusFilter(item.key === "total" ? "all" : item.key);
                 setPage(1);
               }}
-              className={cn("rounded-xl border p-4 text-left transition", active ? item.activeBg : "bg-white")}
+              className="panel panel-tight lift relative overflow-hidden text-left"
+              style={
+                active
+                  ? {
+                      borderColor: `${c1}55`,
+                      boxShadow: `0 0 0 1px ${c1}55, 0 20px 50px -20px ${c1}40`,
+                    }
+                  : undefined
+              }
             >
-              <div className="flex items-center justify-between">
-                <p className={cn("text-xs uppercase tracking-wide", active ? "text-white/90" : "text-slate-500")}>{item.label}</p>
-                <span className={cn("rounded-lg p-2", active ? "bg-white/20 text-white" : `${item.bg} ${item.accent}`)}>
-                  <Icon className="h-4 w-4" />
-                </span>
+              <div
+                aria-hidden
+                className="pointer-events-none absolute"
+                style={{
+                  top: -30,
+                  right: -30,
+                  width: 120,
+                  height: 120,
+                  borderRadius: "50%",
+                  background: `radial-gradient(closest-side, ${c1}55, transparent)`,
+                  filter: "blur(8px)",
+                  opacity: active ? 1 : 0.6,
+                }}
+              />
+              <div className="relative flex items-center justify-between">
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 11,
+                    background: `linear-gradient(135deg, ${c1}33, ${c2}1a)`,
+                    border: `1px solid ${c1}55`,
+                    color: c2,
+                  }}
+                >
+                  <Icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
+                </div>
+                <span className="eyebrow">{item.label}</span>
               </div>
-              <p className={cn("mt-2 text-2xl font-bold", active ? "text-white" : item.accent)}>{item.count}</p>
+              <p className="display mt-3" style={{ fontSize: 30, lineHeight: 1, color: "#fff" }}>
+                {item.count}
+              </p>
             </button>
           );
         })}
@@ -312,7 +351,7 @@ export default function ApplicantsPage() {
               setPage(1);
             }}
             placeholder="Search by name, title, or skill..."
-            className="h-11 flex-1 rounded-lg border border-slate-200 px-3"
+            className="input flex-1"
           />
           <select
             value={jobId}
@@ -320,7 +359,7 @@ export default function ApplicantsPage() {
               setJobId(e.target.value);
               setPage(1);
             }}
-            className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
+            className={compactSelectClassName}
           >
             <option value="">All Jobs</option>
             {jobs.map((job) => (
@@ -332,7 +371,7 @@ export default function ApplicantsPage() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
-            className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
+            className={compactSelectClassName}
           >
             <option value="all">All Sources</option>
             <option value="umurava_platform">Umurava Platform</option>
@@ -343,7 +382,7 @@ export default function ApplicantsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
+            className={compactSelectClassName}
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -354,19 +393,24 @@ export default function ApplicantsPage() {
           <select
             value={scoreFilter}
             onChange={(e) => setScoreFilter(e.target.value as typeof scoreFilter)}
-            className={cn(compactSelectClassName, "h-11 rounded-lg px-3 text-sm")}
+            className={compactSelectClassName}
           >
             <option value="all">All scores</option>
             <option value="0-40">0-40</option>
             <option value="40-70">40-70</option>
             <option value="70-100">70-100</option>
           </select>
-          <button type="button" className="text-sm font-semibold text-brand-700 underline-offset-2 hover:underline" onClick={clearFilters}>
+          <button
+            type="button"
+            className="text-sm font-semibold underline-offset-2 hover:underline"
+            style={{ color: "var(--indigo-2)" }}
+            onClick={clearFilters}
+          >
             Clear filters
           </button>
         </div>
         {isLoadingApplicants ? (
-          <p className="py-8 text-center text-sm text-slate-500">Loading applicants…</p>
+          <p className="py-8 text-center text-sm" style={{ color: "var(--ink-3)" }}>Loading applicants…</p>
         ) : (
           <ApplicantTable
             applicants={pagedApplicants}
@@ -377,7 +421,7 @@ export default function ApplicantsPage() {
             jobTitleById={jobTitleById}
           />
         )}
-        <div className="flex items-center justify-between text-sm text-slate-600">
+        <div className="mono flex items-center justify-between text-[12px]" style={{ color: "var(--ink-3)" }}>
           <span>
             {totalFiltered === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalFiltered)} of {totalFiltered} applicants
           </span>
@@ -386,7 +430,8 @@ export default function ApplicantsPage() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+              className="btn btn-ghost"
+              style={{ height: 30, fontSize: 12 }}
             >
               Prev
             </button>
@@ -397,7 +442,8 @@ export default function ApplicantsPage() {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+              className="btn btn-ghost"
+              style={{ height: 30, fontSize: 12 }}
             >
               Next
             </button>

@@ -1,4 +1,4 @@
-﻿import { Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";
@@ -12,21 +12,31 @@ export const Button = ({
   className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }) => {
+  // Map onto Heron `btn` utilities so buttons match the dark/gradient design system.
+  // Each variant has graceful fallback styles for surfaces outside `.heron-app-shell`.
   const variantClass: Record<Variant, string> = {
-    primary:
-      "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md hover:from-indigo-600 hover:to-violet-700 hover:shadow-indigo-lg active:scale-[0.97]",
-    secondary:
-      "border border-slate-200/80 bg-white/80 text-slate-800 shadow-card backdrop-blur-sm hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 dark:border-slate-600/60 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-700/70 active:scale-[0.97]",
-    danger: "bg-gradient-to-br from-red-500 to-rose-600 text-white hover:from-red-600 hover:to-rose-700 shadow-sm active:scale-[0.97]",
-    ghost: "bg-transparent text-slate-600 hover:bg-slate-100/80 dark:text-slate-300 dark:hover:bg-white/[0.06] active:scale-[0.97]",
+    primary: "btn btn-primary",
+    secondary: "btn btn-ghost",
+    danger: "btn",
+    ghost: "btn btn-ghost",
   };
-  const sizeClass: Record<Size, string> = { sm: "px-4 py-2 text-sm", md: "px-5 py-2.5", lg: "px-6 py-3 text-lg" };
+  const sizeClass: Record<Size, string> = {
+    sm: "!h-[32px] !px-[14px] text-[12px]",
+    md: "",
+    lg: "!h-[44px] !px-[20px] text-[14px]",
+  };
+  const dangerExtra =
+    variant === "danger"
+      ? "!bg-gradient-to-br !from-rose-500 !to-rose-700 !text-white shadow-[0_10px_30px_-8px_rgba(244,63,94,.55)] hover:!shadow-[0_14px_38px_-8px_rgba(244,63,94,.7)] hover:-translate-y-[1px]"
+      : "";
+
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition disabled:pointer-events-none disabled:opacity-60 disabled:active:scale-100",
+        "disabled:pointer-events-none disabled:opacity-60",
         variantClass[variant],
         sizeClass[size],
+        dangerExtra,
         className,
       )}
       disabled={props.disabled || loading}

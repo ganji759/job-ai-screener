@@ -79,10 +79,10 @@ export default function JobsPage() {
   if (isError) {
     return (
       <div className="space-y-4">
-        <PageHeader title="My Jobs" subtitle="Create, monitor and run AI screenings." />
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
-          <p className="font-semibold">We couldn&apos;t load your jobs</p>
-          <p className="mt-1 text-sm opacity-90">{error ? getRtkQueryErrorMessage(error) : "Check your connection and try again."}</p>
+        <PageHeader eyebrow="Workspace · Pipeline" title="My Jobs" subtitle="Create, monitor and run AI screenings." />
+        <div className="panel panel-lg" style={{ borderColor: "rgba(244,63,94,.32)" }}>
+          <p className="font-semibold" style={{ color: "#fda4af" }}>We couldn&apos;t load your jobs</p>
+          <p className="mt-1 text-sm" style={{ color: "var(--ink-3)" }}>{error ? getRtkQueryErrorMessage(error) : "Check your connection and try again."}</p>
           <Button type="button" className="mt-4" onClick={() => void refetch()}>
             Try again
           </Button>
@@ -91,33 +91,42 @@ export default function JobsPage() {
     );
   }
 
+  const statusFilters: Array<{ value: string; label: string }> = [
+    { value: "", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "draft", label: "Draft" },
+    { value: "closed", label: "Closed" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="My Jobs" subtitle="Create, monitor and run AI screenings." />
-        <Link href="/jobs/new" className="shrink-0">
-          <Button className={cn("w-full sm:w-auto", sortedJobs.length === 0 ? "animate-pulse" : "")}>
-            <Plus className="h-4 w-4" />
-            New Job
-          </Button>
-        </Link>
-      </div>
+    <div className="fade-up space-y-6">
+      <PageHeader
+        eyebrow="Workspace · Pipeline"
+        title="My Jobs"
+        subtitle="Create, monitor and run AI screenings."
+        right={
+          <Link href="/jobs/new">
+            <Button className={sortedJobs.length === 0 ? "animate-pulse" : ""}>
+              <Plus className="h-4 w-4" />
+              New Job
+            </Button>
+          </Link>
+        }
+      />
       <div className="grid gap-3 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <Input placeholder="Search jobs…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-2 lg:col-span-3 lg:justify-end">
-          {["", "active", "draft", "closed"].map((s) => (
+        <div className="flex flex-wrap gap-2 lg:col-span-3 lg:justify-end">
+          {statusFilters.map((f) => (
             <button
-              key={s || "all"}
+              key={f.value || "all"}
               type="button"
-              onClick={() => setStatus(s)}
-              className={cn(
-                "rounded-full px-3 py-2 text-xs font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500/40",
-                status === s ? "bg-brand-600 text-white shadow-brand-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600",
-              )}
+              onClick={() => setStatus(f.value)}
+              className={cn("btn", status === f.value ? "btn-primary" : "btn-ghost")}
+              style={{ height: 34, fontSize: 12 }}
             >
-              {s || "all"}
+              {f.label}
             </button>
           ))}
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={compactSelectClassName} aria-label="Sort jobs">
@@ -129,10 +138,8 @@ export default function JobsPage() {
             type="button"
             onClick={() => setView("grid")}
             aria-pressed={view === "grid"}
-            className={cn(
-              "rounded-full p-2 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500/40",
-              view === "grid" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600",
-            )}
+            className={cn("btn-icon", view === "grid" && "active")}
+            style={view === "grid" ? { background: "rgba(99,102,241,0.18)", color: "#fff", borderColor: "rgba(99,102,241,0.4)" } : undefined}
           >
             <Grid2X2 className="h-4 w-4" />
           </button>
@@ -140,18 +147,16 @@ export default function JobsPage() {
             type="button"
             onClick={() => setView("list")}
             aria-pressed={view === "list"}
-            className={cn(
-              "rounded-full p-2 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500/40",
-              view === "list" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600",
-            )}
+            className="btn-icon"
+            style={view === "list" ? { background: "rgba(99,102,241,0.18)", color: "#fff", borderColor: "rgba(99,102,241,0.4)" } : undefined}
           >
             <List className="h-4 w-4" />
           </button>
         </div>
       </div>
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-brand-100 bg-white py-16 text-slate-500 shadow-brand-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" aria-hidden />
+        <div className="panel panel-lg flex flex-col items-center justify-center gap-3 py-16" style={{ color: "var(--ink-3)" }}>
+          <div className="h-10 w-10 animate-spin rounded-full" style={{ borderColor: "rgba(99,102,241,0.25)", borderTopColor: "#818cf8", borderWidth: 2, borderStyle: "solid" }} aria-hidden />
           <p className="text-sm font-medium">Loading jobs…</p>
         </div>
       ) : sortedJobs.length === 0 ? (
@@ -160,7 +165,7 @@ export default function JobsPage() {
           description={emptyDescription}
           actionLabel={status ? "Create Job" : "Create your first job"}
           action={() => window.location.assign("/jobs/new")}
-          icon={status ? <Rocket className="h-10 w-10" /> : <Rocket className="h-10 w-10" />}
+          icon={<Rocket className="h-10 w-10" />}
         />
       ) : (
         <>
@@ -171,60 +176,63 @@ export default function JobsPage() {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-brand-100 bg-white dark:border-slate-700 dark:bg-slate-900">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="bg-brand-50 text-left text-xs uppercase text-brand-900 dark:bg-slate-800 dark:text-slate-100">
+            <div className="panel overflow-x-auto">
+              <table className="tbl min-w-[760px]">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3">Domain</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Applicants</th>
-                    <th className="px-4 py-3">Date Posted</th>
-                    <th className="px-4 py-3">Last Updated</th>
-                    <th className="px-4 py-3">Actions</th>
+                    <th>Title</th>
+                    <th>Domain</th>
+                    <th>Status</th>
+                    <th>Applicants</th>
+                    <th>Date Posted</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-brand-100 dark:divide-slate-700">
+                <tbody>
                   {sortedJobs.map((job) => (
-                    <tr
-                      key={job._id}
-                      className="transition-colors hover:bg-brand-50/50 even:bg-slate-50/30 dark:hover:bg-slate-800/80 dark:even:bg-slate-800/40"
-                    >
-                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{job.title}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{job.requirements.domain || "N/A"}</td>
-                      <td className="px-4 py-3"><StatusBadge status={job.status} /></td>
-                      <td className="px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200">
-                        <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{job.applicantCount ?? 0}</span>
+                    <tr key={job._id}>
+                      <td className="font-semibold" style={{ color: "#fff" }}>{job.title}</td>
+                      <td>{job.requirements.domain || "—"}</td>
+                      <td><StatusBadge status={job.status} /></td>
+                      <td className="tabular-nums">
+                        <span className="mono inline-flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
+                          {job.applicantCount ?? 0}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                        <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{new Date(job.createdAt).toLocaleDateString()}</span>
+                      <td style={{ color: "var(--ink-3)" }}>
+                        <span className="mono inline-flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {new Date(job.createdAt).toLocaleDateString()}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{new Date(job.updatedAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
+                      <td className="mono" style={{ color: "var(--ink-3)" }}>{new Date(job.updatedAt).toLocaleDateString()}</td>
+                      <td>
                         <div className="flex items-center gap-2">
-                          <Link href={`/jobs/${job._id}`} className="rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-700">
-                            View
-                          </Link>
-                          <Link href={`/jobs/${job._id}`} className="rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-700">
-                            Edit
-                          </Link>
-                          <Link href={`/jobs/${job._id}/screenings`} className="rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-medium text-white">
-                            Screen
-                          </Link>
+                          <Link href={`/jobs/${job._id}`} className="btn btn-ghost" style={{ height: 28, fontSize: 11 }}>View</Link>
+                          <Link href={`/jobs/${job._id}/screenings`} className="btn btn-primary" style={{ height: 28, fontSize: 11 }}>Screen</Link>
                           {confirmDeleteId === job._id ? (
                             <>
                               <button
                                 type="button"
                                 disabled={deleting}
                                 onClick={() => void handleDeleteJob(job._id, job.title)}
-                                className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                                className="btn"
+                                style={{
+                                  height: 28,
+                                  fontSize: 11,
+                                  background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                                  color: "#fff",
+                                }}
                               >
                                 {deleting ? "Deleting…" : "Confirm"}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setConfirmDeleteId(null)}
-                                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300"
+                                className="btn btn-ghost"
+                                style={{ height: 28, fontSize: 11 }}
                               >
                                 Cancel
                               </button>
@@ -233,7 +241,8 @@ export default function JobsPage() {
                             <button
                               type="button"
                               onClick={() => void handleDeleteJob(job._id, job.title)}
-                              className="rounded-lg border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                              className="btn-icon"
+                              style={{ width: 28, height: 28, color: "#fb7185" }}
                               title="Delete job"
                             >
                               <Trash2 className="h-3.5 w-3.5" />

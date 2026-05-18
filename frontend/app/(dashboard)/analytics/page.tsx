@@ -253,32 +253,47 @@ export default function AnalyticsPage() {
   const hasAvgScoreByJob = avgScoreByJob.length > 0;
 
   return (
-    <div className="space-y-4">
-      {/* Header + range filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="Analytics" subtitle="Performance intelligence for your recruiting pipeline." />
-        <div className="space-y-2">
-          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
-            {ranges.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                className={cn("rounded-full px-3 py-1 text-xs font-semibold transition-all", range === r ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100")}
-              >
-                {r === "custom" ? "Custom" : r.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {range === "custom" ? (
-            <div className="flex items-center gap-2">
-              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs" />
-              <span className="text-xs text-slate-500">to</span>
-              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs" />
+    <div className="fade-up space-y-4">
+      <PageHeader
+        eyebrow="Workspace · Insights"
+        title="Analytics"
+        subtitle="Pipeline funnel, source quality, and screening signal."
+        right={
+          <div className="space-y-2">
+            <div
+              className="inline-flex rounded-full p-1"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line)" }}
+            >
+              {ranges.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  className={cn("rounded-full px-3 py-1 text-xs font-semibold transition-all")}
+                  style={
+                    range === r
+                      ? {
+                          background: "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)",
+                          color: "#fff",
+                          boxShadow: "0 8px 24px -10px rgba(99,102,241,.55)",
+                        }
+                      : { color: "var(--ink-3)" }
+                  }
+                >
+                  {r === "custom" ? "Custom" : r.toUpperCase()}
+                </button>
+              ))}
             </div>
-          ) : null}
-        </div>
-      </div>
+            {range === "custom" ? (
+              <div className="flex items-center gap-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="input" style={{ height: 32, fontSize: 12 }} />
+                <span className="mono text-xs" style={{ color: "var(--ink-4)" }}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="input" style={{ height: 32, fontSize: 12 }} />
+              </div>
+            ) : null}
+          </div>
+        }
+      />
 
       {/* ── AI vs HR Explainability (always visible, compact) ── */}
       <Card className="p-4">

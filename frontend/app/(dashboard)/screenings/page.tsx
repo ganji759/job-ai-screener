@@ -76,28 +76,38 @@ export default function ScreeningsHomePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="Screenings" subtitle="AI-powered candidate ranking and shortlisting results" />
-        <Button
-          className="shrink-0"
-          onClick={() => {
-            setRerunJobId(undefined);
-            setOpenRunModal(true);
-          }}
-        >
-          <Sparkles className="h-4 w-4" />
-          Run New Screening
-        </Button>
-      </div>
+    <div className="fade-up space-y-6">
+      <PageHeader
+        eyebrow="Workspace · Intelligence"
+        title="Screenings"
+        subtitle="AI screening runs — ingested, scored, summarized."
+        right={
+          <Button
+            onClick={() => {
+              setRerunJobId(undefined);
+              setOpenRunModal(true);
+            }}
+          >
+            <Sparkles className="h-4 w-4" />
+            Run New Screening
+          </Button>
+        }
+      />
 
       {allScreenings.length === 0 ? (
         <Card className="py-14 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+          <div
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+            style={{
+              background: "linear-gradient(135deg, rgba(99,102,241,.18), rgba(217,70,239,.14))",
+              border: "1px solid rgba(99,102,241,.32)",
+              color: "#c7d2fe",
+            }}
+          >
             <BrainCircuit className="h-8 w-8" />
           </div>
-          <h3 className="text-xl font-semibold text-slate-900">No screenings run yet</h3>
-          <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-600">
+          <h3 className="display" style={{ fontSize: 24, color: "#fff" }}>No screenings run yet</h3>
+          <p className="mx-auto mt-2 max-w-2xl text-sm" style={{ color: "var(--ink-3)" }}>
             Select a job and run AI screening to instantly rank and shortlist your best candidates.
           </p>
           <Button
@@ -113,43 +123,53 @@ export default function ScreeningsHomePage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card>
-              <p className="text-sm text-slate-500">Total Screenings run</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-slate-500">Candidates Screened</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{stats.candidates}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-slate-500">Average Match Score</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{stats.avgScore}/100</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-slate-500">Total Shortlisted candidates</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{stats.shortlisted}</p>
-            </Card>
+          <div className="grid gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "Total Screenings run", value: stats.total, accent: "#6366f1" },
+              { label: "Candidates Screened", value: stats.candidates, accent: "#22d3ee" },
+              { label: "Average Match Score", value: `${stats.avgScore}/100`, accent: "#d946ef" },
+              { label: "Shortlisted candidates", value: stats.shortlisted, accent: "#34d399" },
+            ].map((tile) => (
+              <div key={tile.label} className="panel panel-tight lift relative overflow-hidden">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute"
+                  style={{
+                    top: -30,
+                    right: -30,
+                    width: 120,
+                    height: 120,
+                    borderRadius: "50%",
+                    background: `radial-gradient(closest-side, ${tile.accent}55, transparent)`,
+                    filter: "blur(8px)",
+                  }}
+                />
+                <p className="eyebrow">{tile.label}</p>
+                <p className="display mt-2" style={{ fontSize: 30, lineHeight: 1, color: "#fff" }}>
+                  {tile.value}
+                </p>
+              </div>
+            ))}
           </div>
 
           <Card className="space-y-3">
             <div className="grid gap-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--ink-4)" }} />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search screenings by job title..." className="pl-9" />
               </div>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-lg border border-slate-200 px-3">
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
                 <option value="all">All Status</option>
                 <option value="completed">Completed</option>
                 <option value="running">Running</option>
                 <option value="failed">Failed</option>
               </select>
-              <select value={date} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-lg border border-slate-200 px-3">
+              <select value={date} onChange={(e) => setDate(e.target.value)} className="input">
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
                 <option value="all">All time</option>
               </select>
-              <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-slate-200 px-3">
+              <select value={sort} onChange={(e) => setSort(e.target.value)} className="input">
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
                 <option value="highest">Highest Score</option>
@@ -160,46 +180,54 @@ export default function ScreeningsHomePage() {
           <div className="space-y-3">
             {screenings.length === 0 ? (
               <Card className="text-center">
-                <p className="text-sm text-slate-600">No screenings match your filters — try adjusting your search.</p>
+                <p className="text-sm" style={{ color: "var(--ink-3)" }}>No screenings match your filters — try adjusting your search.</p>
               </Card>
             ) : (
               screenings.map((screening) => {
                 const statusValue = screening.displayStatus;
-                const statusClass =
+                const pillClass =
                   statusValue === "completed"
-                    ? "bg-emerald-100 text-emerald-700"
+                    ? "pill pill-mint"
                     : statusValue === "failed"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-blue-100 text-blue-700";
-                const borderClass = statusValue === "completed" ? "border-l-emerald-500" : statusValue === "failed" ? "border-l-red-500" : "border-l-blue-500";
+                      ? "pill pill-rose"
+                      : "pill pill-indigo";
+                const accentColor =
+                  statusValue === "completed" ? "#34d399" : statusValue === "failed" ? "#fb7185" : "#818cf8";
                 const dateText = new Date(screening.createdAt).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" });
                 return (
-                  <Card key={screening._id} className={`border-l-4 ${borderClass} hover:-translate-y-[1px] hover:shadow-md`}>
+                  <Card
+                    key={screening._id}
+                    className="lift"
+                    style={{ borderLeft: `3px solid ${accentColor}` }}
+                  >
                     <div className="grid gap-3 lg:grid-cols-[2fr_1.6fr_1fr] lg:items-center">
                       <div>
-                        <p className="text-lg font-bold text-slate-900">{screening.jobTitle}</p>
-                        <p className="text-sm text-slate-500">{screening.jobDomain}</p>
-                        <p className="mt-1 text-xs text-slate-500">Screening run on {dateText}</p>
+                        <p className="text-lg font-bold" style={{ color: "#fff" }}>{screening.jobTitle}</p>
+                        <p className="text-sm" style={{ color: "var(--ink-3)" }}>{screening.jobDomain}</p>
+                        <p className="mono mt-1 text-xs" style={{ color: "var(--ink-4)" }}>Run on {dateText}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{screening.totalAnalyzed} candidates</span>
-                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">{screening.shortlistedCount} shortlisted</span>
-                        <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">Avg {Math.round(screening.averageScore)}/100</span>
+                        <span className="pill">{screening.totalAnalyzed} candidates</span>
+                        <span className="pill pill-mint">{screening.shortlistedCount} shortlisted</span>
+                        <span className="pill pill-fuchsia">Avg {Math.round(screening.averageScore)}/100</span>
                       </div>
                       <div className="flex items-center justify-end gap-2">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>{statusValue === "running" ? "Running" : statusValue === "failed" ? "Failed" : "Completed"}</span>
-                        <Link href={`/screenings/${screening._id}`} className="inline-flex rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                        <span className={pillClass}>
+                          {statusValue === "running" ? "Running" : statusValue === "failed" ? "Failed" : "Completed"}
+                        </span>
+                        <Link href={`/screenings/${screening._id}`} className="btn btn-primary">
                           View Results
                         </Link>
                         <div className="relative">
-                          <button type="button" className="rounded-full p-2 hover:bg-slate-100" onClick={() => setMenuId((prev) => (prev === screening._id ? "" : screening._id))}>
-                            <MoreVertical className="h-4 w-4 text-slate-600" />
+                          <button type="button" className="btn-icon" onClick={() => setMenuId((prev) => (prev === screening._id ? "" : screening._id))}>
+                            <MoreVertical className="h-4 w-4" />
                           </button>
                           {menuId === screening._id ? (
-                            <div className="absolute right-0 top-10 z-10 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                            <div className="panel absolute right-0 top-10 z-10 w-48 p-1">
                               <button
                                 type="button"
-                                className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06]"
+                                style={{ color: "var(--ink-2)" }}
                                 onClick={() => {
                                   setRerunJobId(screening.jobId);
                                   setOpenRunModal(true);
@@ -208,10 +236,20 @@ export default function ScreeningsHomePage() {
                               >
                                 Re-run Screening
                               </button>
-                              <button type="button" className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-100" onClick={() => void onExportCsv(screening._id)}>
+                              <button
+                                type="button"
+                                className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06]"
+                                style={{ color: "var(--ink-2)" }}
+                                onClick={() => void onExportCsv(screening._id)}
+                              >
                                 Export Results (CSV)
                               </button>
-                              <button type="button" className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50" onClick={() => void onDelete(String(screening._id))}>
+                              <button
+                                type="button"
+                                className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-rose-500/10"
+                                style={{ color: "#fb7185" }}
+                                onClick={() => void onDelete(String(screening._id))}
+                              >
                                 Delete
                               </button>
                             </div>

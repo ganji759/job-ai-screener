@@ -509,3 +509,116 @@ html:has(.heron-app-shell) {
   background: rgba(217, 70, 239, 0.5);
   color: #fff;
 }
+
+/* ====== Cross-component remaps inside the shell ======
+   Many pages still use legacy utility classes (surface-card, joy-card,
+   stat-card) that originally rendered light glass surfaces. Inside the
+   Heron app shell we promote them to the Heron `panel` look so the whole
+   workspace lands on one design language without touching each page. */
+.heron-app-shell .surface-card,
+.heron-app-shell .joy-card,
+.heron-app-shell .stat-card {
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(20, 20, 38, 0.65), rgba(10, 10, 22, 0.65)) !important;
+  border: 1px solid var(--line) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: none !important;
+  color: var(--ink-2);
+}
+.heron-app-shell .surface-card::before,
+.heron-app-shell .joy-card::before,
+.heron-app-shell .stat-card::before {
+  display: none;
+}
+
+/* Common text utilities used by pages — keep them readable on the dark base. */
+.heron-app-shell .text-\[\#1a1a2e\] {
+  color: #fff !important;
+}
+.heron-app-shell .text-brand-700,
+.heron-app-shell .text-brand-800,
+.heron-app-shell .text-brand-600 {
+  color: var(--indigo-2) !important;
+}
+.heron-app-shell .bg-brand-50,
+.heron-app-shell .bg-brand-50\/40,
+.heron-app-shell .bg-brand-50\/50,
+.heron-app-shell .bg-brand-50\/30,
+.heron-app-shell .bg-brand-50\/60,
+.heron-app-shell .bg-brand-50\/80 {
+  background-color: rgba(99, 102, 241, 0.10) !important;
+}
+.heron-app-shell .border-brand-100,
+.heron-app-shell .border-brand-100\/80,
+.heron-app-shell .border-brand-200 {
+  border-color: rgba(99, 102, 241, 0.28) !important;
+}
+.heron-app-shell .bg-slate-50,
+.heron-app-shell .bg-slate-50\/40,
+.heron-app-shell .bg-slate-50\/60,
+.heron-app-shell .bg-slate-100,
+.heron-app-shell .bg-slate-100\/80 {
+  background-color: rgba(255, 255, 255, 0.025) !important;
+}
+.heron-app-shell .border-slate-100,
+.heron-app-shell .border-slate-100\/80,
+.heron-app-shell .border-slate-200,
+.heron-app-shell .border-slate-200\/80 {
+  border-color: var(--line) !important;
+}
+.heron-app-shell .text-slate-900,
+.heron-app-shell .text-slate-800 {
+  color: #fff !important;
+}
+.heron-app-shell .text-slate-700,
+.heron-app-shell .text-slate-600 {
+  color: var(--ink-2) !important;
+}
+.heron-app-shell .text-slate-500,
+.heron-app-shell .text-slate-400 {
+  color: var(--ink-3) !important;
+}
+
+/* Misc soft surfaces */
+.heron-app-shell .bg-emerald-50 {
+  background-color: rgba(52, 211, 153, 0.10) !important;
+}
+.heron-app-shell .bg-amber-50,
+.heron-app-shell .bg-amber-50\/60 {
+  background-color: rgba(251, 191, 36, 0.10) !important;
+}
+.heron-app-shell .bg-red-50,
+.heron-app-shell .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.10) !important;
+}
+.heron-app-shell .bg-sky-50,
+.heron-app-shell .bg-cyan-50 {
+  background-color: rgba(34, 211, 238, 0.10) !important;
+}
+.heron-app-shell .bg-violet-50,
+.heron-app-shell .bg-fuchsia-50,
+.heron-app-shell .bg-purple-50 {
+  background-color: rgba(217, 70, 239, 0.10) !important;
+}
+
+/* Recharts: dark grid + dark tooltip inside the shell */
+.heron-app-shell .recharts-text {
+  fill: var(--ink-3);
+}
+.heron-app-shell .recharts-cartesian-grid-horizontal line,
+.heron-app-shell .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.06);
+}
+.heron-app-shell .recharts-default-tooltip {
+  background: rgba(20, 20, 38, 0.95) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 12px !important;
+  color: #fff !important;
+}
+
+/* `pill-violet` helper used by chips throughout */
+.heron-app-shell .pill-violet {
+  color: #ddd6fe;
+  background: rgba(139, 92, 246, 0.10);
+  border-color: rgba(139, 92, 246, 0.32);
+}

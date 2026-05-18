@@ -143,28 +143,32 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <PageHeader title="Notifications" subtitle="Stay updated on your screenings, jobs, and applicant activity" />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              markNotificationsReadLocally(notifications.map((n) => n._id));
-              void markAllRead();
-            }}
-            disabled={isMarkingAll || unreadCount === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
-          >
-            <CheckCheck className="h-4 w-4" />
-            Mark all as read{unreadCount > 0 ? ` (${unreadCount})` : ""}
-          </button>
-          <Button type="button" variant="secondary" className="rounded-full" disabled={notifications.length === 0 || isDeletingAll} onClick={() => setConfirmClear(true)}>
-            <Trash2 className="h-4 w-4" />
-            Clear All
-          </Button>
-        </div>
-      </div>
+    <div className="fade-up space-y-6">
+      <PageHeader
+        eyebrow="Workspace · Account"
+        title="Notifications"
+        subtitle="Pipeline events, agent decisions, mentions."
+        right={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                markNotificationsReadLocally(notifications.map((n) => n._id));
+                void markAllRead();
+              }}
+              disabled={isMarkingAll || unreadCount === 0}
+              className="btn btn-primary disabled:opacity-50"
+            >
+              <CheckCheck className="h-4 w-4" />
+              Mark all as read{unreadCount > 0 ? ` (${unreadCount})` : ""}
+            </button>
+            <Button type="button" variant="secondary" disabled={notifications.length === 0 || isDeletingAll} onClick={() => setConfirmClear(true)}>
+              <Trash2 className="h-4 w-4" />
+              Clear All
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => {
@@ -174,14 +178,21 @@ export default function NotificationsPage() {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold transition",
-                tab === t.id ? "border-brand-600 bg-brand-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-              )}
+              className={cn("btn", tab === t.id ? "btn-primary" : "btn-ghost")}
+              style={{ height: 32, fontSize: 12 }}
             >
               {t.label}
               {countBadge !== null && countBadge > 0 ? (
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", tab === t.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700")}>{countBadge}</span>
+                <span
+                  className="mono rounded-full px-1.5 py-0.5 text-[10px]"
+                  style={
+                    tab === t.id
+                      ? { background: "rgba(255,255,255,0.2)", color: "#fff" }
+                      : { background: "rgba(255,255,255,0.06)", color: "var(--ink-2)" }
+                  }
+                >
+                  {countBadge}
+                </span>
               ) : null}
             </button>
           );
@@ -189,25 +200,28 @@ export default function NotificationsPage() {
       </div>
 
       <Modal open={confirmClear} onClose={() => setConfirmClear(false)}>
-        <h3 className="text-lg font-semibold text-slate-900">Are you sure you want to delete all notifications?</h3>
-        <p className="mt-2 text-sm text-slate-600">This cannot be undone.</p>
+        <h3 className="display text-lg" style={{ color: "#fff" }}>Are you sure you want to delete all notifications?</h3>
+        <p className="mt-2 text-sm" style={{ color: "var(--ink-3)" }}>This cannot be undone.</p>
         <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="secondary" className="rounded-full" onClick={() => setConfirmClear(false)}>
+          <Button type="button" variant="secondary" onClick={() => setConfirmClear(false)}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="rounded-full" loading={isDeletingAll} onClick={() => void handleClearAll()}>
+          <Button type="button" variant="danger" loading={isDeletingAll} onClick={() => void handleClearAll()}>
             Confirm
           </Button>
         </div>
       </Modal>
 
       {isLoading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">Loading notifications...</div>
+        <div className="panel panel-lg text-center text-sm" style={{ color: "var(--ink-3)" }}>Loading notifications...</div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
-          <Bell className="mb-3 h-14 w-14 text-slate-300" strokeWidth={1.25} />
-          <p className="text-lg font-semibold text-slate-800">{notifications.length === 0 ? "No notifications yet" : emptyMessage}</p>
-          <p className="mt-2 max-w-md text-sm text-slate-500">You will be notified when screenings complete, jobs are updated, or applicants are uploaded.</p>
+        <div
+          className="flex flex-col items-center justify-center rounded-2xl px-6 py-16 text-center"
+          style={{ border: "1px dashed var(--line-strong)", background: "rgba(255,255,255,.02)" }}
+        >
+          <Bell className="mb-3 h-14 w-14" strokeWidth={1.25} style={{ color: "var(--ink-4)" }} />
+          <p className="text-lg font-semibold" style={{ color: "#fff" }}>{notifications.length === 0 ? "No notifications yet" : emptyMessage}</p>
+          <p className="mt-2 max-w-md text-sm" style={{ color: "var(--ink-3)" }}>You will be notified when screenings complete, jobs are updated, or applicants are uploaded.</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -216,9 +230,9 @@ export default function NotificationsPage() {
             if (!items.length) return null;
             return (
               <section key={group}>
-                <div className="sticky top-0 z-10 mb-3 flex items-center gap-2 bg-[#f8fafc] py-2 dark:bg-slate-900">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{GROUP_LABEL[group]}</span>
-                  <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                <div className="mb-3 flex items-center gap-2 py-1">
+                  <span className="mono text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--ink-4)" }}>{GROUP_LABEL[group]}</span>
+                  <div className="h-px flex-1" style={{ background: "var(--line)" }} />
                 </div>
                 <div className="space-y-3">
                   <AnimatePresence mode="popLayout">
@@ -251,11 +265,7 @@ export default function NotificationsPage() {
 
       {!isLoading && notifications.length > 0 && notifications.length < total ? (
         <div className="flex justify-center pt-2">
-          <button
-            type="button"
-            onClick={() => setLimit((l) => l + 20)}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
+          <button type="button" onClick={() => setLimit((l) => l + 20)} className="btn btn-ghost">
             Load more notifications
             <ChevronDown className="h-4 w-4" />
           </button>

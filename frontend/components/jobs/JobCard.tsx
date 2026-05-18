@@ -38,9 +38,13 @@ export const JobCard = ({ job }: { job: Job }) => {
     }
   };
 
+  const accentColor =
+    job.status === "active" ? "#34d399" : job.status === "draft" ? "#fbbf24" : "rgba(255,255,255,.16)";
+
   return (
     <Card
-      className={`cursor-pointer space-y-4 border-l-4 ${statusAccent} transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-[0_8px_24px_rgba(15,23,42,0.12)]`}
+      className="lift cursor-pointer space-y-4 transition"
+      style={{ borderLeft: `3px solid ${accentColor}` }}
       onMouseEnter={() => router.prefetch(`/jobs/${job._id}`)}
       onClick={() => { if (!confirmDelete) router.push(`/jobs/${job._id}`); }}
       role="link"
@@ -53,20 +57,20 @@ export const JobCard = ({ job }: { job: Job }) => {
       }}
     >
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-slate-900">{job.title}</h3>
-          {job.company ? <p className="text-sm text-slate-500">{job.company}</p> : null}
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold" style={{ color: "#fff" }}>{job.title}</h3>
+          {job.company ? <p className="text-sm" style={{ color: "var(--ink-3)" }}>{job.company}</p> : null}
         </div>
         <Badge variant={job.status === "active" ? "success" : job.status === "draft" ? "warning" : "neutral"}>{job.status}</Badge>
       </div>
-      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-        <span className="inline-flex items-center gap-1.5"><Building2 className="h-4 w-4" />{job.requirements?.domain || "Department N/A"}</span>
-        <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" />{job.location || "Location N/A"}</span>
+      <div className="flex flex-wrap items-center gap-4 text-sm" style={{ color: "var(--ink-2)" }}>
+        <span className="inline-flex items-center gap-1.5"><Building2 className="h-4 w-4" style={{ color: "var(--ink-3)" }} />{job.requirements?.domain || "Department N/A"}</span>
+        <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" style={{ color: "var(--ink-3)" }} />{job.location || "Location N/A"}</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{empLabel(job.employmentType)}</span>
+        <span className="pill pill-indigo">{empLabel(job.employmentType)}</span>
       </div>
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-4 text-xs" style={{ color: "var(--ink-3)" }}>
         <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" />{job.applicantCount ?? 0} applicants</span>
         <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{new Date(job.createdAt).toLocaleDateString()}</span>
       </div>

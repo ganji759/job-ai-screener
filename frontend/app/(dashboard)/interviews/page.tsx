@@ -199,10 +199,11 @@ export default function InterviewsPage() {
   const activeFilters = (statusFilter !== "all" ? 1 : 0) + (jobFilter ? 1 : 0) + (selectedDay ? 1 : 0);
 
   return (
-    <div className="space-y-5">
+    <div className="fade-up space-y-5">
       <PageHeader
+        eyebrow="Workspace · Conversations"
         title="Interviews"
-        subtitle={`${data?.total ?? 0} scheduled`}
+        subtitle={`${data?.total ?? 0} scheduled · live, upcoming, and ready for debrief.`}
       />
 
       {/* ── Toolbar ── */}
@@ -214,12 +215,8 @@ export default function InterviewsPage() {
               key={f.value}
               type="button"
               onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                "rounded-full px-3.5 py-1.5 text-sm font-semibold transition",
-                statusFilter === f.value
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/[0.12]",
-              )}
+              className={cn("btn", statusFilter === f.value ? "btn-primary" : "btn-ghost")}
+              style={{ height: 32, fontSize: 12 }}
             >
               {f.label}
             </button>
@@ -229,11 +226,12 @@ export default function InterviewsPage() {
         <div className="ml-auto flex items-center gap-2">
           {/* Job filter */}
           <div className="relative">
-            <Briefcase className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Briefcase className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--ink-4)" }} />
             <select
               value={jobFilter}
               onChange={(e) => setJobFilter(e.target.value)}
-              className="h-9 rounded-xl border border-slate-200 bg-white pl-8 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="input"
+              style={{ height: 32, paddingLeft: 30, paddingRight: 28, fontSize: 12 }}
             >
               <option value="">All jobs</option>
               {jobs.map((j) => (
@@ -244,11 +242,12 @@ export default function InterviewsPage() {
 
           {/* Sort */}
           <div className="relative">
-            <ArrowDownUp className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <ArrowDownUp className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--ink-4)" }} />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="h-9 rounded-xl border border-slate-200 bg-white pl-8 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="input"
+              style={{ height: 32, paddingLeft: 30, paddingRight: 28, fontSize: 12 }}
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -257,23 +256,27 @@ export default function InterviewsPage() {
           </div>
 
           {/* View toggle */}
-          <div className="flex overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+          <div
+            className="flex overflow-hidden"
+            style={{ borderRadius: 10, border: "1px solid var(--line)" }}
+          >
             {(["list", "calendar"] as ViewMode[]).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setViewMode(v)}
                 title={v === "list" ? "List view" : "Calendar view"}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center transition",
+                className="flex h-8 w-9 items-center justify-center transition"
+                style={
                   viewMode === v
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
-                )}
+                    ? {
+                        background: "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)",
+                        color: "#fff",
+                      }
+                    : { background: "rgba(255,255,255,0.04)", color: "var(--ink-3)" }
+                }
               >
-                {v === "list"
-                  ? <LayoutList className="h-4 w-4" />
-                  : <Calendar   className="h-4 w-4" />}
+                {v === "list" ? <LayoutList className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
               </button>
             ))}
           </div>
