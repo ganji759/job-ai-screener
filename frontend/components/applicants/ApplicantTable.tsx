@@ -1,12 +1,65 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Eye, Trash2 } from "lucide-react";
+import { Eye, Mail, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
 import type { Applicant } from "../../types";
-import { Badge } from "../ui/Badge";
 import { ApplicantDetailDrawer } from "./ApplicantDetailDrawer";
-import { cn } from "../../lib/utils";
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
+function ScoreBar({ score }: { score: number | null }) {
+  if (score == null) {
+    return (
+      <span className="mono text-[12px]" style={{ color: "var(--ink-4)" }}>
+        —
+      </span>
+    );
+  }
+  const c =
+    score >= 85 ? "#34d399" : score >= 75 ? "#fbbf24" : score >= 65 ? "#22d3ee" : "#fb7185";
+  return (
+    <div className="flex items-center gap-2" style={{ minWidth: 110 }}>
+      <div
+        className="overflow-hidden"
+        style={{ flex: 1, height: 5, borderRadius: 999, background: "rgba(255,255,255,.06)" }}
+      >
+        <div
+          style={{
+            width: `${Math.min(100, Math.max(0, score))}%`,
+            height: "100%",
+            background: c,
+            boxShadow: `0 0 8px ${c}80`,
+            borderRadius: 999,
+          }}
+        />
+      </div>
+      <span
+        className="mono text-[12px] font-semibold"
+        style={{ color: c, minWidth: 24, textAlign: "right" }}
+      >
+        {score}
+      </span>
+    </div>
+  );
+}
+
+const STATUS_PILL: Record<Applicant["status"], string> = {
+  pending: "pill pill-amber",
+  screened: "pill pill-cyan",
+  shortlisted: "pill pill-mint",
+  rejected: "pill pill-rose",
+};
 
 export const ApplicantTable = ({
   applicants,
@@ -14,6 +67,9 @@ export const ApplicantTable = ({
   onClearFilters,
   hasActiveFilters,
   onOpenUpload,
+  selectedIds,
+  onToggleSelected,
+  onToggleAll,
   jobTitleById,
 }: {
   applicants: Applicant[];
@@ -21,29 +77,37 @@ export const ApplicantTable = ({
   onClearFilters: () => void;
   hasActiveFilters: boolean;
   onOpenUpload: () => void;
-  /** Optional: resolve jobId -> human-readable job title. Missing ids fall back to a short id. */
+  selectedIds?: Set<string>;
+  onToggleSelected?: (id: string) => void;
+  onToggleAll?: (ids: string[]) => void;
   jobTitleById?: Record<string, string>;
 }) => {
   const [selected, setSelected] = useState<Applicant | null>(null);
-  const rowProps = useMemo(
-    () => ({
-      applicants,
-      onSelect: (row: Applicant) => setSelected(row),
-      onDelete,
-      jobTitleById: jobTitleById ?? {},
-    }),
-    [applicants, onDelete, jobTitleById],
-  );
+  const selectedJobTitle = selected ? jobTitleById?.[String(selected.jobId)] : undefined;
+
+  const allChecked = useMemo(() => {
+    if (!selectedIds || applicants.length === 0) return false;
+    return applicants.every((a) => selectedIds.has(a._id));
+  }, [applicants, selectedIds]);
+
   if (applicants.length === 0) {
     return (
-      <div className="rounded-xl border border-brand-100 p-8 text-center">
-        <p className="text-3xl">{hasActiveFilters ? "🔎" : "📥"}</p>
-        <p className="mt-2 text-lg font-semibold text-slate-900">{hasActiveFilters ? "No applicants match your filters" : "No applicants yet"}</p>
-        <p className="mt-1 text-sm text-slate-500">{hasActiveFilters ? "Try adjusting your search or clearing the filters" : "Upload candidates or paste Umurava profiles to get started"}</p>
+      <div
+        className="px-6 py-12 text-center"
+        style={{ border: "1px dashed var(--line-strong)", borderRadius: 16, background: "rgba(255,255,255,.02)" }}
+      >
+        <p className="display" style={{ fontSize: 18, color: "#fff" }}>
+          {hasActiveFilters ? "No applicants match your filters" : "No applicants yet"}
+        </p>
+        <p className="mt-1 text-sm" style={{ color: "var(--ink-3)" }}>
+          {hasActiveFilters
+            ? "Try adjusting your search or clearing the filters."
+            : "Upload candidates or paste Umurava profiles to get started."}
+        </p>
         <button
           type="button"
           onClick={hasActiveFilters ? onClearFilters : onOpenUpload}
-          className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
+          className="btn btn-primary mt-4"
         >
           {hasActiveFilters ? "Clear filters" : "Upload Applicants"}
         </button>
@@ -51,31 +115,173 @@ export const ApplicantTable = ({
     );
   }
 
-  const selectedJobTitle = selected ? (jobTitleById?.[String(selected.jobId)] ?? undefined) : undefined;
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-brand-100 dark:border-slate-700">
-      <div className="grid min-w-[1080px] grid-cols-[1.8fr_1.1fr_1.3fr_1.5fr_0.8fr_0.9fr_0.7fr_0.8fr] bg-brand-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-brand-900 dark:bg-slate-800 dark:text-slate-100">
-        <span className="sticky top-0">Name</span>
-        <span>Job</span>
-        <span>Title</span>
-        <span>Skills</span>
-        <span>Source</span>
-        <span>Status</span>
-        <span>Score</span>
-        <span>Actions</span>
-      </div>
-      <div className="max-h-[540px] overflow-y-auto">
-        {applicants.map((applicant, index) => (
-          <ApplicantRow
-            key={applicant._id}
-            index={index}
-            applicants={rowProps.applicants}
-            onSelect={rowProps.onSelect}
-            onDelete={rowProps.onDelete}
-            jobTitleById={rowProps.jobTitleById}
-          />
-        ))}
+    <>
+      <div className="panel overflow-x-auto" style={{ padding: 0 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              {selectedIds ? (
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={() => onToggleAll?.(applicants.map((a) => a._id))}
+                    style={{ accentColor: "#6366f1" }}
+                  />
+                </th>
+              ) : null}
+              <th>Candidate</th>
+              <th>Role</th>
+              <th>Skills</th>
+              <th>Score</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Applied</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {applicants.map((a) => {
+              const fullName = `${a.profile.firstName} ${a.profile.lastName}`.trim() || "Applicant";
+              const initials = `${a.profile.firstName?.[0] ?? ""}${a.profile.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+              const scoreNum =
+                a.totalScore != null && !Number.isNaN(Number(a.totalScore)) ? Math.round(Number(a.totalScore)) : null;
+              const fileLower = a.originalFileName?.toLowerCase() ?? "";
+              const isExcelSheet = a.source === "csv_upload" && fileLower.endsWith(".xlsx");
+              const sourceLabel =
+                a.source === "umurava_platform" ? "Umurava" : a.source === "pdf_upload" ? "PDF" : isExcelSheet ? "Excel" : "CSV";
+              const skills = a.profile.skills ?? [];
+              const isSelected = selectedIds?.has(a._id) ?? false;
+              return (
+                <tr key={a._id} onClick={() => setSelected(a)} style={{ cursor: "pointer" }}>
+                  {selectedIds ? (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelected?.(a._id)}
+                        style={{ accentColor: "#6366f1" }}
+                      />
+                    </td>
+                  ) : null}
+                  <td>
+                    <div className="flex items-center gap-[10px]">
+                      <span className="avatar" style={{ width: 32, height: 32, fontSize: 11 }}>
+                        {initials}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium" style={{ color: "#fff" }}>
+                          {fullName}
+                        </div>
+                        <div
+                          className="flex items-center gap-1 truncate text-[11px]"
+                          style={{ color: "var(--ink-4)" }}
+                        >
+                          {a.profile.location ? (
+                            <>
+                              <MapPin className="h-3 w-3" />
+                              {a.profile.location}
+                            </>
+                          ) : (
+                            a.profile.email
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ color: "var(--ink-2)" }}>{a.profile.title || a.profile.headline || "—"}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {skills.slice(0, 3).map((skill) => (
+                        <span
+                          key={skill}
+                          className="mono"
+                          style={{
+                            fontSize: 10.5,
+                            padding: "2px 7px",
+                            borderRadius: 5,
+                            background: "rgba(99,102,241,.10)",
+                            border: "1px solid rgba(99,102,241,.25)",
+                            color: "#c7d2fe",
+                          }}
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                      {skills.length > 3 ? (
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: 10.5,
+                            padding: "2px 7px",
+                            borderRadius: 5,
+                            background: "rgba(255,255,255,.04)",
+                            border: "1px solid var(--line)",
+                            color: "var(--ink-3)",
+                          }}
+                        >
+                          +{skills.length - 3}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td>
+                    <ScoreBar score={scoreNum} />
+                  </td>
+                  <td>
+                    <span className={STATUS_PILL[a.status] ?? "pill"}>{a.status}</span>
+                  </td>
+                  <td className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+                    {sourceLabel}
+                  </td>
+                  <td className="mono text-[12px]" style={{ color: "var(--ink-3)" }}>
+                    {relativeTime(a.createdAt)}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <div className="inline-flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        style={{ width: 28, height: 28 }}
+                        title="View profile"
+                        onClick={() => setSelected(a)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      {a.profile.email ? (
+                        <a
+                          href={`mailto:${a.profile.email}`}
+                          className="btn-icon"
+                          style={{ width: 28, height: 28 }}
+                          title={`Email ${a.profile.email}`}
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        style={{ width: 28, height: 28, color: "#fb7185" }}
+                        title="Delete applicant"
+                        onClick={() => {
+                          if (typeof window !== "undefined" && window.confirm("Delete this applicant permanently?")) {
+                            onDelete(a._id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" className="btn-icon" style={{ width: 28, height: 28 }} title="More">
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
       <ApplicantDetailDrawer
         open={Boolean(selected)}
@@ -84,123 +290,6 @@ export const ApplicantTable = ({
         onDelete={onDelete}
         jobTitle={selectedJobTitle}
       />
-    </div>
-  );
-};
-
-const ApplicantRow = ({
-  index,
-  applicants,
-  onSelect,
-  onDelete,
-  jobTitleById,
-}: {
-  index: number;
-  applicants: Applicant[];
-  onSelect: (row: Applicant) => void;
-  onDelete: (id: string) => void;
-  jobTitleById: Record<string, string>;
-}) => {
-  const row = applicants[index];
-  const fullName = `${row.profile.firstName} ${row.profile.lastName}`;
-  const initials = `${row.profile.firstName?.[0] ?? ""}${row.profile.lastName?.[0] ?? ""}`.toUpperCase();
-  const scoreRaw = row.totalScore;
-  const scoreDisplay = scoreRaw != null && !Number.isNaN(Number(scoreRaw)) ? Number(scoreRaw) : null;
-  const open = () => onSelect(row);
-  const fileLower = row.originalFileName?.toLowerCase() ?? "";
-  const isExcelSheet = row.source === "csv_upload" && fileLower.endsWith(".xlsx");
-  const sourceLabel =
-    row.source === "umurava_platform" ? "Umurava" : row.source === "pdf_upload" ? "PDF" : isExcelSheet ? "Excel" : "CSV";
-  const sourceVariant = row.source === "umurava_platform" ? "info" : "neutral";
-  const statusVariant =
-    row.status === "shortlisted"
-      ? "success"
-      : row.status === "rejected"
-        ? "error"
-        : row.status === "screened"
-          ? "info"
-          : "warning";
-
-  const handleDelete = () => {
-    if (typeof window !== "undefined" && window.confirm("Delete this applicant permanently?")) {
-      onDelete(row._id);
-    }
-  };
-
-  const skills = row.profile.skills ?? [];
-  const jobTitle = jobTitleById[String(row.jobId)] ?? "";
-  const jobFallback = row.jobId ? `#${String(row.jobId).slice(-6)}` : "—";
-
-  return (
-    <div
-      className={cn(
-        "grid min-w-[1080px] grid-cols-[1.8fr_1.1fr_1.3fr_1.5fr_0.8fr_0.9fr_0.7fr_0.8fr] items-center border-t border-brand-100 px-4 py-3 text-sm text-slate-700 transition-colors",
-        index % 2 === 0 ? "bg-white" : "bg-[#f9fafb]",
-        "hover:bg-slate-100/80",
-        "dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80 dark:focus-visible:bg-slate-800/60",
-      )}
-    >
-      <button type="button" className="flex min-w-0 items-center gap-3 text-left" onClick={open}>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">{initials}</span>
-        <span className="min-w-0">
-          <span className="block truncate font-semibold text-slate-900 hover:text-brand-700">{fullName}</span>
-          <span className="block truncate text-xs text-slate-500">{row.profile.email}</span>
-        </span>
-      </button>
-      <span className="min-w-0 truncate pr-2" title={jobTitle || String(row.jobId)}>
-        {jobTitle ? (
-          <Link
-            href={`/jobs/${row.jobId}`}
-            className="truncate font-medium text-brand-700 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {jobTitle}
-          </Link>
-        ) : (
-          <span className="text-slate-500">{jobFallback}</span>
-        )}
-      </span>
-      <span className="truncate pr-2">{row.profile.title}</span>
-      <span className="flex flex-wrap gap-1 pr-2">
-        {skills.slice(0, 3).map((skill) => (
-          <span key={skill} className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
-            {skill}
-          </span>
-        ))}
-        {skills.length > 3 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">+{skills.length - 3} more</span> : null}
-      </span>
-      <span>
-        <Badge variant={sourceVariant}>{sourceLabel}</Badge>
-      </span>
-      <span>
-        <Badge variant={statusVariant}>{row.status}</Badge>
-      </span>
-      <span
-        className={
-          scoreDisplay === null
-            ? "text-slate-400"
-            : scoreDisplay >= 70
-              ? "font-semibold text-emerald-600"
-              : scoreDisplay >= 40
-                ? "font-semibold text-amber-600"
-                : "font-semibold text-red-600"
-        }
-      >
-        {scoreDisplay === null ? "—" : scoreDisplay}
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <Link
-          href={`/applicants/${row._id}`}
-          className="rounded-md p-1.5 text-slate-600 hover:bg-slate-200"
-          aria-label="View applicant"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Eye className="h-4 w-4" />
-        </Link>
-        <button type="button" className="rounded-md p-1.5 text-red-600 hover:bg-red-50" onClick={handleDelete} aria-label="Delete applicant">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </span>
-    </div>
+    </>
   );
 };

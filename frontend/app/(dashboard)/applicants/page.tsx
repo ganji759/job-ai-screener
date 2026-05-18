@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock3, Filter, Loader2, Star, Upload, Users, XCircle, X } from "lucide-react";
+import { Calendar, Filter, Loader2, Mail, Search, Sparkles, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useGetJobsQuery } from "../../../store/api/jobsApi";
 import { useDeleteApplicantMutation, useGetApplicantsQuery, useIngestProfilesMutation, useUploadFilesMutation } from "../../../store/api/applicantsApi";
@@ -12,6 +12,36 @@ import { Modal } from "../../../components/ui/Modal";
 import { cn, compactSelectClassName } from "../../../lib/utils";
 import { getRtkQueryErrorMessage } from "../../../lib/rtkError";
 import type { UmuravaProfile } from "../../../types";
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="transition-colors"
+      style={{
+        height: 28,
+        padding: "0 12px",
+        borderRadius: 999,
+        background: active ? "rgba(99,102,241,.18)" : "rgba(255,255,255,.04)",
+        border: `1px solid ${active ? "rgba(99,102,241,.45)" : "var(--line)"}`,
+        color: active ? "#fff" : "var(--ink-2)",
+        fontSize: 11.5,
+        fontWeight: 500,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 const FULL_LIST_LIMIT = 10000;
 const CSV_MAX_BYTES = 10 * 1024 * 1024;
@@ -42,6 +72,26 @@ export default function ApplicantsPage() {
   const [csvFileError, setCsvFileError] = useState("");
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfSkipped, setPdfSkipped] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback((ids: string[]) => {
+    setSelectedIds((prev) => {
+      const allSelected = ids.every((i) => prev.has(i));
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((i) => next.delete(i));
+      else ids.forEach((i) => next.add(i));
+      return next;
+    });
+  }, []);
 
   const jobs = jobsData?.jobs ?? [];
   const jobTitleById = useMemo(() => {
@@ -232,127 +282,102 @@ export default function ApplicantsPage() {
   }
 
   const statTiles: Array<{
-    key: "total" | "pending" | "shortlisted" | "rejected";
     label: string;
-    icon: typeof Users;
-    count: number;
-    tone: [string, string];
+    value: number;
+    color: string;
+    delta?: string;
   }> = [
-    { key: "total", label: "Total", icon: Users, count: stats.total, tone: ["#6366f1", "#818cf8"] },
-    { key: "pending", label: "Pending", icon: Clock3, count: stats.pending, tone: ["#fbbf24", "#fde68a"] },
-    { key: "shortlisted", label: "Shortlisted", icon: Star, count: stats.shortlisted, tone: ["#10b981", "#34d399"] },
-    { key: "rejected", label: "Rejected", icon: XCircle, count: stats.rejected, tone: ["#f43f5e", "#fb7185"] },
+    { label: "Total applicants", value: stats.total, color: "#6366f1", delta: stats.total > 0 ? `${stats.total} total` : undefined },
+    { label: "Awaiting screening", value: stats.pending, color: "#fbbf24", delta: stats.pending > 0 ? `+${stats.pending}` : "0 pending" },
+    { label: "Shortlisted", value: stats.shortlisted, color: "#34d399", delta: stats.shortlisted > 0 ? `+${stats.shortlisted}` : "0" },
+    { label: "Rejected", value: stats.rejected, color: "#fb7185", delta: stats.rejected > 0 ? `${stats.rejected}` : "0" },
+  ];
+
+  const filterChips: Array<{ value: typeof statusFilter; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "screened", label: "Screening" },
+    { value: "pending", label: "Review" },
+    { value: "shortlisted", label: "Shortlisted" },
+    { value: "rejected", label: "Rejected" },
   ];
 
   return (
-    <div className="fade-up space-y-6">
-      <PageHeader
-        eyebrow="Workspace · Pipeline"
-        title="Applicants"
-        subtitle="Every candidate across your pipeline, ranked."
-        right={
-          <>
-            <select
-              value={jobId}
-              onChange={(e) => {
-                setJobId(e.target.value);
-                setPage(1);
-              }}
-              className={compactSelectClassName}
-              aria-label="Select job for applicants"
-              disabled={!jobs.length}
-            >
-              <option value="">All Jobs</option>
-              {jobs.map((job) => (
-                <option key={job._id} value={job._id}>
-                  {job.title}
-                </option>
-              ))}
-            </select>
-            <button type="button" onClick={openUploadModal} className="btn btn-primary">
-              <Upload className="h-4 w-4" />
-              Upload
-            </button>
-            <button type="button" onClick={() => setOpenFilterDrawer(true)} className="btn btn-ghost">
-              <Filter className="h-4 w-4" />
-              Filter
-            </button>
-          </>
-        }
-      />
-      <div className="grid gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
-        {statTiles.map((item) => {
-          const Icon = item.icon;
-          const active =
-            (item.key === "total" && statusFilter === "all") ||
-            (item.key !== "total" && statusFilter === item.key);
-          const [c1, c2] = item.tone;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => {
-                setStatusFilter(item.key === "total" ? "all" : item.key);
-                setPage(1);
-              }}
-              className="panel panel-tight lift relative overflow-hidden text-left"
-              style={
-                active
-                  ? {
-                      borderColor: `${c1}55`,
-                      boxShadow: `0 0 0 1px ${c1}55, 0 20px 50px -20px ${c1}40`,
-                    }
-                  : undefined
-              }
-            >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute"
-                style={{
-                  top: -30,
-                  right: -30,
-                  width: 120,
-                  height: 120,
-                  borderRadius: "50%",
-                  background: `radial-gradient(closest-side, ${c1}55, transparent)`,
-                  filter: "blur(8px)",
-                  opacity: active ? 1 : 0.6,
-                }}
-              />
-              <div className="relative flex items-center justify-between">
-                <div
-                  className="flex items-center justify-center"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 11,
-                    background: `linear-gradient(135deg, ${c1}33, ${c2}1a)`,
-                    border: `1px solid ${c1}55`,
-                    color: c2,
-                  }}
-                >
-                  <Icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
-                </div>
-                <span className="eyebrow">{item.label}</span>
-              </div>
-              <p className="display mt-3" style={{ fontSize: 30, lineHeight: 1, color: "#fff" }}>
-                {item.count}
-              </p>
-            </button>
-          );
-        })}
+    <div className="fade-up">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-6">
+        <div className="min-w-0">
+          <div className="eyebrow mb-[10px]">Workspace · Candidates</div>
+          <h1 className="display m-0" style={{ fontSize: 32 }}>
+            Applicants.
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--ink-3)", margin: "8px 0 0", maxWidth: 720 }}>
+            Every candidate across your pipeline — ranked, scored, and ready to act on.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <button type="button" onClick={openUploadModal} className="btn btn-ghost">
+            <Upload className="h-3 w-3" /> Upload resumes
+          </button>
+          <button type="button" className="btn btn-primary">
+            <Sparkles className="h-3 w-3" /> Re-score all
+          </button>
+        </div>
       </div>
-      <Card className="space-y-3">
-        <div className="flex flex-col gap-2 lg:flex-row">
+
+      <div className="mb-5 grid gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+        {statTiles.map((tile) => (
+          <div
+            key={tile.label}
+            className="panel panel-tight"
+            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+          >
+            <div className="eyebrow">{tile.label}</div>
+            <div className="flex items-end justify-between">
+              <div className="display" style={{ fontSize: 30, lineHeight: 1, color: tile.color }}>
+                {tile.value}
+              </div>
+              {tile.delta ? (
+                <div className="mono text-[11px]" style={{ color: "#34d399" }}>
+                  {tile.delta}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel mb-[18px] flex flex-wrap items-center gap-3" style={{ padding: 14 }}>
+        <div className="relative" style={{ flex: "1 1 260px", minWidth: 220 }}>
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+            style={{ color: "var(--ink-4)" }}
+          />
           <input
+            className="input"
+            placeholder="Search applicants by name, title, or skill…"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by name, title, or skill..."
-            className="input flex-1"
+            style={{ paddingLeft: 38 }}
           />
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {filterChips.map((f) => (
+            <FilterChip
+              key={f.value}
+              label={f.label}
+              active={statusFilter === f.value}
+              onClick={() => {
+                setStatusFilter(f.value);
+                setPage(1);
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <select
             value={jobId}
             onChange={(e) => {
@@ -360,6 +385,7 @@ export default function ApplicantsPage() {
               setPage(1);
             }}
             className={compactSelectClassName}
+            aria-label="Filter by job"
           >
             <option value="">All Jobs</option>
             {jobs.map((job) => (
@@ -372,84 +398,132 @@ export default function ApplicantsPage() {
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
             className={compactSelectClassName}
+            aria-label="Filter by source"
           >
             <option value="all">All Sources</option>
-            <option value="umurava_platform">Umurava Platform</option>
+            <option value="umurava_platform">Umurava</option>
             <option value="pdf_upload">PDF</option>
             <option value="csv_upload">CSV</option>
             <option value="excel_upload">Excel</option>
           </select>
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className={compactSelectClassName}
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="screened">Screened</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <select
             value={scoreFilter}
             onChange={(e) => setScoreFilter(e.target.value as typeof scoreFilter)}
             className={compactSelectClassName}
+            aria-label="Filter by score"
           >
             <option value="all">All scores</option>
-            <option value="0-40">0-40</option>
-            <option value="40-70">40-70</option>
-            <option value="70-100">70-100</option>
+            <option value="0-40">0–40</option>
+            <option value="40-70">40–70</option>
+            <option value="70-100">70–100</option>
           </select>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ height: 34 }}
+              onClick={clearFilters}
+            >
+              Clear
+            </button>
+          ) : null}
           <button
             type="button"
-            className="text-sm font-semibold underline-offset-2 hover:underline"
-            style={{ color: "var(--indigo-2)" }}
-            onClick={clearFilters}
+            className="btn btn-ghost"
+            style={{ height: 34 }}
+            onClick={() => setOpenFilterDrawer(true)}
           >
-            Clear filters
+            <Filter className="h-3 w-3" /> Sort: Score
           </button>
         </div>
-        {isLoadingApplicants ? (
-          <p className="py-8 text-center text-sm" style={{ color: "var(--ink-3)" }}>Loading applicants…</p>
-        ) : (
-          <ApplicantTable
-            applicants={pagedApplicants}
-            onDelete={handleDeleteApplicant}
-            onClearFilters={clearFilters}
-            hasActiveFilters={hasActiveFilters}
-            onOpenUpload={openUploadModal}
-            jobTitleById={jobTitleById}
-          />
-        )}
-        <div className="mono flex items-center justify-between text-[12px]" style={{ color: "var(--ink-3)" }}>
-          <span>
-            {totalFiltered === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalFiltered)} of {totalFiltered} applicants
+      </div>
+
+      {selectedIds.size > 0 ? (
+        <div
+          className="panel mb-[14px] flex items-center gap-[10px]"
+          style={{
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, rgba(99,102,241,.16), rgba(217,70,239,.12))",
+            border: "1px solid rgba(99,102,241,.35)",
+          }}
+        >
+          <span className="text-[13px] font-medium" style={{ color: "#fff" }}>
+            {selectedIds.size} selected
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="btn btn-ghost"
-              style={{ height: 30, fontSize: 12 }}
-            >
-              Prev
-            </button>
-            <span>
-              Page {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="btn btn-ghost"
-              style={{ height: 30, fontSize: 12 }}
-            >
-              Next
-            </button>
-          </div>
+          <span style={{ color: "var(--ink-4)" }}>·</span>
+          <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 12 }}>
+            <Sparkles className="h-3 w-3" /> Run screening
+          </button>
+          <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 12 }}>
+            <Mail className="h-3 w-3" /> Email
+          </button>
+          <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 12 }}>
+            <Calendar className="h-3 w-3" /> Schedule
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ height: 28, fontSize: 12, color: "#fb7185" }}
+          >
+            <X className="h-3 w-3" /> Reject
+          </button>
+          <button
+            type="button"
+            className="btn-icon ml-auto"
+            style={{ width: 28, height: 28 }}
+            onClick={() => setSelectedIds(new Set())}
+            aria-label="Clear selection"
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
-      </Card>
+      ) : null}
+
+      {isLoadingApplicants ? (
+        <p className="py-8 text-center text-sm" style={{ color: "var(--ink-3)" }}>Loading applicants…</p>
+      ) : (
+        <ApplicantTable
+          applicants={pagedApplicants}
+          onDelete={handleDeleteApplicant}
+          onClearFilters={clearFilters}
+          hasActiveFilters={hasActiveFilters}
+          onOpenUpload={openUploadModal}
+          jobTitleById={jobTitleById}
+          selectedIds={selectedIds}
+          onToggleSelected={toggleSelected}
+          onToggleAll={toggleAll}
+        />
+      )}
+
+      <div className="mt-5 flex items-center justify-between text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+        <span>
+          Showing <b style={{ color: "#fff" }}>{totalFiltered === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</b>
+          {totalFiltered > 0 ? `-${Math.min(page * PAGE_SIZE, totalFiltered)}` : ""} of {totalFiltered} applicants
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="btn btn-ghost"
+            style={{ height: 30, fontSize: 12 }}
+          >
+            ← Prev
+          </button>
+          <span className="mono" style={{ padding: "0 10px" }}>
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="btn btn-ghost"
+            style={{ height: 30, fontSize: 12 }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
 
       <Modal open={openUpload} onClose={() => setOpenUpload(false)}>
         <div className="space-y-4">
