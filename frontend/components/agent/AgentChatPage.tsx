@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   BarChart3,
-  Bot,
   Brain,
   Briefcase,
   Calendar,
@@ -15,11 +14,10 @@ import {
   FileSpreadsheet,
   FileText,
   FileUp,
-  Loader2,
-  MessageSquare,
   MessagesSquare,
   Mic,
   MicOff,
+  MoreHorizontal,
   Paperclip,
   PanelLeftClose,
   PanelLeftOpen,
@@ -31,7 +29,6 @@ import {
   Sparkles,
   Trash2,
   Users,
-  Wand2,
   Wrench,
   X,
   Zap,
@@ -45,6 +42,7 @@ import { useMeQuery } from "../../store/api/authApi";
 import { getToken } from "../../lib/auth";
 import { resolveApiBaseUrl } from "../../lib/resolveApiBaseUrl";
 import { cn } from "../../lib/utils";
+import { HeronLogo } from "../layout/HeronLogo";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -264,16 +262,26 @@ const Markdown = ({ text }: { text: string }) => {
   return <div className="space-y-0.5 text-sm">{nodes}</div>;
 };
 
-// ── Agent avatar ──────────────────────────────────────────────────────────────
+// ── Agent avatar (HERON gradient-bordered logo box) ──────────────────────────
 
-const AgentAvatar = ({ size = "md" }: { size?: "sm" | "md" }) => (
-  <span className={cn(
-    "shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/25",
-    size === "sm" ? "h-7 w-7" : "h-9 w-9",
-  )}>
-    <Bot className={cn("text-white", size === "sm" ? "h-3.5 w-3.5" : "h-5 w-5")} />
-  </span>
-);
+const AgentAvatar = ({ size = "md" }: { size?: "sm" | "md" }) => {
+  const box = size === "sm" ? 30 : 36;
+  const logo = size === "sm" ? 16 : 20;
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center"
+      style={{
+        width: box,
+        height: box,
+        borderRadius: 10,
+        background: "linear-gradient(135deg, rgba(99,102,241,.25), rgba(217,70,239,.18))",
+        border: "1px solid rgba(99,102,241,.4)",
+      }}
+    >
+      <HeronLogo size={logo} />
+    </span>
+  );
+};
 
 // ── Thinking card ─────────────────────────────────────────────────────────────
 
@@ -289,43 +297,47 @@ const ThinkingCard = () => {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex items-start gap-3"
+      style={{ marginBottom: 18 }}
     >
       <AgentAvatar />
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-3 rounded-2xl rounded-tl-sm border border-indigo-100/80 bg-white/80 px-5 py-3.5 shadow-glass backdrop-blur-sm dark:border-indigo-900/30 dark:bg-slate-800/60">
-          {/* Bouncing dots */}
-          <span className="flex items-end gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.span
-                key={i}
-                className="block h-1.5 w-1.5 rounded-full bg-indigo-500"
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 0.7, delay: i * 0.15, repeat: Infinity, ease: "easeInOut" }}
-              />
-            ))}
-          </span>
-          <AnimatePresence mode="wait">
+      <div
+        className="inline-flex items-center gap-3"
+        style={{
+          padding: "12px 16px",
+          borderRadius: "4px 18px 18px 18px",
+          background: "rgba(255,255,255,.04)",
+          border: "1px solid var(--line)",
+        }}
+      >
+        <span className="flex items-end gap-1">
+          {[0, 1, 2].map((i) => (
             <motion.span
-              key={idx}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
-              transition={{ duration: 0.22 }}
-              className="text-sm text-slate-500 dark:text-slate-400"
-            >
-              {THINKING_MSGS[idx]}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-        <p className="pl-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-          AI is working on your request
-        </p>
+              key={i}
+              style={{ width: 7, height: 7, borderRadius: "50%", background: "#c7d2fe" }}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1, delay: i * 0.15, repeat: Infinity, ease: "easeInOut" }}
+            />
+          ))}
+        </span>
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={idx}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.22 }}
+            className="text-sm"
+            style={{ color: "var(--ink-3)" }}
+          >
+            HERON · {THINKING_MSGS[idx]}
+          </motion.span>
+        </AnimatePresence>
       </div>
     </motion.div>
   );
 };
 
-// ── Tool activity card ────────────────────────────────────────────────────────
+// ── Tool activity card (Heron action row) ────────────────────────────────────
 
 const ToolCard = ({ toolCall, delay }: { toolCall: ToolCall; delay: number }) => {
   const [open, setOpen] = useState(false);
@@ -338,35 +350,41 @@ const ToolCard = ({ toolCall, delay }: { toolCall: ToolCall; delay: number }) =>
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay, duration: 0.22 }}
-      className={cn(
-        "overflow-hidden rounded-xl border text-xs",
-        isErr
-          ? "border-red-200/80 bg-red-50/60 dark:border-red-900/30 dark:bg-red-950/20"
-          : "border-indigo-100/70 bg-gradient-to-r from-indigo-50/60 to-violet-50/40 dark:border-indigo-900/30 dark:from-indigo-950/30 dark:to-violet-950/20",
-      )}
+      className="overflow-hidden"
+      style={{
+        borderRadius: 10,
+        background: "rgba(99,102,241,.08)",
+        border: "1px solid rgba(99,102,241,.25)",
+      }}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+        className="grid w-full items-center text-left"
+        style={{ gridTemplateColumns: "auto auto 1fr auto auto", gap: 10, padding: "10px 14px" }}
       >
-        <span className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
-          isErr ? "bg-red-100 dark:bg-red-900/30" : "bg-indigo-100 dark:bg-indigo-900/40",
-        )}>
-          <Icon className={cn("h-3.5 w-3.5", isErr ? "text-red-600 dark:text-red-400" : "text-indigo-600 dark:text-indigo-400")} />
+        <span
+          className="flex items-center justify-center"
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: isErr ? "rgba(244,63,94,.18)" : "rgba(52,211,153,.18)",
+            color: isErr ? "#fb7185" : "#34d399",
+          }}
+        >
+          {isErr ? <AlertCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
         </span>
-        <span className={cn("flex-1 font-semibold", isErr ? "text-red-700 dark:text-red-400" : "text-indigo-700 dark:text-indigo-300")}>
-          {meta.label}
+        <span className="flex" style={{ color: "var(--indigo-2)" }}>
+          <Icon className="h-3.5 w-3.5" />
         </span>
-        {isErr
-          ? <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-          : <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-        }
-        {open
-          ? <ChevronDown className="ml-1 h-3.5 w-3.5 text-slate-400" />
-          : <ChevronRight className="ml-1 h-3.5 w-3.5 text-slate-400" />
-        }
+        <span className="text-[13px]" style={{ color: "#fff" }}>{meta.label}</span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--ink-4)" }} />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--ink-4)" }} />
+        )}
+        <span />
       </button>
       <AnimatePresence>
         {open && (
@@ -377,7 +395,10 @@ const ToolCard = ({ toolCall, delay }: { toolCall: ToolCall; delay: number }) =>
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <pre className="overflow-x-auto border-t border-indigo-100/60 p-3 text-[10px] leading-relaxed text-slate-500 dark:border-indigo-900/30 dark:text-slate-400">
+            <pre
+              className="mono overflow-x-auto p-3 text-[10px] leading-relaxed"
+              style={{ borderTop: "1px solid rgba(99,102,241,.2)", color: "var(--ink-3)" }}
+            >
               {JSON.stringify({ args: toolCall.args, result: toolCall.result }, null, 2)}
             </pre>
           </motion.div>
@@ -389,15 +410,30 @@ const ToolCard = ({ toolCall, delay }: { toolCall: ToolCall; delay: number }) =>
 
 // ── Message bubbles ───────────────────────────────────────────────────────────
 
-const UserBubble = ({ entry }: { entry: EntryUser }) => (
+const UserBubble = ({ entry, initials }: { entry: EntryUser; initials: string }) => (
   <motion.div
-    initial={{ opacity: 0, y: 8, scale: 0.97 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    className="flex justify-end"
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="grid items-start"
+    style={{ gridTemplateColumns: "1fr auto", gap: 12, marginBottom: 18 }}
   >
-    <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 px-5 py-3.5 text-sm leading-relaxed text-white shadow-indigo-md">
+    <div
+      className="text-sm leading-relaxed"
+      style={{
+        justifySelf: "end",
+        maxWidth: 720,
+        padding: "14px 18px",
+        borderRadius: "18px 18px 4px 18px",
+        background: "linear-gradient(135deg, rgba(99,102,241,.85), rgba(217,70,239,.7))",
+        boxShadow: "0 10px 30px -10px rgba(217,70,239,.45)",
+        color: "#fff",
+      }}
+    >
       {entry.displayContent ?? entry.content}
     </div>
+    <span className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
+      {initials}
+    </span>
   </motion.div>
 );
 
@@ -405,23 +441,32 @@ const AgentBubble = ({ entry }: { entry: EntryAgent }) => (
   <motion.div
     initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
-    className="flex items-start gap-3"
+    className="grid items-start"
+    style={{ gridTemplateColumns: "auto 1fr", gap: 12, marginBottom: 18 }}
   >
     <AgentAvatar />
-    <div className="flex min-w-0 flex-1 flex-col gap-2">
-      {entry.toolCalls.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="pl-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-            Actions taken
-          </p>
-          {entry.toolCalls.map((tc, i) => (
-            <ToolCard key={i} toolCall={tc} delay={i * 0.07} />
-          ))}
+    <div
+      className="min-w-0"
+      style={{
+        maxWidth: 720,
+        padding: "14px 18px",
+        borderRadius: "4px 18px 18px 18px",
+        background: "rgba(255,255,255,.04)",
+        border: "1px solid var(--line)",
+        color: "#fff",
+      }}
+    >
+      <Markdown text={entry.content} />
+      {entry.toolCalls.length > 0 ? (
+        <div className="mt-3.5">
+          <div className="eyebrow mb-2">Actions taken</div>
+          <div className="space-y-2">
+            {entry.toolCalls.map((tc, i) => (
+              <ToolCard key={i} toolCall={tc} delay={i * 0.07} />
+            ))}
+          </div>
         </div>
-      )}
-      <div className="rounded-2xl rounded-tl-sm border border-white/60 bg-white/85 px-5 py-4 shadow-glass backdrop-blur-sm dark:border-white/[0.06] dark:bg-slate-800/70">
-        <Markdown text={entry.content} />
-      </div>
+      ) : null}
     </div>
   </motion.div>
 );
@@ -440,32 +485,61 @@ const ConvItem = ({
   onDelete: () => void;
 }) => {
   const [hovering, setHovering] = useState(false);
+  const preview =
+    conv.entries.find((e) => e.type === "user" || e.type === "agent") as EntryUser | EntryAgent | undefined;
+  const previewText = preview?.type === "user" ? preview.displayContent ?? preview.content : preview?.content;
   return (
     <button
       type="button"
       onClick={onSelect}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
-      className={cn(
-        "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors duration-150",
-        active
-          ? "bg-gradient-to-r from-indigo-500/15 to-violet-500/10 text-indigo-800 ring-1 ring-inset ring-indigo-500/20 dark:from-indigo-500/20 dark:to-violet-500/12 dark:text-indigo-200 dark:ring-indigo-500/25"
-          : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-400 dark:hover:bg-white/[0.05]",
-      )}
+      className="group flex w-full text-left transition-colors"
+      style={{
+        padding: "10px 12px",
+        borderRadius: 10,
+        background: active
+          ? "linear-gradient(135deg, rgba(99,102,241,.16), rgba(217,70,239,.10))"
+          : hovering
+            ? "rgba(255,255,255,.03)"
+            : "transparent",
+        border: `1px solid ${active ? "rgba(99,102,241,.32)" : "transparent"}`,
+      }}
     >
-      <MessageSquare className={cn("h-4 w-4 shrink-0", active ? "text-indigo-500" : "text-slate-400")} />
-      <span className="flex-1 truncate font-medium">{conv.title}</span>
-      {hovering && (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
-          className="ml-1 rounded p-0.5 text-slate-400 transition hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </span>
-      )}
+      <div className="flex w-full min-w-0 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Sparkles
+            className="h-3 w-3 shrink-0"
+            style={{ color: active ? "#c7d2fe" : "var(--ink-3)" }}
+          />
+          <span className="flex-1 truncate text-[13px] font-medium" style={{ color: "#fff" }}>
+            {conv.title}
+          </span>
+          {hovering ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
+              className="ml-1 rounded p-0.5 transition"
+              style={{ color: "var(--ink-4)" }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </span>
+          ) : null}
+        </div>
+        {previewText ? (
+          <div
+            className="truncate text-[11px]"
+            style={{ color: "var(--ink-4)" }}
+          >
+            {previewText.slice(0, 80)}
+          </div>
+        ) : null}
+        <div className="mono text-[10px]" style={{ color: "var(--ink-4)" }}>
+          {new Date(conv.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </div>
+      </div>
     </button>
   );
 };
@@ -491,8 +565,8 @@ const ConvSidebar = ({
     if (!convs.length) return null;
     return (
       <div className="mb-4">
-        <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
-        <div className="space-y-0.5">
+        <div className="eyebrow mb-2 px-2">{label}</div>
+        <div className="flex flex-col gap-1">
           {convs.map((c) => (
             <ConvItem
               key={c.id}
@@ -512,38 +586,38 @@ const ConvSidebar = ({
       {open && (
         <motion.aside
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 264, opacity: 1 }}
+          animate={{ width: 300, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-          className="flex h-full shrink-0 flex-col overflow-hidden border-r border-white/30 bg-white/40 backdrop-blur-xl dark:border-white/[0.05] dark:bg-slate-900/40"
+          className="panel flex h-full shrink-0 flex-col overflow-hidden"
         >
-          {/* New chat button */}
-          <div className="shrink-0 p-3">
+          <div className="shrink-0 p-4">
             <button
               type="button"
               onClick={onNew}
-              className="flex w-full items-center gap-2 rounded-xl border border-indigo-100/80 bg-gradient-to-r from-indigo-50/80 to-violet-50/60 px-3.5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:border-indigo-200 hover:from-indigo-100/80 hover:to-violet-100/60 dark:border-indigo-900/40 dark:from-indigo-950/40 dark:to-violet-950/30 dark:text-indigo-300 dark:hover:from-indigo-950/60"
+              className="btn btn-primary w-full justify-center"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               New conversation
             </button>
           </div>
 
-          {/* Conversation list */}
-          <div className="flex-1 overflow-y-auto px-2 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-                <MessagesSquare className="h-10 w-10 text-slate-300 dark:text-slate-600" />
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  No conversations yet.<br />Start by asking something below.
+                <MessagesSquare className="h-10 w-10" style={{ color: "var(--ink-4)" }} />
+                <p className="text-xs" style={{ color: "var(--ink-3)" }}>
+                  No conversations yet.
+                  <br />
+                  Start by asking something below.
                 </p>
               </div>
             ) : (
               <>
-                <Section label="Today"      convs={groups.today}     />
-                <Section label="Yesterday"  convs={groups.yesterday} />
-                <Section label="Last 7 days" convs={groups.week}    />
-                <Section label="Older"      convs={groups.older}     />
+                <Section label="Today" convs={groups.today} />
+                <Section label="Yesterday" convs={groups.yesterday} />
+                <Section label="Last 7 days" convs={groups.week} />
+                <Section label="Older" convs={groups.older} />
               </>
             )}
           </div>
@@ -575,17 +649,26 @@ const AttachMenu = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 6, scale: 0.96 }}
       transition={{ duration: 0.14 }}
-      className="absolute bottom-full left-0 z-20 mb-2 w-52 overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-lg backdrop-blur-xl dark:border-white/[0.08] dark:bg-slate-800/95"
+      className="panel absolute bottom-full left-0 z-20 mb-2 w-52 overflow-hidden"
     >
       {ATTACH_OPTIONS.map(({ kind, label, icon: Icon, accept }) => (
         <button
           key={kind}
           type="button"
           onClick={() => { onSelect(kind, accept); onClose(); }}
-          className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-indigo-50/70 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+          className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/[0.06]"
+          style={{ color: "var(--ink-2)" }}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-100/70 dark:bg-indigo-900/40">
-            <Icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center"
+            style={{
+              borderRadius: 8,
+              background: "rgba(99,102,241,.14)",
+              border: "1px solid rgba(99,102,241,.28)",
+              color: "var(--indigo-2)",
+            }}
+          >
+            <Icon className="h-4 w-4" />
           </span>
           <span className="font-medium">{label}</span>
         </button>
@@ -604,6 +687,41 @@ const CAPABILITIES = [
   { icon: Zap,          text: "Summarise your entire pipeline"       },
 ];
 
+const QuickStarter = ({
+  icon: Icon,
+  text,
+  onClick,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  text: string;
+  onClick: () => void;
+}) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="text-left transition-all"
+      style={{
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: hover ? "rgba(99,102,241,.10)" : "rgba(255,255,255,.025)",
+        border: `1px solid ${hover ? "rgba(99,102,241,.32)" : "var(--line)"}`,
+        color: hover ? "#fff" : "var(--ink-2)",
+        fontSize: 13,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{text}</span>
+    </button>
+  );
+};
+
 const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; userName: string }) => {
   const firstName = userName.split(" ")[0] || userName;
   return (
@@ -614,13 +732,29 @@ const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; u
         transition={{ type: "spring", stiffness: 220, damping: 16 }}
         className="relative"
       >
-        <span className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 shadow-indigo-lg">
-          <Wand2 className="h-12 w-12 text-white" />
+        <span
+          className="flex items-center justify-center"
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 22,
+            background: "linear-gradient(135deg, rgba(99,102,241,.25), rgba(217,70,239,.18))",
+            border: "1px solid rgba(99,102,241,.4)",
+          }}
+        >
+          <HeronLogo size={48} />
         </span>
         <motion.span
           animate={{ rotate: 360 }}
           transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md"
+          className="absolute -right-2 -top-2 flex items-center justify-center"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #fbbf24, #f97316)",
+            boxShadow: "0 8px 20px -8px rgba(251,191,36,.7)",
+          }}
         >
           <Sparkles className="h-4 w-4 text-white" />
         </motion.span>
@@ -632,11 +766,11 @@ const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; u
         transition={{ delay: 0.12 }}
         className="text-center"
       >
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-          Welcome back, {firstName}!
+        <h2 className="display" style={{ fontSize: 30 }}>
+          Welcome back, <span className="gradient-text-warm">{firstName}</span>.
         </h2>
-        <p className="mt-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-          I'm your AI Hiring Assistant — here's what I can do for you:
+        <p className="mt-2 text-sm" style={{ color: "var(--ink-3)" }}>
+          I&apos;m your AI Hiring Assistant — here&apos;s what I can do for you.
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {CAPABILITIES.map(({ icon: Icon, text }, i) => (
@@ -645,47 +779,27 @@ const WelcomeScreen = ({ onSend, userName }: { onSend: (text: string) => void; u
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.18 + i * 0.06 }}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-card backdrop-blur-sm dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-slate-300"
+              className="pill pill-indigo"
             >
-              <Icon className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+              <Icon className="h-3 w-3 shrink-0" />
               {text}
             </motion.span>
           ))}
         </div>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.55 }}
-          className="mt-5 text-sm text-slate-500 dark:text-slate-400"
-        >
-          Where would you like to start?
-        </motion.p>
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="flex max-w-xl flex-wrap justify-center gap-2"
+        className="w-full max-w-2xl"
       >
-        {SUGGESTIONS.map((s, i) => {
-          const Icon = s.icon;
-          return (
-            <motion.button
-              key={s.text}
-              type="button"
-              onClick={() => onSend(s.text)}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.64 + i * 0.05 }}
-              whileHover={{ scale: 1.03, y: -1 }}
-              className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-card backdrop-blur-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700 dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-800 dark:hover:text-indigo-300"
-            >
-              <Icon className="h-4 w-4 shrink-0 text-indigo-500" />
-              {s.text}
-            </motion.button>
-          );
-        })}
+        <div className="eyebrow mb-3 text-center">Try asking</div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SUGGESTIONS.map((s) => (
+            <QuickStarter key={s.text} icon={s.icon} text={s.text} onClick={() => onSend(s.text)} />
+          ))}
+        </div>
       </motion.div>
     </div>
   );
@@ -973,10 +1087,16 @@ export const AgentChatPage = () => {
   };
 
   const isEmpty = entries.length === 0;
+  const userInitials = (user?.name ?? "JD")
+    .split(" ")
+    .slice(0, 2)
+    .map((s) => s.charAt(0).toUpperCase())
+    .join("") || "JD";
+  const hasInput = input.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div className="flex h-full overflow-hidden rounded-2xl border border-white/30 shadow-glass backdrop-blur-2xl dark:border-white/[0.06]">
-      {/* ── Left sidebar ── */}
+    <div className="flex h-full gap-[18px] overflow-hidden">
+      {/* ── Conversations sidebar ── */}
       <ConvSidebar
         open={sidebarOpen}
         conversations={conversations}
@@ -986,60 +1106,55 @@ export const AgentChatPage = () => {
         onDelete={deleteConversation}
       />
 
-      {/* ── Main area ── */}
-      <div className="flex min-w-0 flex-1 flex-col bg-white/50 dark:bg-slate-900/60">
-
-        {/* Top bar */}
-        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/30 bg-white/50 px-4 backdrop-blur-md dark:border-white/[0.05] dark:bg-slate-900/50">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-slate-100"
-          >
-            {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-          </button>
-
-          <div className="flex items-center gap-2.5">
-            <AgentAvatar size="sm" />
+      {/* ── Chat panel ── */}
+      <div className="panel flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Chat header */}
+        <div
+          className="flex shrink-0 items-center justify-between"
+          style={{ padding: "14px 20px", borderBottom: "1px solid var(--line)" }}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((v) => !v)}
+              title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+              className="btn-icon"
+            >
+              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+            </button>
+            <AgentAvatar />
             <div className="leading-tight">
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">AI Hiring Assistant</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                Powered by Gemini
-                {" · "}
-                <span className={isLoading ? "text-amber-500" : "text-emerald-500"}>
-                  {isLoading ? "Working…" : "Ready"}
-                </span>
+              <p className="text-[14px] font-semibold" style={{ color: "#fff" }}>AI Hiring Assistant</p>
+              <p className="text-[11px]" style={{ color: "var(--ink-3)" }}>
+                <span style={{ color: isLoading ? "#fbbf24" : "#34d399" }}>● {isLoading ? "Working…" : "Ready"}</span>
+                {" · Memory · Tools · Powered by HERON"}
               </p>
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2.5">
-            <motion.span
-              animate={{ scale: isLoading ? [1, 1.3, 1] : 1 }}
-              transition={{ duration: 0.9, repeat: isLoading ? Infinity : 0 }}
-              className={cn("h-2 w-2 rounded-full", isLoading ? "bg-amber-400" : "bg-emerald-400")}
-            />
-            <button
-              type="button"
-              onClick={newConversation}
-              className="flex items-center gap-1.5 rounded-lg border border-indigo-100/80 bg-indigo-50/60 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
-            >
-              <Plus className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={newConversation} className="btn btn-ghost" style={{ height: 32, fontSize: 12 }}>
+              <Plus className="h-3 w-3" />
               New chat
+            </button>
+            <button type="button" className="btn-icon" title="Suggestions">
+              <Sparkles className="h-4 w-4" />
+            </button>
+            <button type="button" className="btn-icon" title="More">
+              <MoreHorizontal className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ padding: "24px 28px" }}>
           {isEmpty ? (
             <WelcomeScreen onSend={(text) => void send(text)} userName={user?.name ?? "there"} />
           ) : (
-            <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+            <div className="mx-auto max-w-3xl">
               {entries.map((entry, idx) => {
                 if (entry.type === "thinking") return <ThinkingCard key={entry.id} />;
-                if (entry.type === "user")     return <UserBubble   key={entry.id} entry={entry} />;
+                if (entry.type === "user") return <UserBubble key={entry.id} entry={entry} initials={userInitials} />;
                 const isLastEntry = idx === entries.length - 1;
                 const lastUserEntry = isLastEntry
                   ? (entries.slice(0, idx).reverse().find((e) => e.type === "user") as EntryUser | undefined)
@@ -1047,18 +1162,19 @@ export const AgentChatPage = () => {
                 return (
                   <div key={entry.id} className="group relative">
                     <AgentBubble entry={entry} />
-                    {isLastEntry && !isLoading && lastUserEntry && (
-                      <div className="mt-1.5 flex justify-start pl-12 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    {isLastEntry && !isLoading && lastUserEntry ? (
+                      <div className="mb-3 flex justify-start pl-12 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
                           type="button"
                           onClick={() => void send(lastUserEntry.content)}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:bg-slate-100/70 hover:text-indigo-600 dark:text-slate-500 dark:hover:bg-white/[0.06] dark:hover:text-indigo-400"
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors hover:bg-white/[0.06]"
+                          style={{ color: "var(--ink-3)" }}
                         >
                           <RefreshCw className="h-3 w-3" />
                           Regenerate
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 );
               })}
@@ -1067,131 +1183,167 @@ export const AgentChatPage = () => {
           )}
         </div>
 
-        {/* Input area */}
-        <div className="shrink-0 border-t border-white/30 bg-white/50 px-4 pb-5 pt-4 backdrop-blur-md dark:border-white/[0.05] dark:bg-slate-900/50">
+        {/* Composer */}
+        <div className="shrink-0" style={{ padding: "14px 20px 18px", borderTop: "1px solid var(--line)" }}>
           <div className="mx-auto max-w-3xl">
-            <div className="rounded-2xl border border-white/60 bg-white/90 shadow-glass backdrop-blur-sm transition-all focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-400/20 dark:border-white/[0.08] dark:bg-slate-800/80 dark:focus-within:border-indigo-500/50">
-
-              {/* Attached file pills */}
-              {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 border-b border-slate-100/70 px-4 py-2.5 dark:border-white/[0.06]">
-                  {attachments.map((a) => {
-                    const Icon = ATTACH_OPTIONS.find((o) => o.kind === a.kind)?.icon ?? FileText;
-                    return (
-                      <span key={a.id} className="flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50/80 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300">
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        <span className="max-w-[160px] truncate">{a.name}</span>
-                        <button type="button" onClick={() => setAttachments((prev) => prev.filter((f) => f.id !== a.id))} className="ml-0.5 rounded-full text-indigo-400 hover:text-indigo-700 dark:text-indigo-500 dark:hover:text-indigo-200">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Textarea row */}
-              <div className="flex items-end gap-2 px-3 py-3">
-                {/* Attach button */}
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setAttachMenuOpen((v) => !v)}
-                    title="Attach file"
-                    className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-150",
-                      attachMenuOpen
-                        ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400"
-                        : "text-slate-400 hover:bg-slate-100/80 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/[0.07] dark:hover:text-slate-300",
-                    )}
+            <div
+              style={{
+                borderRadius: 16,
+                padding: 1,
+                background: hasInput
+                  ? "linear-gradient(135deg, #6366f1, #d946ef)"
+                  : "var(--line-strong)",
+                transition: "background .25s ease",
+                boxShadow: hasInput ? "0 0 0 4px rgba(99,102,241,.12)" : "none",
+              }}
+            >
+              <div style={{ borderRadius: 15, background: "#0c0c1a" }}>
+                {attachments.length > 0 ? (
+                  <div
+                    className="flex flex-wrap gap-2 px-4 py-2.5"
+                    style={{ borderBottom: "1px solid var(--line)" }}
                   >
-                    <Paperclip className="h-4.5 w-4.5 h-[18px] w-[18px]" />
-                  </button>
-                  <AnimatePresence>
-                    {attachMenuOpen && (
-                      <AttachMenu
-                        onSelect={openFilePicker}
-                        onClose={() => setAttachMenuOpen(false)}
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
+                    {attachments.map((a) => {
+                      const Icon = ATTACH_OPTIONS.find((o) => o.kind === a.kind)?.icon ?? FileText;
+                      return (
+                        <span key={a.id} className="pill pill-indigo">
+                          <Icon className="h-3 w-3 shrink-0" />
+                          <span className="max-w-[160px] truncate">{a.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAttachments((prev) => prev.filter((f) => f.id !== a.id))}
+                            className="ml-0.5"
+                            style={{ color: "var(--indigo-2)" }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about your pipeline, candidates, or schedule an interview…"
-                  rows={1}
-                  className="flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm leading-relaxed text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
-                />
+                <div className="flex items-end gap-2 px-3 py-3">
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setAttachMenuOpen((v) => !v)}
+                      title="Attach file"
+                      className="btn-icon"
+                      style={attachMenuOpen ? { background: "rgba(99,102,241,0.18)", borderColor: "rgba(99,102,241,0.4)", color: "#fff" } : undefined}
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </button>
+                    <AnimatePresence>
+                      {attachMenuOpen ? <AttachMenu onSelect={openFilePicker} onClose={() => setAttachMenuOpen(false)} /> : null}
+                    </AnimatePresence>
+                  </div>
 
-                {/* Mic button */}
-                <motion.button
-                  type="button"
-                  onClick={toggleRecording}
-                  title={isRecording ? "Stop recording" : "Voice message"}
-                  animate={isRecording ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-                  transition={isRecording ? { duration: 1.1, repeat: Infinity } : {}}
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
-                    isRecording
-                      ? "bg-red-500 text-white shadow-md shadow-red-500/30"
-                      : "text-slate-400 hover:bg-slate-100/80 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/[0.07] dark:hover:text-slate-300",
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask about your pipeline, candidates, or schedule an interview…"
+                    rows={1}
+                    className="flex-1 resize-none overflow-y-auto bg-transparent py-2 text-sm leading-relaxed outline-none"
+                    style={{ color: "#fff", border: 0 }}
+                  />
+
+                  <motion.button
+                    type="button"
+                    onClick={toggleRecording}
+                    title={isRecording ? "Stop recording" : "Voice message"}
+                    animate={isRecording ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                    transition={isRecording ? { duration: 1.1, repeat: Infinity } : {}}
+                    className="btn-icon"
+                    style={
+                      isRecording
+                        ? { background: "linear-gradient(135deg, #f43f5e, #be123c)", color: "#fff", borderColor: "rgba(244,63,94,.5)" }
+                        : undefined
+                    }
+                  >
+                    {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </motion.button>
+
+                  {isLoading ? (
+                    <motion.button
+                      type="button"
+                      onClick={handleStop}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.8, opacity: 0 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="btn"
+                      style={{
+                        height: 38,
+                        paddingLeft: 14,
+                        paddingRight: 16,
+                        background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                        color: "#fff",
+                        boxShadow: "0 8px 24px -10px rgba(244,63,94,.6)",
+                      }}
+                      title="Stop"
+                    >
+                      <X className="h-4 w-4" />
+                      Stop
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      type="button"
+                      onClick={() => void send(input)}
+                      disabled={!hasInput}
+                      whileHover={hasInput ? { scale: 1.03 } : {}}
+                      whileTap={hasInput ? { scale: 0.97 } : {}}
+                      className={cn("btn", hasInput ? "btn-primary" : "btn-ghost")}
+                      style={{ height: 38, paddingLeft: 14, paddingRight: 16 }}
+                    >
+                      <Send className="h-4 w-4" />
+                      Send
+                    </motion.button>
                   )}
-                >
-                  {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </motion.button>
-
-                {/* Stop button — visible while agent is running */}
-                {isLoading ? (
-                  <motion.button
-                    type="button"
-                    onClick={handleStop}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    whileHover={{ scale: 1.07 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white shadow-md shadow-red-500/30 transition-all duration-200 hover:bg-red-600"
-                    title="Stop"
-                  >
-                    <X className="h-4 w-4" />
-                  </motion.button>
-                ) : (
-                  /* Send button */
-                  <motion.button
-                    type="button"
-                    onClick={() => void send(input)}
-                    disabled={!input.trim() && attachments.length === 0}
-                    whileHover={input.trim() || attachments.length > 0 ? { scale: 1.07 } : {}}
-                    whileTap={input.trim() || attachments.length > 0 ? { scale: 0.95 } : {}}
-                    className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
-                      input.trim() || attachments.length > 0
-                        ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-md"
-                        : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500",
-                    )}
-                  >
-                    <Send className="h-4 w-4" />
-                  </motion.button>
-                )}
+                </div>
               </div>
             </div>
 
-            {/* Hidden file input */}
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
 
-            <p className="mt-2 text-center text-[10px] text-slate-400 dark:text-slate-500">
-              <kbd className="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] dark:border-slate-700 dark:bg-slate-800">Enter</kbd>
-              {" "}to send ·{" "}
-              <kbd className="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[9px] dark:border-slate-700 dark:bg-slate-800">Shift+Enter</kbd>
-              {" "}for new line · AI may make mistakes — always review critical decisions
-            </p>
+            <div className="mt-2.5 flex items-center justify-between text-[11px]" style={{ color: "var(--ink-4)" }}>
+              <div className="flex flex-wrap gap-3">
+                <span>
+                  <kbd
+                    className="mono rounded text-[10px]"
+                    style={{ background: "rgba(255,255,255,.06)", padding: "2px 6px" }}
+                  >
+                    Enter
+                  </kbd>{" "}
+                  to send
+                </span>
+                <span>
+                  <kbd
+                    className="mono rounded text-[10px]"
+                    style={{ background: "rgba(255,255,255,.06)", padding: "2px 6px" }}
+                  >
+                    Shift+Enter
+                  </kbd>{" "}
+                  for new line
+                </span>
+              </div>
+              <span>AI may make mistakes — always review critical decisions.</span>
+            </div>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          :global(.asst-grid) {
+            grid-template-columns: 1fr !important;
+            height: auto !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
