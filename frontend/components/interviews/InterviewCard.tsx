@@ -1,29 +1,80 @@
 "use client";
 
-import { Calendar, Clock, Link2, MapPin, Phone, Video } from "lucide-react";
+import { Calendar, Mail, MoreHorizontal, Phone, Video } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import type { Interview, InterviewStatus } from "../../store/api/interviewsApi";
-import { useUpdateInterviewMutation, useDeleteInterviewMutation } from "../../store/api/interviewsApi";
-import { InterviewStatusBadge } from "./InterviewStatusBadge";
-import { Button } from "../ui/Button";
+import { useDeleteInterviewMutation, useUpdateInterviewMutation } from "../../store/api/interviewsApi";
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  video:       <Video className="h-4 w-4 text-brand-600" />,
-  phone:       <Phone className="h-4 w-4 text-brand-600" />,
-  "in-person": <MapPin className="h-4 w-4 text-brand-600" />,
+const TYPE_LABEL: Record<string, string> = {
+  video: "Video",
+  phone: "Phone",
+  "in-person": "In-person",
 };
 
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZone: "UTC",
-  });
+function fmtDay(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, today)) return "Today";
+  if (sameDay(d, tomorrow)) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
 
-export const InterviewCard = ({ interview, onDeleted }: { interview: Interview; onDeleted?: () => void }) => {
-  const [expanded, setExpanded] = useState(false);
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function durationMin(start: string, end: string): string {
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  return `${Math.max(1, Math.round(ms / 60_000))}m`;
+}
+
+function statusPillClass(status: InterviewStatus, isLive: boolean): string {
+  if (isLive) return "pill pill-mint pulse-ring";
+  if (status === "confirmed") return "pill pill-indigo";
+  if (status === "completed") return "pill pill-mint";
+  if (status === "cancelled") return "pill pill-rose";
+  return "pill pill-amber";
+}
+
+function statusLabel(status: InterviewStatus, isLive: boolean): string {
+  if (isLive) return "live";
+  if (status === "confirmed") return "upcoming";
+  return status;
+}
+
+function initialsOf(name?: string): string {
+  if (!name) return "??";
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s.charAt(0).toUpperCase())
+    .join("") || "??";
+}
+
+export const InterviewCard = ({
+  interview,
+  onDeleted,
+}: {
+  interview: Interview;
+  onDeleted?: () => void;
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [updateInterview, { isLoading: updating }] = useUpdateInterviewMutation();
-  const [deleteInterview, { isLoading: deleting }] = useDeleteInterviewMutation();
+  const [deleteInterview] = useDeleteInterviewMutation();
+
+  const slot = interview.confirmedSlot ?? interview.proposedSlots?.[0];
+  const now = Date.now();
+  const isLive =
+    interview.status === "confirmed" &&
+    !!slot &&
+    now >= new Date(slot.start).getTime() &&
+    now <= new Date(slot.end).getTime();
 
   const setStatus = async (status: InterviewStatus) => {
     try {
@@ -32,6 +83,7 @@ export const InterviewCard = ({ interview, onDeleted }: { interview: Interview; 
     } catch {
       toast.error("Could not update interview.");
     }
+    setMenuOpen(false);
   };
 
   const handleDelete = async () => {
@@ -43,105 +95,159 @@ export const InterviewCard = ({ interview, onDeleted }: { interview: Interview; 
     } catch {
       toast.error("Could not delete interview.");
     }
+    setMenuOpen(false);
   };
 
-  const displaySlot = interview.confirmedSlot ?? interview.proposedSlots[0];
+  const typeLabel = TYPE_LABEL[interview.type] ?? interview.type;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {TYPE_ICON[interview.type] ?? TYPE_ICON.video}
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">{interview.candidateName}</p>
-            <p className="truncate text-xs text-slate-500">{interview.jobTitle}</p>
-          </div>
+    <div
+      className="panel lift relative"
+      style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      <div className="flex items-start justify-between">
+        <span className={statusPillClass(interview.status, isLive)}>
+          {isLive ? <span className="dot" /> : null}
+          {statusLabel(interview.status, isLive)}
+        </span>
+        <div className="relative">
+          <button
+            type="button"
+            className="btn-icon"
+            style={{ width: 28, height: 28 }}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="More"
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+          {menuOpen ? (
+            <div className="panel absolute right-0 top-9 z-10 w-44 p-1">
+              {interview.status === "pending" ? (
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06]"
+                  style={{ color: "var(--ink-2)" }}
+                  onClick={() => void setStatus("confirmed")}
+                  disabled={updating}
+                >
+                  Confirm
+                </button>
+              ) : null}
+              {interview.status !== "completed" ? (
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06]"
+                  style={{ color: "var(--ink-2)" }}
+                  onClick={() => void setStatus("completed")}
+                  disabled={updating}
+                >
+                  Mark complete
+                </button>
+              ) : null}
+              {interview.status !== "cancelled" ? (
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06]"
+                  style={{ color: "var(--ink-2)" }}
+                  onClick={() => void setStatus("cancelled")}
+                  disabled={updating}
+                >
+                  Cancel
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-rose-500/10"
+                style={{ color: "#fb7185" }}
+                onClick={() => void handleDelete()}
+              >
+                Delete
+              </button>
+            </div>
+          ) : null}
         </div>
-        <InterviewStatusBadge status={interview.status} />
       </div>
 
-      {displaySlot ? (
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            {fmt(displaySlot.start)}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5 text-slate-400" />
-            ends {new Date(displaySlot.end).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC
-          </span>
-          {interview.confirmedSlot ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Confirmed slot</span>
-          ) : (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">First proposed slot</span>
-          )}
-        </div>
-      ) : null}
-
-      {interview.meetingLink ? (
-        <a
-          href={interview.meetingLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 flex items-center gap-1 truncate text-xs text-brand-600 hover:underline"
-        >
-          <Link2 className="h-3.5 w-3.5 shrink-0" />
-          {interview.meetingLink}
-        </a>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-700"
-      >
-        {expanded ? "Hide details" : "Show details"}
-      </button>
-
-      {expanded ? (
-        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-          {interview.proposedSlots.length > 0 ? (
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Proposed slots</p>
-              <ul className="space-y-1">
-                {interview.proposedSlots.map((s, i) => (
-                  <li key={i} className="text-xs text-slate-700">
-                    {i + 1}. {fmt(s.start)} – {new Date(s.end).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {interview.notes ? (
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Notes</p>
-              <p className="whitespace-pre-wrap text-xs text-slate-700">{interview.notes}</p>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {interview.status === "pending" && (
-              <Button size="sm" variant="primary" type="button" loading={updating} onClick={() => void setStatus("confirmed")}>
-                Confirm
-              </Button>
-            )}
-            {(interview.status === "pending" || interview.status === "confirmed") && (
-              <Button size="sm" variant="secondary" type="button" loading={updating} onClick={() => void setStatus("completed")}>
-                Mark complete
-              </Button>
-            )}
-            {interview.status !== "cancelled" && interview.status !== "completed" && (
-              <Button size="sm" variant="danger" type="button" loading={updating} onClick={() => void setStatus("cancelled")}>
-                Cancel
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" type="button" loading={deleting} onClick={() => void handleDelete()}>
-              Delete
-            </Button>
+      <div className="flex items-center gap-3">
+        <span className="avatar" style={{ width: 44, height: 44, fontSize: 14 }}>
+          {initialsOf(interview.candidateName)}
+        </span>
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold truncate" style={{ color: "#fff" }}>
+            {interview.candidateName || "Candidate"}
+          </div>
+          <div className="text-[12.5px] truncate" style={{ color: "var(--ink-3)" }}>
+            {interview.jobTitle || interview.title || "—"}
           </div>
         </div>
-      ) : null}
+      </div>
+
+      <div
+        className="flex flex-col gap-2"
+        style={{
+          padding: "12px 14px",
+          borderRadius: 12,
+          background: "rgba(255,255,255,.025)",
+          border: "1px solid var(--line)",
+        }}
+      >
+        <div className="flex justify-between text-[12.5px]">
+          <span style={{ color: "var(--ink-3)" }}>When</span>
+          <span className="mono" style={{ color: "#fff" }}>
+            {slot ? `${fmtDay(slot.start)} · ${fmtTime(slot.start)}` : "TBD"}
+          </span>
+        </div>
+        <div className="flex justify-between text-[12.5px]">
+          <span style={{ color: "var(--ink-3)" }}>Type</span>
+          <span style={{ color: "#fff" }} className="inline-flex items-center gap-1">
+            {interview.type === "phone" ? (
+              <Phone className="h-3 w-3" />
+            ) : interview.type === "in-person" ? (
+              <Calendar className="h-3 w-3" />
+            ) : (
+              <Video className="h-3 w-3" />
+            )}
+            {typeLabel}
+          </span>
+        </div>
+        <div className="flex justify-between text-[12.5px]">
+          <span style={{ color: "var(--ink-3)" }}>Duration</span>
+          <span style={{ color: "#fff" }}>{slot ? durationMin(slot.start, slot.end) : "—"}</span>
+        </div>
+      </div>
+
+      <div className="mt-1 flex gap-2">
+        {isLive && interview.meetingLink ? (
+          <a
+            href={interview.meetingLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary flex-1 justify-center"
+            style={{ height: 34, fontSize: 12 }}
+          >
+            Join now
+          </a>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-ghost flex-1 justify-center"
+            style={{ height: 34, fontSize: 12 }}
+            onClick={() => setMenuOpen(true)}
+          >
+            <Calendar className="h-3 w-3" /> Reschedule
+          </button>
+        )}
+        {interview.candidateEmail ? (
+          <a
+            href={`mailto:${interview.candidateEmail}`}
+            className="btn-icon"
+            style={{ width: 34, height: 34 }}
+            title={`Email ${interview.candidateEmail}`}
+          >
+            <Mail className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 };
